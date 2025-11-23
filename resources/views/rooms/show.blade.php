@@ -9,23 +9,19 @@
         <div class="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
             {{-- Messages list --}}
-            <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 space-y-3">
-                @forelse ($room->messages as $message)
-                    <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2">
-                        <div class="text-xs text-gray-500">
-                            {{ optional($message->character)->name ?? $message->user->name }}
-                            · {{ $message->created_at->diffForHumans() }}
-                        </div>
-                        <div class="text-gray-800 dark:text-gray-100 whitespace-pre-line">
-                            {{ $message->body }}
-                        </div>
-                    </div>
-                @empty
-                    <p class="text-gray-500 text-sm">
-                        No messages yet. Say something!
-                    </p>
-                @endforelse
+<div id="message-container" class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 space-y-3">
+    @foreach ($messages as $message)
+        <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2">
+            <div class="text-xs text-gray-500">
+                {{ optional($message->character)->name ?? $message->user->name }}
+                · {{ $message->created_at->diffForHumans() }}
             </div>
+            <div class="text-gray-800 dark:text-gray-100 whitespace-pre-line">
+                {{ $message->body }}
+            </div>
+        </div>
+    @endforeach
+</div>
 
             {{-- New message form --}}
             <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4">
@@ -61,4 +57,40 @@
 
         </div>
     </div>
+<script>
+    let lastMessageId = {{ $messages->last()?->id ?? 0 }};
+    const roomSlug = @json($room->slug);
+
+    function fetchNewMessages() {
+        fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
+            .then(r => r.json())
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) return;
+
+                const container = document.getElementById('message-container');
+
+                data.forEach(msg => {
+                    // Create a DOM chunk for each incoming message
+                    const div = document.createElement('div');
+                    div.className = "py-2 border-b border-gray-700";
+                    div.innerHTML = `
+                        <div class="text-sm text-gray-200 font-semibold">
+                            ${msg.character?.name ?? msg.user.name}
+                        </div>
+                        <div class="text-gray-300 text-sm">
+                            ${msg.content ?? msg.body}
+                        </div>
+                    `;
+                    container.appendChild(div);
+
+                    lastMessageId = msg.id;
+                });
+
+                // optional: auto-scroll
+                window.scrollTo(0, document.body.scrollHeight);
+            });
+    }
+
+    setInterval(fetchNewMessages, 2500); // every 2.5s
+</script>
 </x-app-layout>

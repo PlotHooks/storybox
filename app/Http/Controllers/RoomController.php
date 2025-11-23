@@ -82,4 +82,17 @@ class RoomController extends Controller
 
         return back();
     }
+
+    public function latest(Room $room, Request $request)
+{
+    $lastId = $request->query('after', 0);
+
+    $messages = $room->messages()
+        ->where('id', '>', $lastId)
+        ->with(['user', 'character'])
+        ->orderBy('id')
+        ->get();
+
+    return response()->json($messages);
+}
 }
