@@ -1,271 +1,255 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        <h2 class="font-semibold text-xl text-gray-200 leading-tight">
             {{ $room->name }}
         </h2>
     </x-slot>
 
-    <div class="py-6">
-        <div class="max-w-6xl mx-auto sm:px-6 lg:px-8">
-            <div class="flex gap-4">
+    <div class="py-4">
+        <div class="max-w-7xl mx-auto h-[calc(100vh-6rem)] flex gap-4 px-4">
 
-                {{-- CENTER COLUMN: top bar + chat --}}
-                <div class="flex-1 flex flex-col">
+            {{-- LEFT COLUMN: Global OOC placeholder --}}
+            <div class="w-1/4 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
+                <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400">
+                    Global OOC (always open)
+                </div>
+                <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-300">
+                    {{-- Later: embed a real GOOC room here --}}
+                    <p class="text-gray-500">
+                        Global OOC stream will live here eventually.
+                    </p>
+                </div>
+            </div>
 
-                    {{-- Top bar: owner + character switcher --}}
-                    <div class="flex items-center justify-between bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 mb-4">
-                        <div class="text-sm text-gray-600 dark:text-gray-300">
-                            Room owner:
-                            <span class="font-semibold">
-                                {{ optional($room->owner)->name ?? 'Unknown' }}
+            {{-- CENTER COLUMN: main room chat --}}
+            <div class="flex-1 bg-gray-900 rounded-lg shadow flex flex-col">
+
+                {{-- Top bar: owner + character switcher --}}
+                <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+                    <div class="text-xs text-gray-300">
+                        Room owner:
+                        <span class="font-semibold text-gray-100">
+                            {{ optional($room->owner)->name ?? 'Unknown' }}
+                        </span>
+                    </div>
+
+                    @php
+                        $characters = Auth::user()->characters;
+                    @endphp
+
+                    @if ($characters->count() > 0)
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-300">
+                                Posting as:
                             </span>
+                            <select id="character-switcher"
+                                    class="rounded border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1">
+                                @foreach ($characters as $char)
+                                    <option value="{{ $char->id }}"
+                                        {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
+                                        {{ $char->name }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
-
-                        @php
-                            $characters = Auth::user()->characters;
-                        @endphp
-
-                        @if ($characters->count() > 0)
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-300">
-                                    Posting as:
-                                </span>
-                                <select id="character-switcher"
-                                        class="rounded border-gray-600 bg-gray-900 text-sm text-gray-100">
-                                    @foreach ($characters as $char)
-                                        <option value="{{ $char->id }}"
-                                            {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
-                                            {{ $char->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        @else
-                            <div class="text-xs text-red-400">
-                                You need at least one character to post.
-                            </div>
-                        @endif
-                    </div>
-
-                    {{-- Chat layout: fixed height, messages scroll only --}}
-                    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg flex flex-col"
-                         style="height: 70vh;">
-
-                        {{-- Messages list --}}
-                        <div id="message-container"
-                             class="flex-1 overflow-y-auto p-4 space-y-3 border-b border-gray-200 dark:border-gray-700">
-                            @foreach ($messages as $message)
-                                <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2">
-                                    <div class="text-xs text-gray-500">
-                                        {{ optional($message->character)->name ?? $message->user->name }}
-                                        · {{ $message->created_at->diffForHumans() }}
-                                    </div>
-                                    <div class="text-gray-800 dark:text-gray-100 whitespace-pre-line">
-                                        {{ $message->body }}
-                                    </div>
-                                </div>
-                            @endforeach
+                    @else
+                        <div class="text-xs text-red-400">
+                            You need at least one character to post.
                         </div>
-
-                        {{-- New message form, fixed at bottom of chat box --}}
-                        <div class="p-4">
-                            <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
-                                @csrf
-
-                                <div>
-                                    <label for="body" class="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                        New message
-                                    </label>
-                                    <textarea
-                                        id="body"
-                                        name="body"
-                                        rows="3"
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm
-                                               focus:border-indigo-500 focus:ring-indigo-500
-                                               dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
-                                    >{{ old('body') }}</textarea>
-
-                                    @error('body')
-                                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                                    @enderror
-                                </div>
-
-                                <div class="mt-3 flex justify-end">
-                                    <x-primary-button id="send-button">
-                                        Send
-                                    </x-primary-button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+                    @endif
                 </div>
 
-                {{-- RIGHT COLUMN: Active rooms with user counts --}}
-                <div class="hidden lg:block w-64">
-                    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg h-full flex flex-col">
-                        <div class="p-3 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                            Active rooms
+                {{-- Messages list --}}
+                <div id="message-container"
+                     class="flex-1 overflow-y-auto p-4 space-y-3">
+                    @foreach ($messages as $message)
+                        <div class="border-b border-gray-800 pb-2 mb-2">
+                            <div class="text-[10px] text-gray-400">
+                                {{ optional($message->character)->name ?? $message->user->name }}
+                                · {{ $message->created_at->diffForHumans() }}
+                            </div>
+                            <div class="text-sm text-gray-100 whitespace-pre-line">
+                                {{ $message->body }}
+                            </div>
                         </div>
-                        <div id="room-list"
-                             class="flex-1 overflow-y-auto p-2 space-y-1 text-xs text-gray-200">
-                            <p class="text-[10px] text-gray-400">
-                                Loading rooms…
-                            </p>
-                        </div>
-                    </div>
+                    @endforeach
                 </div>
 
+                {{-- New message form, fixed at bottom of center column --}}
+                <div class="border-t border-gray-800 p-3">
+                    <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
+                        @csrf
+
+                        <div>
+                            <textarea
+                                id="body"
+                                name="body"
+                                rows="3"
+                                required
+                                placeholder="Type your message. Enter to send, Shift+Enter for a new line."
+                                class="mt-1 block w-full rounded-md border-gray-700 bg-gray-950 text-sm text-gray-100
+                                       shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >{{ old('body') }}</textarea>
+
+                            @error('body')
+                                <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="mt-2 flex justify-end">
+                            <x-primary-button id="send-button">
+                                Send
+                            </x-primary-button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {{-- RIGHT COLUMN: room list with active user counts --}}
+            <div class="w-1/5 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
+                <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex items-center justify-between">
+                    <span>Rooms</span>
+                    <span class="text-[10px] text-gray-500"># active / name</span>
+                </div>
+
+                <div id="room-list" class="flex-1 overflow-y-auto text-xs">
+                    @foreach ($sidebarRooms as $r)
+                        <button
+                            type="button"
+                            onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
+                            class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800
+                                   {{ $r->id === $room->id ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200' }}">
+                            <span class="w-5 text-[10px] text-gray-400">
+                                {{ $r->active_users ?: '' }}
+                            </span>
+                            <span class="flex-1 truncate">
+                                {{ $r->name }}
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Initial last id and room slug from server
-        let lastMessageId = {{ $messages->last()?->id ?? 0 }};
-        const roomSlug = @json($room->slug);
+<script>
+    // ===== base data =====
+    let lastMessageId = {{ $messages->last()?->id ?? 0 }};
+    const roomSlug = @json($room->slug);
 
-        const container = document.getElementById('message-container');
+    const container    = document.getElementById('message-container');
+    const roomListEl   = document.getElementById('room-list');
+    const form         = document.getElementById('message-form');
+    const textarea     = document.getElementById('body');
+    const switcher     = document.getElementById('character-switcher');
 
-        // Scroll helpers
-        function scrollToBottomIfNear() {
-            if (!container) return;
+    // ===== helper: scroll chat =====
+    function scrollToBottomIfNear() {
+        if (!container) return;
 
-            const distanceFromBottom =
-                container.scrollHeight - container.scrollTop - container.clientHeight;
+        const distanceFromBottom =
+            container.scrollHeight - container.scrollTop - container.clientHeight;
 
-            if (distanceFromBottom < 80) {
-                container.scrollTop = container.scrollHeight;
-            }
-        }
-
-        if (container) {
+        if (distanceFromBottom < 80) {
             container.scrollTop = container.scrollHeight;
         }
+    }
 
-        // Fetch new messages (polling)
-        function fetchNewMessages() {
-            fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
-                .then(r => r.json())
-                .then(data => {
-                    if (!Array.isArray(data) || data.length === 0) return;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
 
-                    const wasNearBottom =
-                        container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+    // ===== fetch new messages =====
+    function fetchNewMessages() {
+        fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
+            .then(r => r.json())
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) return;
+                if (!container) return;
 
-                    data.forEach(msg => {
-                        const div = document.createElement('div');
-                        div.className = "border-b border-gray-200 dark:border-gray-700 pb-2 mb-2";
-                        div.innerHTML = `
-                            <div class="text-xs text-gray-500">
-                                ${(msg.character && msg.character.name) ? msg.character.name : msg.user.name}
-                            </div>
-                            <div class="text-gray-800 dark:text-gray-100 whitespace-pre-line">
-                                ${msg.content ?? msg.body}
-                            </div>
-                        `;
-                        container.appendChild(div);
-                        lastMessageId = msg.id;
-                    });
+                const wasNearBottom =
+                    container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
-                    if (wasNearBottom) {
-                        container.scrollTop = container.scrollHeight;
-                    }
+                data.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = "border-b border-gray-800 pb-2 mb-2";
+                    div.innerHTML = `
+                        <div class="text-[10px] text-gray-400">
+                            ${(msg.character && msg.character.name) ? msg.character.name : msg.user.name}
+                        </div>
+                        <div class="text-sm text-gray-100 whitespace-pre-line">
+                            ${msg.content ?? msg.body}
+                        </div>
+                    `;
+                    container.appendChild(div);
+                    lastMessageId = msg.id;
                 });
-        }
 
-        setInterval(fetchNewMessages, 2500);
-
-        // Character switching
-        const switcher = document.getElementById('character-switcher');
-
-        if (switcher) {
-            switcher.addEventListener('change', function () {
-                const charId = this.value;
-
-                fetch(`/characters/${charId}/switch`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Accept': 'application/json',
-                    },
-                })
-                .then(() => console.log('Switched to character ' + charId))
-                .catch(() => alert('Could not switch character.'));
-            });
-        }
-
-        // Enter to send, Shift+Enter for newline
-        const form = document.getElementById('message-form');
-        const textarea = document.getElementById('body');
-
-        if (textarea && form) {
-            textarea.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    form.submit();
+                if (wasNearBottom) {
+                    container.scrollTop = container.scrollHeight;
                 }
             });
-        }
+    }
 
-        // === Active room list (Option B) ===
+    setInterval(fetchNewMessages, 2500); // every 2.5s
 
-        function renderRoomList(rooms) {
-            const list = document.getElementById('room-list');
-            if (!list) return;
+    // ===== character switching =====
+    if (switcher) {
+        switcher.addEventListener('change', function () {
+            const charId = this.value;
 
-            list.innerHTML = '';
-
-            if (!rooms.length) {
-                list.innerHTML = '<p class="text-[10px] text-gray-400">No rooms yet.</p>';
-                return;
-            }
-
-            rooms.forEach(room => {
-                const a = document.createElement('a');
-                a.href = `/rooms/${room.slug}`;
-                a.className =
-                    'flex items-center gap-2 px-2 py-1 rounded ' +
-                    (room.slug === roomSlug
-                        ? 'bg-gray-900 text-teal-400'
-                        : 'text-gray-200 hover:bg-gray-900');
-
-                a.innerHTML = `
-                    <span class="w-5 text-right text-[10px] opacity-70">
-                        ${room.active_users ?? 0}
-                    </span>
-                    <span class="flex-1 truncate">${room.name}</span>
-                `;
-
-                list.appendChild(a);
-            });
-        }
-
-        function fetchRoomList() {
-            fetch('{{ route('rooms.active_list') }}')
-                .then(r => r.json())
-                .then(renderRoomList)
-                .catch(() => {
-                    // silent fail, it's just UI sugar
-                });
-        }
-
-        // initial load + polling
-        fetchRoomList();
-        setInterval(fetchRoomList, 10000);
-
-        // Presence ping so counts stay fresh
-        function pingRoom() {
-            fetch('{{ route('rooms.ping', $room) }}', {
+            fetch(`/characters/${charId}/switch`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                 },
-            }).catch(() => {});
-        }
+            })
+            .then(() => console.log('Switched to character ' + charId))
+            .catch(() => alert('Could not switch character.'));
+        });
+    }
 
-        pingRoom();
-        setInterval(pingRoom, 30000);
-    </script>
+    // ===== enter to send, shift+enter for newline =====
+    if (textarea && form) {
+        textarea.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                form.submit();
+            }
+        });
+    }
+
+    // ===== right-side room list auto-refresh =====
+    function refreshRoomList() {
+        if (!roomListEl) return;
+
+        fetch(`{{ route('rooms.sidebar') }}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.rooms) return;
+
+                roomListEl.innerHTML = '';
+
+                data.rooms.forEach(r => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.onclick = () => window.location.href = '/rooms/' + r.slug;
+                    button.className =
+                        'w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800 text-xs ' +
+                        (r.slug === roomSlug ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200');
+
+                    button.innerHTML = `
+                        <span class="w-5 text-[10px] text-gray-400">${r.active_users || ''}</span>
+                        <span class="flex-1 truncate">${r.name}</span>
+                    `;
+
+                    roomListEl.appendChild(button);
+                });
+            });
+    }
+
+    // every 10 seconds feels fine for presence-ish counts
+    setInterval(refreshRoomList, 10000);
+</script>
 </x-app-layout>

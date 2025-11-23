@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
     Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])
      ->name('rooms.messages.latest');
+     Route::get('/rooms/sidebar-list', [RoomController::class, 'sidebarList'])
+    ->name('rooms.sidebar');
     
     
 });
