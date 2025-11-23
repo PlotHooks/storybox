@@ -5,27 +5,15 @@
         </h2>
     </x-slot>
 
-    <div class="py-4">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <div class="py-6">
+        <div class="max-w-6xl mx-auto sm:px-6 lg:px-8">
+            <div class="flex gap-4">
 
-                {{-- LEFT COLUMN: placeholder for Global OOC / system feed --}}
-                <div class="hidden lg:flex lg:flex-col lg:col-span-3 bg-gray-900 text-gray-200 shadow sm:rounded-lg"
-                     style="height: 70vh;">
-                    <div class="px-3 py-2 border-b border-gray-700 text-xs font-semibold uppercase tracking-wide">
-                        Global OOC (coming soon)
-                    </div>
-                    <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-400 space-y-1">
-                        <p>This panel will eventually be a permanent GOOC / system feed.</p>
-                        <p>For now, it’s just a placeholder so we can shape the layout.</p>
-                    </div>
-                </div>
-
-                {{-- CENTER COLUMN: actual room chat --}}
-                <div class="lg:col-span-6 space-y-4">
+                {{-- CENTER COLUMN: top bar + chat --}}
+                <div class="flex-1 flex flex-col">
 
                     {{-- Top bar: owner + character switcher --}}
-                    <div class="flex items-center justify-between bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4">
+                    <div class="flex items-center justify-between bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 mb-4">
                         <div class="text-sm text-gray-600 dark:text-gray-300">
                             Room owner:
                             <span class="font-semibold">
@@ -59,7 +47,7 @@
                         @endif
                     </div>
 
-                    {{-- Chat box: fixed height, messages scroll, input fixed at bottom --}}
+                    {{-- Chat layout: fixed height, messages scroll only --}}
                     <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg flex flex-col"
                          style="height: 70vh;">
 
@@ -79,7 +67,7 @@
                             @endforeach
                         </div>
 
-                        {{-- New message form --}}
+                        {{-- New message form, fixed at bottom of chat box --}}
                         <div class="p-4">
                             <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                                 @csrf
@@ -113,15 +101,18 @@
                     </div>
                 </div>
 
-                {{-- RIGHT COLUMN: placeholder for room list / user list --}}
-                <div class="hidden lg:flex lg:flex-col lg:col-span-3 bg-gray-900 text-gray-200 shadow sm:rounded-lg"
-                     style="height: 70vh;">
-                    <div class="px-3 py-2 border-b border-gray-700 text-xs font-semibold uppercase tracking-wide">
-                        Rooms / Users (coming soon)
-                    </div>
-                    <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-400 space-y-1">
-                        <p>This will be the room list and/or user list panel later.</p>
-                        <p>For now it’s just here to match the three-column chat layout you’re aiming for.</p>
+                {{-- RIGHT COLUMN: Active rooms with user counts --}}
+                <div class="hidden lg:block w-64">
+                    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg h-full flex flex-col">
+                        <div class="p-3 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                            Active rooms
+                        </div>
+                        <div id="room-list"
+                             class="flex-1 overflow-y-auto p-2 space-y-1 text-xs text-gray-200">
+                            <p class="text-[10px] text-gray-400">
+                                Loading rooms…
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -133,18 +124,31 @@
         // Initial last id and room slug from server
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const roomSlug = @json($room->slug);
+
         const container = document.getElementById('message-container');
 
-        // On first load, scroll to bottom of message area
+        // Scroll helpers
+        function scrollToBottomIfNear() {
+            if (!container) return;
+
+            const distanceFromBottom =
+                container.scrollHeight - container.scrollTop - container.clientHeight;
+
+            if (distanceFromBottom < 80) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
         if (container) {
             container.scrollTop = container.scrollHeight;
         }
 
+        // Fetch new messages (polling)
         function fetchNewMessages() {
             fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
                 .then(r => r.json())
                 .then(data => {
-                    if (!Array.isArray(data) || data.length === 0 || !container) return;
+                    if (!Array.isArray(data) || data.length === 0) return;
 
                     const wasNearBottom =
                         container.scrollHeight - container.scrollTop - container.clientHeight < 80;
@@ -203,5 +207,65 @@
                 }
             });
         }
+
+        // === Active room list (Option B) ===
+
+        function renderRoomList(rooms) {
+            const list = document.getElementById('room-list');
+            if (!list) return;
+
+            list.innerHTML = '';
+
+            if (!rooms.length) {
+                list.innerHTML = '<p class="text-[10px] text-gray-400">No rooms yet.</p>';
+                return;
+            }
+
+            rooms.forEach(room => {
+                const a = document.createElement('a');
+                a.href = `/rooms/${room.slug}`;
+                a.className =
+                    'flex items-center gap-2 px-2 py-1 rounded ' +
+                    (room.slug === roomSlug
+                        ? 'bg-gray-900 text-teal-400'
+                        : 'text-gray-200 hover:bg-gray-900');
+
+                a.innerHTML = `
+                    <span class="w-5 text-right text-[10px] opacity-70">
+                        ${room.active_users ?? 0}
+                    </span>
+                    <span class="flex-1 truncate">${room.name}</span>
+                `;
+
+                list.appendChild(a);
+            });
+        }
+
+        function fetchRoomList() {
+            fetch('{{ route('rooms.active_list') }}')
+                .then(r => r.json())
+                .then(renderRoomList)
+                .catch(() => {
+                    // silent fail, it's just UI sugar
+                });
+        }
+
+        // initial load + polling
+        fetchRoomList();
+        setInterval(fetchRoomList, 10000);
+
+        // Presence ping so counts stay fresh
+        function pingRoom() {
+            fetch('{{ route('rooms.ping', $room) }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+            }).catch(() => {});
+        }
+
+        pingRoom();
+        setInterval(pingRoom, 30000);
     </script>
 </x-app-layout>
