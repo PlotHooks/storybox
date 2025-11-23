@@ -7,6 +7,41 @@
 
     <div class="py-6">
         <div class="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-6">
+<div class="flex items-center justify-between bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 mb-4">
+    <div class="text-sm text-gray-600 dark:text-gray-300">
+        Room owner:
+        <span class="font-semibold">
+            {{ optional($room->owner)->name ?? 'Unknown' }}
+        </span>
+    </div>
+
+    @php
+        $characters = Auth::user()->characters;
+    @endphp
+
+    @if ($characters->count() > 0)
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600 dark:text-gray-300">
+                Posting as:
+            </span>
+            <select id="character-switcher"
+                    class="rounded border-gray-600 bg-gray-900 text-sm text-gray-100">
+                @foreach ($characters as $char)
+                    <option value="{{ $char->id }}"
+                        {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
+                        {{ $char->name }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+    @else
+        <div class="text-xs text-red-400">
+            You need at least one character to post.
+        </div>
+    @endif
+</div>
+
+
 
             {{-- Messages list --}}
 <div id="message-container" class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 space-y-3">
@@ -90,6 +125,25 @@
                 window.scrollTo(0, document.body.scrollHeight);
             });
     }
+// character switching
+const switcher = document.getElementById('character-switcher');
+
+if (switcher) {
+    switcher.addEventListener('change', function () {
+        const charId = this.value;
+
+        fetch(`/characters/${charId}/switch`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+        })
+        .then(() => console.log('Switched to character ' + charId))
+        .catch(() => alert('Could not switch character.'));
+    });
+}
+
 
     setInterval(fetchNewMessages, 2500); // every 2.5s
 </script>
