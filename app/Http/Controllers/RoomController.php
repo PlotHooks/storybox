@@ -40,18 +40,26 @@ class RoomController extends Controller
     }
 
     public function show(Room $room)
-    {
-        $messages = $room->messages()
-            ->with(['character', 'user'])
-            ->latest()
-            ->take(50)
-            ->get()
-            ->reverse();
+{
+    $messages = $room->messages()
+        ->with(['character', 'user'])
+        ->latest()
+        ->take(50)
+        ->get()
+        ->reverse();
 
-        $activeCharacterId = session('active_character_id');
+    $activeCharacterId = session('active_character_id');
 
-        return view('rooms.show', compact('room', 'messages', 'activeCharacterId'));
-    }
+    // NEW: sidebar room list
+    $sidebarRooms = Room::orderBy('name')->get();
+
+    return view('rooms.show', compact(
+        'room',
+        'messages',
+        'activeCharacterId',
+        'sidebarRooms'
+    ));
+}
 
     public function storeMessage(Request $request, Room $room)
     {
