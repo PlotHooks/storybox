@@ -2,14 +2,28 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Character extends Model
 {
-    //
-}
+    use HasFactory;
 
-public function user()
-{
-    return $this->belongsTo(User::class);
+    protected $fillable = [
+        'user_id',
+        'name',
+        'slug',
+        'avatar',
+        'profile_html',
+        'settings',
+    ];
+
+    protected $casts = [
+        'settings' => 'array',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }
