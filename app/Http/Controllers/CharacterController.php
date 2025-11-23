@@ -9,7 +9,14 @@ class CharacterController extends Controller
 {
     public function index()
     {
-        return auth()->user()->characters;
+        $characters = auth()->user()
+            ->characters()
+            ->orderBy('name')
+            ->get();
+
+        $activeId = session('active_character_id');
+
+        return view('characters.index', compact('characters', 'activeId'));
     }
 
     public function store(Request $request)
@@ -18,19 +25,25 @@ class CharacterController extends Controller
             'name' => 'required|string|max:100',
         ]);
 
-        return auth()->user()->characters()->create([
+        auth()->user()->characters()->create([
             'name' => $request->name,
             'slug' => str()->slug($request->name) . '-' . uniqid(),
         ]);
+
+        return redirect()
+            ->route('characters.index')
+            ->with('status', 'Character created.');
     }
 
     public function switch(Character $character)
     {
-        // ensure the logged-in user owns this character
+        // ensure the logged in user owns this character
         abort_if($character->user_id !== auth()->id(), 403);
 
         session(['active_character_id' => $character->id]);
 
-        return response()->json(['active' => $character]);
+        return redirect()
+            ->route('characters.index')
+            ->with('status', 'Switched to ' . $character->name . '.');
     }
 }
