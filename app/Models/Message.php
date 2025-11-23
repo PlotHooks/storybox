@@ -5,29 +5,29 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Character extends Model
+class Message extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'room_id',
         'user_id',
-        'name',
-        'slug',
-        'avatar',
-        'profile_html',
-        'settings',
+        'character_id',
+        'content',
     ];
 
-    protected $casts = [
-        'settings' => 'array',
-    ];
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
-    public function messages()
-{
-    return $this->hasMany(Message::class);
-}
+
+    public function character()
+    {
+        return $this->belongsTo(Character::class);
+    }
 }

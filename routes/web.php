@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\RoomController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -19,6 +20,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/characters', [CharacterController::class, 'index'])->name('characters.index');
     Route::post('/characters', [CharacterController::class, 'store'])->name('characters.store');
     Route::post('/characters/{character}/switch', [CharacterController::class, 'switch'])->name('characters.switch');
+    Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
+    Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
+    Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+
+    Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
+    Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
     
     
 });

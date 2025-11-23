@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Character extends Model
+class Room extends Model
 {
     use HasFactory;
 
@@ -13,21 +13,16 @@ class Character extends Model
         'user_id',
         'name',
         'slug',
-        'avatar',
-        'profile_html',
-        'settings',
+        'description',
     ];
 
-    protected $casts = [
-        'settings' => 'array',
-    ];
-
-    public function user()
+    public function owner()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
+
     public function messages()
-{
-    return $this->hasMany(Message::class);
-}
+    {
+        return $this->hasMany(Message::class);
+    }
 }

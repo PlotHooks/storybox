@@ -51,4 +51,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Character::class);
     }
+    public function rooms()
+    {
+        return $this->hasMany(Room::class);
+    }
+    public function messages()
+    {
+        return $this->hasMany(Message::class);
+    }
 }
