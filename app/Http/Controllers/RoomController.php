@@ -12,7 +12,6 @@ class RoomController extends Controller
     public function index()
     {
         $rooms = Room::orderBy('created_at', 'desc')->get();
-
         return view('rooms.index', compact('rooms'));
     }
 
@@ -29,19 +28,19 @@ class RoomController extends Controller
         ]);
 
         $room = Room::create([
-            'user_id' => auth()->id(),
-            'name' => $request->name,
-            'slug' => Str::slug($request->name) . '-' . uniqid(),
+            'name'        => $request->name,
+            'slug'        => Str::slug($request->name) . '-' . uniqid(),
             'description' => $request->description,
+            'created_by'  => auth()->id(),
         ]);
 
-        return redirect()->route('rooms.show', $room->slug)
-                         ->with('status', 'Room created.');
+        return redirect()
+            ->route('rooms.show', $room->slug)
+            ->with('status', 'Room created.');
     }
 
     public function show(Room $room)
     {
-        // last 50 messages, oldest at top
         $messages = $room->messages()
             ->with(['character', 'user'])
             ->latest()
@@ -56,24 +55,30 @@ class RoomController extends Controller
 
     public function storeMessage(Request $request, Room $room)
     {
+        // validate incoming message text
         $request->validate([
-            'content' => 'required|string|max:5000',
+            'body' => 'required|string|max:2000',
         ]);
 
         $characterId = session('active_character_id');
 
         if (! $characterId) {
             return back()->withErrors([
-                'content' => 'You must select an active character before posting.',
+                'body' => 'You must select an active character before posting.',
             ]);
         }
 
-        Message::create([
-            'room_id' => $room->id,
-            'user_id' => auth()->id(),
-            'character_id' => $characterId,
-            'content' => $request->content,
+        $message = $room->messages()->create([
+            'room_id'     => $room->id,
+            'user_id'     => auth()->id(),
+            'character_id'=> $characterId,
+            'body'        => $request->body,
         ]);
+
+        // AJAX support
+        if ($request->wantsJson()) {
+            return response()->json($message->load('user', 'character'));
+        }
 
         return back();
     }

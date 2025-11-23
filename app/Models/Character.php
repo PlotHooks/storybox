@@ -26,7 +26,10 @@ class Character extends Model
     {
         return $this->belongsTo(User::class);
     }
-    public function messages()
+     public function messages()
+    {
+        return $this->hasMany(Message::class);
+    }
 {
     return $this->hasMany(Message::class);
 }

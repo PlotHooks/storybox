@@ -13,7 +13,7 @@ class Message extends Model
         'room_id',
         'user_id',
         'character_id',
-        'content',
+        'body',
     ];
 
     public function room()
