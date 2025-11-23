@@ -25,7 +25,7 @@ class Room extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    public function owner()
+public function owner()
 {
     return $this->belongsTo(User::class, 'created_by');
 }
