@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
-use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -20,25 +19,25 @@ class RoomController extends Controller
         return view('rooms.create');
     }
 
-  public function store(Request $request)
-{
-    $request->validate([
-        'name' => 'required|string|max:100',
-        'description' => 'nullable|string|max:1000',
-    ]);
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name'        => 'required|string|max:100',
+            'description' => 'nullable|string|max:1000',
+        ]);
 
-    $room = Room::create([
-        'user_id'     => auth()->id(),   // add this
-        'name'        => $request->name,
-        'slug'        => Str::slug($request->name) . '-' . uniqid(),
-        'description' => $request->description,
-        'created_by'  => auth()->id(),   // keep this too
-    ]);
+        $room = Room::create([
+            'user_id'     => $request->user()->id,  // ⚠ important
+            'name'        => $request->name,
+            'slug'        => Str::slug($request->name) . '-' . uniqid(),
+            'description' => $request->description,
+            'created_by'  => $request->user()->id,  // also stored here
+        ]);
 
-    return redirect()
-        ->route('rooms.show', $room->slug)
-        ->with('status', 'Room created.');
-}
+        return redirect()
+            ->route('rooms.show', $room->slug)
+            ->with('status', 'Room created.');
+    }
 
     public function show(Room $room)
     {
@@ -56,7 +55,6 @@ class RoomController extends Controller
 
     public function storeMessage(Request $request, Room $room)
     {
-        // validate incoming message text
         $request->validate([
             'body' => 'required|string|max:2000',
         ]);
@@ -70,13 +68,12 @@ class RoomController extends Controller
         }
 
         $message = $room->messages()->create([
-            'room_id'     => $room->id,
-            'user_id'     => auth()->id(),
-            'character_id'=> $characterId,
-            'body'        => $request->body,
+            'room_id'      => $room->id,
+            'user_id'      => $request->user()->id,
+            'character_id' => $characterId,
+            'body'         => $request->body,
         ]);
 
-        // AJAX support
         if ($request->wantsJson()) {
             return response()->json($message->load('user', 'character'));
         }
@@ -85,15 +82,15 @@ class RoomController extends Controller
     }
 
     public function latest(Room $room, Request $request)
-{
-    $lastId = $request->query('after', 0);
+    {
+        $lastId = $request->query('after', 0);
 
-    $messages = $room->messages()
-        ->where('id', '>', $lastId)
-        ->with(['user', 'character'])
-        ->orderBy('id')
-        ->get();
+        $messages = $room->messages()
+            ->where('id', '>', $lastId)
+            ->with(['user', 'character'])
+            ->orderBy('id')
+            ->get();
 
-    return response()->json($messages);
-}
+        return response()->json($messages);
+    }
 }
