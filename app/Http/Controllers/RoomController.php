@@ -14,7 +14,6 @@ class RoomController extends Controller
     public function index()
     {
         $rooms = Room::orderBy('created_at', 'desc')->get();
-
         return view('rooms.index', compact('rooms'));
     }
 
@@ -36,7 +35,6 @@ class RoomController extends Controller
             'name'        => $request->name,
             'slug'        => Str::slug($request->name) . '-' . uniqid(),
             'description' => $request->description,
-            // keep both so DB is happy and owner() still works
             'user_id'     => $userId,
             'created_by'  => $userId,
         ]);
@@ -48,7 +46,6 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        // last 50 messages, oldest at top
         $messages = $room->messages()
             ->with(['character', 'user'])
             ->latest()
@@ -58,7 +55,6 @@ class RoomController extends Controller
 
         $activeCharacterId = session('active_character_id');
 
-        // sidebar: rooms + active user counts
         $sidebarRooms = Room::query()
             ->leftJoin('room_presences', function ($join) {
                 $join->on('rooms.id', '=', 'room_presences.room_id')
@@ -123,9 +119,6 @@ class RoomController extends Controller
         return response()->json($messages);
     }
 
-    /**
-     * Presence ping: mark current user as "seen" in this room.
-     */
     public function ping(Room $room, Request $request)
     {
         $userId = $request->user()->id;
@@ -143,9 +136,6 @@ class RoomController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /**
-     * Sidebar data: list of rooms + active_users counts.
-     */
     public function sidebar()
     {
         $rooms = Room::query()
