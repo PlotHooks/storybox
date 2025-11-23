@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
+use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class RoomController extends Controller
 {
@@ -27,12 +29,11 @@ class RoomController extends Controller
         ]);
 
         $room = Room::create([
-            'user_id'     => $request->user()->id,  // ⚠ important
             'name'        => $request->name,
             'slug'        => Str::slug($request->name) . '-' . uniqid(),
             'description' => $request->description,
-            'created_by'  => $request->user()->id,  // also stored here
-        ]);
+            'created_by'  => auth()->id(),
+        });
 
         return redirect()
             ->route('rooms.show', $room->slug)
@@ -40,46 +41,26 @@ class RoomController extends Controller
     }
 
     public function show(Room $room)
-{
-    $messages = $room->messages()
-        ->with(['character', 'user'])
-        ->latest()
-        ->take(50)
-        ->get()
-        ->reverse();
+    {
+        $messages = $room->messages()
+            ->with(['character', 'user'])
+            ->latest()
+            ->take(50)
+            ->get()
+            ->reverse();
 
-    $activeCharacterId = session('active_character_id');
+        $activeCharacterId = session('active_character_id');
 
-    // NEW: sidebar room list
-    $sidebarRooms = Room::orderBy('name')->get();
+        // rooms for the right-hand sidebar, with real presence counts
+        $sidebarRooms = $this->getSidebarRooms();
 
-    return view('rooms.show', compact(
-        'room',
-        'messages',
-        'activeCharacterId',
-        'sidebarRooms'
-    ));
-}
-public function sidebar()
-{
-    // Get all rooms, ordered by name for a stable list
-    $rooms = Room::orderBy('name')->get();
-
-    // Map them to a simple payload the JS expects
-    $payload = $rooms->map(function (Room $room) {
-        return [
-            'id'           => $room->id,
-            'name'         => $room->name,
-            'slug'         => $room->slug,
-            'active_users' => $room->active_users, // <- accessor we just added
-        ];
-    });
-
-    return response()->json([
-        'rooms' => $payload,
-    ]);
-}
-
+        return view('rooms.show', compact(
+            'room',
+            'messages',
+            'activeCharacterId',
+            'sidebarRooms'
+        ));
+    }
 
     public function storeMessage(Request $request, Room $room)
     {
@@ -97,7 +78,7 @@ public function sidebar()
 
         $message = $room->messages()->create([
             'room_id'      => $room->id,
-            'user_id'      => $request->user()->id,
+            'user_id'      => auth()->id(),
             'character_id' => $characterId,
             'body'         => $request->body,
         ]);
@@ -120,5 +101,66 @@ public function sidebar()
             ->get();
 
         return response()->json($messages);
+    }
+
+    /**
+     * Presence ping: mark the current user as present in this room.
+     */
+    public function ping(Room $room, Request $request)
+    {
+        $userId = $request->user()->id;
+
+        DB::table('room_user_presence')->updateOrInsert(
+            ['room_id' => $room->id, 'user_id' => $userId],
+            [
+                'last_seen_at' => now(),
+                'updated_at'   => now(),
+                'created_at'   => now(),
+            ]
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * JSON list of rooms for the right-hand sidebar, with active user counts.
+     */
+    public function sidebar()
+    {
+        $rooms = $this->getSidebarRooms();
+
+        return response()->json([
+            'rooms' => $rooms->map(fn ($room) => [
+                'id'           => $room->id,
+                'name'         => $room->name,
+                'slug'         => $room->slug,
+                'active_users' => $room->active_users,
+            ]),
+        ]);
+    }
+
+    /**
+     * Helper to build sidebar room list using presence table.
+     */
+    protected function getSidebarRooms()
+    {
+        $cutoff = now()->subSeconds(90);
+
+        // All rooms
+        $rooms = Room::orderBy('created_at', 'desc')->get();
+
+        // Presence counts in the last 90 seconds
+        $presenceCounts = DB::table('room_user_presence')
+            ->select('room_id', DB::raw('COUNT(DISTINCT user_id) as cnt'))
+            ->where('last_seen_at', '>=', $cutoff)
+            ->groupBy('room_id')
+            ->pluck('cnt', 'room_id'); // [room_id => count]
+
+        // Attach active_users property
+        $rooms->each(function ($room) use ($presenceCounts) {
+            $room->active_users = $presenceCounts[$room->id] ?? 0;
+        });
+
+        return $rooms;
     }
 }
