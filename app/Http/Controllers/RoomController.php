@@ -36,7 +36,7 @@ class RoomController extends Controller
             'name'        => $request->name,
             'slug'        => Str::slug($request->name) . '-' . uniqid(),
             'description' => $request->description,
-            // keep both so the DB stops complaining and owner() still works
+            // keep both so DB is happy and owner() still works
             'user_id'     => $userId,
             'created_by'  => $userId,
         ]);
@@ -58,7 +58,7 @@ class RoomController extends Controller
 
         $activeCharacterId = session('active_character_id');
 
-        // sidebar: list of rooms + active user counts
+        // sidebar: rooms + active user counts
         $sidebarRooms = Room::query()
             ->leftJoin('room_presences', function ($join) {
                 $join->on('rooms.id', '=', 'room_presences.room_id')
@@ -124,7 +124,7 @@ class RoomController extends Controller
     }
 
     /**
-     * Presence ping: mark the current user as "seen" in this room.
+     * Presence ping: mark current user as "seen" in this room.
      */
     public function ping(Room $room, Request $request)
     {
