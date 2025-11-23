@@ -119,10 +119,10 @@
                             onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
                             class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800
                                    {{ $r->id === $room->id ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200' }}">
-                            <span class="w-5 text-[10px] text-gray-400">
-                                {{ $r->active_users ?: '' }}
+                            <span class="w-6 text-[10px] text-gray-400 text-right">
+                                {{ $r->active_users ?? 0 }}
                             </span>
-                            <span class="flex-1 truncate">
+                            <span class="flex-1 truncate ml-1">
                                 {{ $r->name }}
                             </span>
                         </button>
@@ -240,8 +240,8 @@
                         (r.slug === roomSlug ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200');
 
                     button.innerHTML = `
-                        <span class="w-5 text-[10px] text-gray-400">${r.active_users || ''}</span>
-                        <span class="flex-1 truncate">${r.name}</span>
+                        <span class="w-6 text-[10px] text-gray-400 text-right">${r.active_users ?? 0}</span>
+                        <span class="flex-1 truncate ml-1">${r.name}</span>
                     `;
 
                     roomListEl.appendChild(button);
