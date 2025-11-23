@@ -20,24 +20,25 @@ class RoomController extends Controller
         return view('rooms.create');
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:100',
-            'description' => 'nullable|string|max:1000',
-        ]);
+  public function store(Request $request)
+{
+    $request->validate([
+        'name' => 'required|string|max:100',
+        'description' => 'nullable|string|max:1000',
+    ]);
 
-        $room = Room::create([
-            'name'        => $request->name,
-            'slug'        => Str::slug($request->name) . '-' . uniqid(),
-            'description' => $request->description,
-            'created_by'  => auth()->id(),
-        ]);
+    $room = Room::create([
+        'user_id'     => auth()->id(),   // add this
+        'name'        => $request->name,
+        'slug'        => Str::slug($request->name) . '-' . uniqid(),
+        'description' => $request->description,
+        'created_by'  => auth()->id(),   // keep this too
+    ]);
 
-        return redirect()
-            ->route('rooms.show', $room->slug)
-            ->with('status', 'Room created.');
-    }
+    return redirect()
+        ->route('rooms.show', $room->slug)
+        ->with('status', 'Room created.');
+}
 
     public function show(Room $room)
     {
