@@ -93,7 +93,7 @@
                                     </div>
 
                                     <div class="text-xs text-gray-500">
-                                        by {{ optional($room->owner)->name ?? 'Unknown' }}
+                                    by {{ optional($room->owner)->name ?? 'Unknown' }}
                                     </div>
                                 </li>
                             @endforeach
