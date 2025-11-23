@@ -60,6 +60,26 @@ class RoomController extends Controller
         'sidebarRooms'
     ));
 }
+public function sidebar()
+{
+    // Get all rooms, ordered by name for a stable list
+    $rooms = Room::orderBy('name')->get();
+
+    // Map them to a simple payload the JS expects
+    $payload = $rooms->map(function (Room $room) {
+        return [
+            'id'           => $room->id,
+            'name'         => $room->name,
+            'slug'         => $room->slug,
+            'active_users' => $room->active_users, // <- accessor we just added
+        ];
+    });
+
+    return response()->json([
+        'rooms' => $payload,
+    ]);
+}
+
 
     public function storeMessage(Request $request, Room $room)
     {
