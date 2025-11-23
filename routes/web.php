@@ -21,15 +21,19 @@ Route::middleware('auth')->group(function () {
     Route::post('/characters', [CharacterController::class, 'store'])->name('characters.store');
     Route::post('/characters/{character}/switch', [CharacterController::class, 'switch'])->name('characters.switch');
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
-    Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
-    Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
+Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
 
-    Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
-    Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
-    Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])
-     ->name('rooms.messages.latest');
-     Route::get('/rooms/sidebar-list', [RoomController::class, 'sidebarList'])
-    ->name('rooms.sidebar');
+Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
+Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
+Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])->name('rooms.messages.latest');
+
+
+// NEW: presence ping
+Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');
+
+// Sidebar JSON endpoint (you already use route('rooms.sidebar') in JS)
+Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
     
     
 });

@@ -220,9 +220,9 @@
         });
     }
 
-    // ===== presence heartbeat (this is the new bit) =====
+    // ===== presence heartbeat (fixed to use URL path instead of route() ) =====
     function sendPresencePing() {
-        fetch(`{{ route('rooms.presence', $room) }}`, {
+        fetch(`/rooms/${roomSlug}/presence`, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
