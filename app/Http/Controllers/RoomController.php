@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Room;
 use App\Models\Message;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class RoomController extends Controller
 {
@@ -58,17 +58,16 @@ class RoomController extends Controller
 
         $activeCharacterId = session('active_character_id');
 
-        // sidebar: rooms + active user counts (last 5 minutes)
+        // sidebar: rooms + active user counts (simple version)
         $sidebarRooms = Room::query()
-            ->leftJoin('room_presences', function ($join) {
-                $join->on('rooms.id', '=', 'room_presences.room_id')
-                     ->where('room_presences.last_seen_at', '>=', now()->subMinutes(5));
-            })
+            ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
             ->select(
-                'rooms.*',
-                DB::raw('COUNT(room_presences.id) as active_users')
+                'rooms.id',
+                'rooms.slug',
+                'rooms.name',
+                DB::raw('COUNT(DISTINCT room_presences.user_id) as active_users')
             )
-            ->groupBy('rooms.id')
+            ->groupBy('rooms.id', 'rooms.slug', 'rooms.name')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
@@ -149,15 +148,12 @@ class RoomController extends Controller
     public function sidebar()
     {
         $rooms = Room::query()
-            ->leftJoin('room_presences', function ($join) {
-                $join->on('rooms.id', '=', 'room_presences.room_id')
-                     ->where('room_presences.last_seen_at', '>=', now()->subMinutes(5));
-            })
+            ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
             ->select(
                 'rooms.id',
                 'rooms.slug',
                 'rooms.name',
-                DB::raw('COUNT(room_presences.id) as active_users')
+                DB::raw('COUNT(DISTINCT room_presences.user_id) as active_users')
             )
             ->groupBy('rooms.id', 'rooms.slug', 'rooms.name')
             ->orderBy('rooms.created_at', 'desc')
@@ -168,4 +164,3 @@ class RoomController extends Controller
         ]);
     }
 }
-
