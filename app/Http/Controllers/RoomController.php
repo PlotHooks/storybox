@@ -44,37 +44,53 @@ class RoomController extends Controller
             ->with('status', 'Room created.');
     }
 
-    public function show(Room $room)
-    {
-        $messages = $room->messages()
-            ->with(['character', 'user'])
-            ->latest()
-            ->take(50)
-            ->get()
-            ->reverse();
-
-        $activeCharacterId = session('active_character_id');
-
-        $sidebarRooms = Room::query()
-            ->leftJoin('room_presences', function ($join) {
-                $join->on('rooms.id', '=', 'room_presences.room_id')
-                     ->where('room_presences.last_seen_at', '>=', now()->subMinutes(5));
-            })
-            ->select(
-                'rooms.*',
-                DB::raw('COUNT(room_presences.id) as active_users')
-            )
-            ->groupBy('rooms.id')
-            ->orderBy('rooms.created_at', 'desc')
-            ->get();
-
-        return view('rooms.show', compact(
-            'room',
-            'messages',
-            'activeCharacterId',
-            'sidebarRooms'
-        ));
+   public function show(Room $room)
+{
+    // Mark the current user as present in this room whenever they view it
+    if (\Illuminate\Support\Facades\Auth::check()) {
+        \Illuminate\Support\Facades\DB::table('room_presences')->updateOrInsert(
+            [
+                'room_id' => $room->id,
+                'user_id' => \Illuminate\Support\Facades\Auth::id(),
+            ],
+            [
+                'last_seen_at' => now(),
+            ]
+        );
     }
+
+    // last 50 messages, oldest at top
+    $messages = $room->messages()
+        ->with(['character', 'user'])
+        ->latest()
+        ->take(50)
+        ->get()
+        ->reverse();
+
+    $activeCharacterId = session('active_character_id');
+
+    // sidebar: rooms + active user counts
+    $sidebarRooms = Room::query()
+        ->leftJoin('room_presences', function ($join) {
+            $join->on('rooms.id', '=', 'room_presences.room_id')
+                 ->where('room_presences.last_seen_at', '>=', now()->subMinutes(5));
+        })
+        ->select(
+            'rooms.*',
+            \Illuminate\Support\Facades\DB::raw('COUNT(room_presences.id) as active_users')
+        )
+        ->groupBy('rooms.id')
+        ->orderBy('rooms.created_at', 'desc')
+        ->get();
+
+    return view('rooms.show', compact(
+        'room',
+        'messages',
+        'activeCharacterId',
+        'sidebarRooms'
+    ));
+}
+
 
     public function storeMessage(Request $request, Room $room)
     {
