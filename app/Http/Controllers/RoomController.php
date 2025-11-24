@@ -58,16 +58,14 @@ class RoomController extends Controller
 
         $activeCharacterId = session('active_character_id');
 
-        // sidebar: rooms + active user counts (simple version)
+        // sidebar: rooms + active user counts based on room_presences
         $sidebarRooms = Room::query()
             ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
             ->select(
-                'rooms.id',
-                'rooms.slug',
-                'rooms.name',
-                DB::raw('COUNT(DISTINCT room_presences.user_id) as active_users')
+                'rooms.*',
+                DB::raw('COUNT(room_presences.id) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.slug', 'rooms.name')
+            ->groupBy('rooms.id')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
@@ -145,7 +143,7 @@ class RoomController extends Controller
     /**
      * Sidebar data: list of rooms + active_users counts.
      */
-    public function sidebar()
+     public function sidebar()
     {
         $rooms = Room::query()
             ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
@@ -153,7 +151,7 @@ class RoomController extends Controller
                 'rooms.id',
                 'rooms.slug',
                 'rooms.name',
-                DB::raw('COUNT(DISTINCT room_presences.user_id) as active_users')
+                DB::raw('COUNT(room_presences.id) as active_users')
             )
             ->groupBy('rooms.id', 'rooms.slug', 'rooms.name')
             ->orderBy('rooms.created_at', 'desc')
