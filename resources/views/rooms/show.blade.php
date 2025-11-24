@@ -220,16 +220,25 @@
         });
     }
 
-    // ===== presence heartbeat (fixed to use URL path instead of route() ) =====
+    // ===== presence heartbeat (improved: sends cookies + JSON body) =====
     function sendPresencePing() {
         fetch(`/rooms/${roomSlug}/presence`, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 'Accept': 'application/json',
+                'Content-Type': 'application/json',
             },
-        }).catch(() => {
-            // fail quietly; presence is best-effort
+            credentials: 'same-origin', // make sure session cookie is sent
+            body: JSON.stringify({}),
+        })
+        .then((response) => {
+            if (!response.ok) {
+                console.error('Presence ping failed with status', response.status);
+            }
+        })
+        .catch((err) => {
+            console.error('Presence ping error', err);
         });
     }
 
