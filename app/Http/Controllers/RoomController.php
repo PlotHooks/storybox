@@ -6,7 +6,7 @@ use App\Models\Room;
 use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades.Auth;
 use Illuminate\Support\Facades\DB;
 
 class RoomController extends Controller
@@ -59,8 +59,14 @@ class RoomController extends Controller
         $activeCharacterId = session('active_character_id');
 
         // sidebar: rooms + active user counts based on room_presences
+        // only count users seen in the last 5 minutes
+        $cutoff = now()->subMinutes(5);
+
         $sidebarRooms = Room::query()
-            ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
+            ->leftJoin('room_presences', function ($join) use ($cutoff) {
+                $join->on('rooms.id', '=', 'room_presences.room_id')
+                     ->where('room_presences.last_seen_at', '>=', $cutoff);
+            })
             ->select(
                 'rooms.*',
                 DB::raw('COUNT(room_presences.id) as active_users')
@@ -143,17 +149,22 @@ class RoomController extends Controller
     /**
      * Sidebar data: list of rooms + active_users counts.
      */
-     public function sidebar()
+    public function sidebar()
     {
+        $cutoff = now()->subMinutes(5);
+
         $rooms = Room::query()
-            ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
+            ->leftJoin('room_presences', function ($join) use ($cutoff) {
+                $join->on('rooms.id', '=', 'room_presences.room_id')
+                     ->where('room_presences.last_seen_at', '>=', $cutoff);
+            })
             ->select(
                 'rooms.id',
-                'rooms.slug',
                 'rooms.name',
+                'rooms.slug',
                 DB::raw('COUNT(room_presences.id) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.slug', 'rooms.name')
+            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
