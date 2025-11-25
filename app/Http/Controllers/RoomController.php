@@ -58,14 +58,22 @@ class RoomController extends Controller
 
         $activeCharacterId = session('active_character_id');
 
+        // "recent" = seen in the last 5 minutes
+        $cutoff = now()->subMinutes(5);
+
         // sidebar: rooms + active user counts based on room_presences
         $sidebarRooms = Room::query()
-            ->leftJoin('room_presences', 'rooms.id', '=', 'room_presences.room_id')
+            ->leftJoin('room_presences', function ($join) use ($cutoff) {
+                $join->on('rooms.id', '=', 'room_presences.room_id')
+                     ->where('room_presences.last_seen_at', '>=', $cutoff);
+            })
             ->select(
-                'rooms.*',
+                'rooms.id',
+                'rooms.name',
+                'rooms.slug',
                 DB::raw('COUNT(room_presences.id) as active_users')
             )
-            ->groupBy('rooms.id')
+            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
@@ -134,8 +142,6 @@ class RoomController extends Controller
             ],
             [
                 'last_seen_at' => now(),
-                'created_at'   => now(),
-                'updated_at'   => now(),
             ]
         );
 

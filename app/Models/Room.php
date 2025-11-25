@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\RoomPresence;
 
 class Room extends Model
 {
@@ -41,4 +42,10 @@ class Room extends Model
             ->distinct('user_id')
             ->count('user_id');
     }
+
+     public function presences()
+    {
+        return $this->hasMany(RoomPresence::class);
+    }
+
 }
