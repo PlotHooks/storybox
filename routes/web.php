@@ -32,6 +32,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
     Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
     Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])->name('rooms.messages.latest');
+    Route::get('/rooms/{room:slug}/roster', [RoomController::class, 'roster'])->name('rooms.roster');
+
 
     // Presence ping (this is what the error is complaining about)
     Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');

@@ -8,14 +8,14 @@
     <div class="py-4">
         <div class="max-w-7xl mx-auto h-[calc(100vh-6rem)] flex gap-4 px-4">
 
-            {{-- LEFT COLUMN: Global OOC placeholder --}}
+            {{-- LEFT COLUMN: reserved for later --}}
             <div class="w-1/4 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400">
-                    Global OOC (always open)
+                    Left Panel (reserved)
                 </div>
                 <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-300">
                     <p class="text-gray-500">
-                        Global OOC stream will live here eventually.
+                        Reserved for future features.
                     </p>
                 </div>
             </div>
@@ -107,28 +107,41 @@
                 </div>
             </div>
 
-            {{-- RIGHT COLUMN: room list --}}
+            {{-- RIGHT COLUMN: Rooms / Users tabs --}}
             <div class="w-1/5 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex items-center justify-between">
-                    <span>Rooms</span>
-                    <span class="text-[10px] text-gray-500"># active / name</span>
+                    <div class="flex gap-2">
+                        <button id="tab-rooms" type="button" class="px-2 py-1 rounded bg-gray-800">Rooms</button>
+                        <button id="tab-users" type="button" class="px-2 py-1 rounded hover:bg-gray-800 text-gray-200">Users</button>
+                    </div>
+                    <span id="tab-meta" class="text-[10px] text-gray-500"># active / name</span>
                 </div>
 
-                <div id="room-list" class="flex-1 overflow-y-auto text-xs">
-                    @foreach ($sidebarRooms as $r)
-                        <button
-                            type="button"
-                            onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                            class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800
-                                   {{ $r->id === $room->id ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200' }}">
-                            <span class="w-6 text-[10px] text-gray-400 text-right">
-                                {{ $r->active_users ?? 0 }}
-                            </span>
-                            <span class="flex-1 truncate ml-1">
-                                {{ $r->name }}
-                            </span>
-                        </button>
-                    @endforeach
+                <div class="flex-1 overflow-y-auto text-xs">
+                    <div id="panel-rooms">
+                        <div id="room-list">
+                            @foreach ($sidebarRooms as $r)
+                                <button
+                                    type="button"
+                                    onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
+                                    class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800
+                                           {{ $r->id === $room->id ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200' }}">
+                                    <span class="w-6 text-[10px] text-gray-400 text-right">
+                                        {{ $r->active_users ?? 0 }}
+                                    </span>
+                                    <span class="flex-1 truncate ml-1">
+                                        {{ $r->name }}
+                                    </span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div id="panel-users" class="hidden px-3 py-2">
+                        <div id="user-list" class="space-y-2 text-gray-200">
+                            <div class="text-gray-500">Loading...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -144,6 +157,71 @@
         const form       = document.getElementById('message-form');
         const textarea   = document.getElementById('body');
         const switcher   = document.getElementById('character-switcher');
+
+        const tabRooms   = document.getElementById('tab-rooms');
+        const tabUsers   = document.getElementById('tab-users');
+        const panelRooms = document.getElementById('panel-rooms');
+        const panelUsers = document.getElementById('panel-users');
+        const tabMeta    = document.getElementById('tab-meta');
+        const userListEl = document.getElementById('user-list');
+
+        function showRoomsTab() {
+            if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
+            tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
+            tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800 text-gray-200';
+            panelRooms.classList.remove('hidden');
+            panelUsers.classList.add('hidden');
+            if (tabMeta) tabMeta.textContent = '# active / name';
+        }
+
+        function showUsersTab() {
+            if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
+            tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
+            tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800 text-gray-200';
+            panelUsers.classList.remove('hidden');
+            panelRooms.classList.add('hidden');
+            if (tabMeta) tabMeta.textContent = 'character / user';
+            refreshUserList();
+        }
+
+        if (tabRooms) tabRooms.addEventListener('click', showRoomsTab);
+        if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
+
+        function refreshUserList() {
+            if (!userListEl) return;
+
+            fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    const roster = Array.isArray(data.roster) ? data.roster : [];
+                    userListEl.innerHTML = '';
+
+                    if (roster.length === 0) {
+                        userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                        return;
+                    }
+
+                    roster.forEach(p => {
+                        const row = document.createElement('div');
+                        row.className = 'border-b border-gray-800 pb-2';
+                        row.innerHTML = `
+                            <div class="text-gray-100">${p.character_name}</div>
+                            <div class="text-[10px] text-gray-500">${p.user_name}</div>
+                        `;
+                        userListEl.appendChild(row);
+                    });
+                })
+                .catch(() => {});
+        }
+
+        setInterval(() => {
+            if (panelUsers && !panelUsers.classList.contains('hidden')) {
+                refreshUserList();
+            }
+        }, 5000);
+
+        // default tab
+        showRoomsTab();
 
         if (container) {
             container.scrollTop = container.scrollHeight;
@@ -177,7 +255,8 @@
                     if (wasNearBottom) {
                         container.scrollTop = container.scrollHeight;
                     }
-                });
+                })
+                .catch(() => {});
         }
 
         setInterval(fetchNewMessages, 2500);
