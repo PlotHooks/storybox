@@ -385,31 +385,15 @@ function refreshUserList() {
         // character switching is now PER TAB
 if (switcher) {
     switcher.addEventListener('change', async function () {
-        const oldId = getTabCharacterId();
         const newId = parseInt(this.value, 10);
 
         switcher.disabled = true;
 
         try {
-            // stop old character from staying in this room
-            if (oldId && oldId !== newId) {
-                await fetch(`/rooms/${roomSlug}/leave`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrf,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'same-origin',
-                    keepalive: true,
-                    body: JSON.stringify({ character_id: oldId }),
-                }).catch(() => {});
-            }
-
             // set active character for THIS TAB
             setTabCharacterId(newId);
 
-            // find where the new character currently is
+            // find where the character currently is
             const res = await fetch(`/characters/${newId}/current-room`, {
                 headers: { 'Accept': 'application/json' },
                 credentials: 'same-origin',
@@ -434,6 +418,7 @@ if (switcher) {
         }
     });
 }
+
 
 
         // ensure hidden field is set before submit
