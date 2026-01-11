@@ -14,16 +14,14 @@
                     Left Panel (reserved)
                 </div>
                 <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-300">
-                    <p class="text-gray-500">
-                        Reserved for future features.
-                    </p>
+                    <p class="text-gray-500">Reserved for future features.</p>
                 </div>
             </div>
 
             {{-- CENTER COLUMN: main room chat --}}
             <div class="flex-1 bg-gray-900 rounded-lg shadow flex flex-col">
 
-                {{-- Top bar: owner + character switcher --}}
+                {{-- Top bar --}}
                 <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
                     <div class="text-xs text-gray-300">
                         Room owner:
@@ -82,6 +80,7 @@
                 <div class="border-t border-gray-800 p-3">
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
+                        <input type="hidden" name="character_id" id="character-id-input" value="">
 
                         <div>
                             <textarea
@@ -151,12 +150,14 @@
     <script>
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const roomSlug = @json($room->slug);
+        const csrf = @json(csrf_token());
 
         const container  = document.getElementById('message-container');
         const roomListEl = document.getElementById('room-list');
         const form       = document.getElementById('message-form');
         const textarea   = document.getElementById('body');
         const switcher   = document.getElementById('character-switcher');
+        const hiddenChar = document.getElementById('character-id-input');
 
         const tabRooms   = document.getElementById('tab-rooms');
         const tabUsers   = document.getElementById('tab-users');
@@ -164,6 +165,29 @@
         const panelUsers = document.getElementById('panel-users');
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
+
+        function getTabCharacterId() {
+            const v = sessionStorage.getItem('active_character_id');
+            return v ? parseInt(v, 10) : 0;
+        }
+
+        function setTabCharacterId(id) {
+            sessionStorage.setItem('active_character_id', String(id));
+            if (hiddenChar) hiddenChar.value = String(id);
+        }
+
+        // Initialize per-tab character: use stored value, else use current select
+        (function initActiveCharacterPerTab() {
+            if (!switcher) return;
+            const stored = getTabCharacterId();
+            if (stored) {
+                switcher.value = String(stored);
+                setTabCharacterId(stored);
+            } else {
+                const initial = parseInt(switcher.value, 10);
+                setTabCharacterId(initial);
+            }
+        })();
 
         function showRoomsTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
@@ -186,10 +210,10 @@
 
         if (tabRooms) tabRooms.addEventListener('click', showRoomsTab);
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
+        showRoomsTab();
 
         function refreshUserList() {
             if (!userListEl) return;
-
             fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(data => {
@@ -220,12 +244,7 @@
             }
         }, 5000);
 
-        // default tab
-        showRoomsTab();
-
-        if (container) {
-            container.scrollTop = container.scrollHeight;
-        }
+        if (container) container.scrollTop = container.scrollHeight;
 
         function fetchNewMessages() {
             fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
@@ -252,52 +271,94 @@
                         lastMessageId = msg.id;
                     });
 
-                    if (wasNearBottom) {
-                        container.scrollTop = container.scrollHeight;
-                    }
+                    if (wasNearBottom) container.scrollTop = container.scrollHeight;
                 })
                 .catch(() => {});
         }
 
         setInterval(fetchNewMessages, 2500);
 
-        if (switcher) {
-    switcher.addEventListener('change', async function () {
-        const charId = this.value;
+        function sendPresencePing() {
+            const characterId = getTabCharacterId();
+            if (!characterId) return;
 
-        // prevent double-fires
-        switcher.disabled = true;
-
-        try {
-            // leave current room as old character
-            await leaveRoom();
-
-            // switch active character (server-side session)
-            await fetch(`/characters/${charId}/switch`, {
+            fetch(`/rooms/${roomSlug}/presence`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'X-CSRF-TOKEN': csrf,
                     'Accept': 'application/json',
+                    'Content-Type': 'application/json',
                 },
                 credentials: 'same-origin',
-            });
-
-            // join room as new character
-            sendPresencePing();
-
-            // if Users tab is open, refresh roster immediately
-            if (panelUsers && !panelUsers.classList.contains('hidden')) {
-                refreshUserList();
-            }
-        } catch (e) {
-            // noop
-        } finally {
-            switcher.disabled = false;
+                body: JSON.stringify({ character_id: characterId }),
+            }).catch(() => {});
         }
-    });
-}
 
+        function leaveRoom() {
+            const characterId = getTabCharacterId();
+            if (!characterId) return Promise.resolve();
 
+            return fetch(`/rooms/${roomSlug}/leave`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                keepalive: true,
+                body: JSON.stringify({ character_id: characterId }),
+            }).catch(() => {});
+        }
+
+        // character switching is now PER TAB
+        if (switcher) {
+            switcher.addEventListener('change', async function () {
+                const oldId = getTabCharacterId();
+                const newId = parseInt(this.value, 10);
+
+                switcher.disabled = true;
+
+                try {
+                    // leave as old character
+                    if (oldId) {
+                        await fetch(`/rooms/${roomSlug}/leave`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'same-origin',
+                            keepalive: true,
+                            body: JSON.stringify({ character_id: oldId }),
+                        }).catch(() => {});
+                    }
+
+                    // set new per-tab active character
+                    setTabCharacterId(newId);
+
+                    // join as new character
+                    sendPresencePing();
+
+                    if (panelUsers && !panelUsers.classList.contains('hidden')) {
+                        refreshUserList();
+                    }
+                } finally {
+                    switcher.disabled = false;
+                }
+            });
+        }
+
+        // ensure hidden field is set before submit
+        if (form) {
+            form.addEventListener('submit', function () {
+                const id = getTabCharacterId();
+                if (hiddenChar) hiddenChar.value = String(id);
+            });
+        }
+
+        // enter-to-send
         if (textarea && form) {
             textarea.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -307,31 +368,7 @@
             });
         }
 
-        function sendPresencePing() {
-            fetch(`/rooms/${roomSlug}/presence`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({}),
-            }).catch(() => {});
-        }
-
-        function leaveRoom() {
-            return fetch(`/rooms/${roomSlug}/leave`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                },
-                credentials: 'same-origin',
-                keepalive: true,
-            }).catch(() => {});
-        }
-
+        // presence heartbeat
         sendPresencePing();
         setInterval(sendPresencePing, 30000);
 

@@ -52,7 +52,6 @@ class RoomController extends Controller
             ->get()
             ->reverse();
 
-        $activeCharacterId = session('active_character_id');
         $cutoff = now()->subMinutes(5);
 
         $sidebarRooms = Room::query()
@@ -70,6 +69,9 @@ class RoomController extends Controller
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
+        // NOTE: active character is now per-tab (client-side). We still pass something for initial select.
+        $activeCharacterId = Auth::user()->characters()->value('id');
+
         return view('rooms.show', compact(
             'room',
             'messages',
@@ -78,19 +80,31 @@ class RoomController extends Controller
         ));
     }
 
+    private function assertCharacterOwnedByUser(int $characterId): void
+    {
+        $ok = DB::table('characters')
+            ->where('id', $characterId)
+            ->where('user_id', Auth::id())
+            ->exists();
+
+        abort_unless($ok, 403);
+    }
+
+    private function getCharacterIdFromRequest(Request $request): int
+    {
+        $characterId = (int) $request->input('character_id', 0);
+        abort_if($characterId <= 0, 422, 'character_id is required');
+        $this->assertCharacterOwnedByUser($characterId);
+        return $characterId;
+    }
+
     public function storeMessage(Request $request, Room $room)
     {
         $request->validate([
             'body' => 'required|string|max:2000',
         ]);
 
-        $characterId = session('active_character_id');
-
-        if (! $characterId) {
-            return back()->withErrors([
-                'body' => 'You must select an active character before posting.',
-            ]);
-        }
+        $characterId = $this->getCharacterIdFromRequest($request);
 
         $message = $room->messages()->create([
             'user_id'      => Auth::id(),
@@ -118,13 +132,9 @@ class RoomController extends Controller
         return response()->json($messages);
     }
 
-    public function ping(Room $room)
+    public function ping(Room $room, Request $request)
     {
-        $characterId = session('active_character_id');
-
-        if (! $characterId) {
-            return response()->json(['ok' => false], 422);
-        }
+        $characterId = $this->getCharacterIdFromRequest($request);
 
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
@@ -139,15 +149,13 @@ class RoomController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function leave(Room $room)
+    public function leave(Room $room, Request $request)
     {
-        $characterId = session('active_character_id');
+        $characterId = $this->getCharacterIdFromRequest($request);
 
-        if ($characterId) {
-            DB::table('character_presences')
-                ->where('character_id', $characterId)
-                ->delete();
-        }
+        DB::table('character_presences')
+            ->where('character_id', $characterId)
+            ->delete();
 
         return response()->json(['ok' => true]);
     }
