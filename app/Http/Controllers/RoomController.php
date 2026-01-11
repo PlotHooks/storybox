@@ -58,7 +58,7 @@ class RoomController extends Controller
         $sidebarRooms = Room::query()
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
-                     ->where('character_presences.last_seen_at', '>=', $cutoff);
+                    ->where('character_presences.last_seen_at', '>=', $cutoff);
             })
             ->select(
                 'rooms.id',
@@ -99,9 +99,7 @@ class RoomController extends Controller
         ]);
 
         if ($request->wantsJson()) {
-            return response()->json(
-                $message->load('user', 'character')
-            );
+            return response()->json($message->load('user', 'character'));
         }
 
         return back();
@@ -131,10 +129,10 @@ class RoomController extends Controller
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
             [
-                'room_id'      => $room->id,
-                'last_seen_at'=> now(),
-                'updated_at'  => now(),
-                'created_at'  => now(),
+                'room_id' => $room->id,
+                'last_seen_at' => now(),
+                'updated_at' => now(),
+                'created_at' => now(),
             ]
         );
 
@@ -161,10 +159,18 @@ class RoomController extends Controller
         $rooms = Room::query()
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
-                     ->where('character_presences.last_seen_at', '>=', $cutoff);
+                    ->where('character_presences.last_seen_at', '>=', $cutoff);
             })
             ->select(
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
                 DB::raw('COUNT(character_presences.id) as active_users')
+            )
+            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
+            ->orderBy('rooms.created_at', 'desc')
+            ->get();
+
+        return response()->json(['rooms' => $rooms]);
+    }
+}
