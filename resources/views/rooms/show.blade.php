@@ -51,6 +51,14 @@
                                     </option>
                                 @endforeach
                             </select>
+
+                            {{-- NEW: Leave room button --}}
+                            <button
+                                type="button"
+                                id="leave-room-btn"
+                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                Leave room
+                            </button>
                         </div>
                     @else
                         <div class="text-xs text-red-400">
@@ -116,166 +124,4 @@
                     @foreach ($sidebarRooms as $r)
                         <button
                             type="button"
-                            onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                            class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800
-                                   {{ $r->id === $room->id ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200' }}">
-                            <span class="w-6 text-[10px] text-gray-400 text-right">
-                                {{ $r->active_users ?? 0 }}
-                            </span>
-                            <span class="flex-1 truncate ml-1">
-                                {{ $r->name }}
-                            </span>
-                        </button>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-    </div>
-
-<script>
-    // ===== base data =====
-    let lastMessageId = {{ $messages->last()?->id ?? 0 }};
-    const roomSlug = @json($room->slug);
-
-    const container    = document.getElementById('message-container');
-    const roomListEl   = document.getElementById('room-list');
-    const form         = document.getElementById('message-form');
-    const textarea     = document.getElementById('body');
-    const switcher     = document.getElementById('character-switcher');
-
-    // ===== helper: scroll chat =====
-    function scrollToBottomIfNear() {
-        if (!container) return;
-
-        const distanceFromBottom =
-            container.scrollHeight - container.scrollTop - container.clientHeight;
-
-        if (distanceFromBottom < 80) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
-
-    if (container) {
-        container.scrollTop = container.scrollHeight;
-    }
-
-    // ===== fetch new messages =====
-    function fetchNewMessages() {
-        fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
-            .then(r => r.json())
-            .then(data => {
-                if (!Array.isArray(data) || data.length === 0) return;
-                if (!container) return;
-
-                const wasNearBottom =
-                    container.scrollHeight - container.scrollTop - container.clientHeight < 80;
-
-                data.forEach(msg => {
-                    const div = document.createElement('div');
-                    div.className = "border-b border-gray-800 pb-2 mb-2";
-                    div.innerHTML = `
-                        <div class="text-[10px] text-gray-400">
-                            ${(msg.character && msg.character.name) ? msg.character.name : msg.user.name}
-                        </div>
-                        <div class="text-sm text-gray-100 whitespace-pre-line">
-                            ${msg.content ?? msg.body}
-                        </div>
-                    `;
-                    container.appendChild(div);
-                    lastMessageId = msg.id;
-                });
-
-                if (wasNearBottom) {
-                    container.scrollTop = container.scrollHeight;
-                }
-            });
-    }
-
-    setInterval(fetchNewMessages, 2500); // every 2.5s
-
-    // ===== character switching =====
-    if (switcher) {
-        switcher.addEventListener('change', function () {
-            const charId = this.value;
-
-            fetch(`/characters/${charId}/switch`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                },
-            })
-            .then(() => console.log('Switched to character ' + charId))
-            .catch(() => alert('Could not switch character.'));
-        });
-    }
-
-    // ===== enter to send, shift+enter for newline =====
-    if (textarea && form) {
-        textarea.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                form.submit();
-            }
-        });
-    }
-
-    // ===== presence heartbeat (improved: sends cookies + JSON body) =====
-    function sendPresencePing() {
-        fetch(`/rooms/${roomSlug}/presence`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin', // make sure session cookie is sent
-            body: JSON.stringify({}),
-        })
-        .then((response) => {
-            if (!response.ok) {
-                console.error('Presence ping failed with status', response.status);
-            }
-        })
-        .catch((err) => {
-            console.error('Presence ping error', err);
-        });
-    }
-
-    // ping immediately on load, then every 30s
-    sendPresencePing();
-    setInterval(sendPresencePing, 30000);
-
-    // ===== right-side room list auto-refresh =====
-    function refreshRoomList() {
-        if (!roomListEl) return;
-
-        fetch(`{{ route('rooms.sidebar') }}`)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.rooms) return;
-
-                roomListEl.innerHTML = '';
-
-                data.rooms.forEach(r => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.onclick = () => window.location.href = '/rooms/' + r.slug;
-                    button.className =
-                        'w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800 text-xs ' +
-                        (r.slug === roomSlug ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200');
-
-                    button.innerHTML = `
-                        <span class="w-6 text-[10px] text-gray-400 text-right">${r.active_users ?? 0}</span>
-                        <span class="flex-1 truncate ml-1">${r.name}</span>
-                    `;
-
-                    roomListEl.appendChild(button);
-                });
-            });
-    }
-
-    // every 10 seconds feels fine for presence-ish counts
-    setInterval(refreshRoomList, 10000);
-</script>
-</x-app-layout>
+                            onclick="window.location.href='{{ route
