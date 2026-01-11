@@ -266,8 +266,10 @@ function refreshUserList() {
                 // List shows ONLY the name; card shows name + sigil
                 row.innerHTML = `
                     <a href="/characters/${p.character_id}"
-                       class="text-gray-100 hover:underline">
-                        ${p.character_name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-gray-100 hover:underline">
+                    ${p.character_name}
                     </a>
 
                     <div class="char-card text-xs text-gray-200">
