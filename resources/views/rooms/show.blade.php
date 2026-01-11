@@ -83,7 +83,8 @@
                                 {{ optional($message->character)->name ?? $message->user->name }}
                                 · {{ $message->created_at->diffForHumans() }}
                             </div>
-                            <div class="text-base md:text-lg text-gray-100 whitespace-pre-line leading-relaxed">
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
+
                                 {{ $message->body }}
                             </div>
                         </div>
