@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
-use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -14,7 +13,6 @@ class RoomController extends Controller
     public function index()
     {
         $rooms = Room::orderBy('created_at', 'desc')->get();
-
         return view('rooms.index', compact('rooms'));
     }
 
@@ -36,7 +34,6 @@ class RoomController extends Controller
             'name'        => $request->name,
             'slug'        => Str::slug($request->name) . '-' . uniqid(),
             'description' => $request->description,
-            // keep both so DB is happy and owner() still works
             'user_id'     => $userId,
             'created_by'  => $userId,
         ]);
@@ -48,7 +45,6 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        // last 50 messages, oldest at top
         $messages = $room->messages()
             ->with(['character', 'user'])
             ->latest()
@@ -57,21 +53,18 @@ class RoomController extends Controller
             ->reverse();
 
         $activeCharacterId = session('active_character_id');
-
-        // "recent" = seen in the last 5 minutes
         $cutoff = now()->subMinutes(5);
 
-        // sidebar: rooms + active user counts based on room_presences
         $sidebarRooms = Room::query()
-            ->leftJoin('room_presences', function ($join) use ($cutoff) {
-                $join->on('rooms.id', '=', 'room_presences.room_id')
-                     ->where('room_presences.last_seen_at', '>=', $cutoff);
+            ->leftJoin('character_presences', function ($join) use ($cutoff) {
+                $join->on('rooms.id', '=', 'character_presences.room_id')
+                     ->where('character_presences.last_seen_at', '>=', $cutoff);
             })
             ->select(
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
-                DB::raw('COUNT(room_presences.id) as active_users')
+                DB::raw('COUNT(character_presences.id) as active_users')
             )
             ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
             ->orderBy('rooms.created_at', 'desc')
@@ -100,7 +93,6 @@ class RoomController extends Controller
         }
 
         $message = $room->messages()->create([
-            'room_id'      => $room->id,
             'user_id'      => Auth::id(),
             'character_id' => $characterId,
             'body'         => $request->body,
@@ -128,53 +120,51 @@ class RoomController extends Controller
         return response()->json($messages);
     }
 
-    /**
-     * Presence ping: mark current user as "seen" in this room.
-     */
-   public function ping(Room $room, Request $request)
-{
-    $characterId = session('active_character_id');
+    public function ping(Room $room)
+    {
+        $characterId = session('active_character_id');
 
-    if (! $characterId) {
-        return response()->json(['ok' => false], 422);
+        if (! $characterId) {
+            return response()->json(['ok' => false], 422);
+        }
+
+        DB::table('character_presences')->updateOrInsert(
+            ['character_id' => $characterId],
+            [
+                'room_id'      => $room->id,
+                'last_seen_at'=> now(),
+                'updated_at'  => now(),
+                'created_at'  => now(),
+            ]
+        );
+
+        return response()->json(['ok' => true]);
     }
 
-    DB::table('character_presences')->updateOrInsert(
-        ['character_id' => $characterId],
-        [
-            'room_id' => $room->id,
-            'last_seen_at' => now(),
-            'updated_at' => now(),
-            'created_at' => now(),
-        ]
-    );
+    public function leave(Room $room)
+    {
+        $characterId = session('active_character_id');
 
-    return response()->json(['ok' => true]);
-}
-    /**
-     * Sidebar data: list of rooms + active_users counts.
-     */
+        if ($characterId) {
+            DB::table('character_presences')
+                ->where('character_id', $characterId)
+                ->delete();
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     public function sidebar()
     {
         $cutoff = now()->subMinutes(5);
 
         $rooms = Room::query()
-            ->leftJoin('room_presences', function ($join) use ($cutoff) {
-                $join->on('rooms.id', '=', 'room_presences.room_id')
-                     ->where('room_presences.last_seen_at', '>=', $cutoff);
+            ->leftJoin('character_presences', function ($join) use ($cutoff) {
+                $join->on('rooms.id', '=', 'character_presences.room_id')
+                     ->where('character_presences.last_seen_at', '>=', $cutoff);
             })
             ->select(
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
-                DB::raw('COUNT(room_presences.id) as active_users')
-            )
-            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
-            ->orderBy('rooms.created_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'rooms' => $rooms,
-        ]);
-    }
-}
+                DB::raw('COUNT(character_presences.id) as active_users')
