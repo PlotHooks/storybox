@@ -37,7 +37,6 @@ class CharacterController extends Controller
 
     public function switch(Character $character)
     {
-        // ensure the logged in user owns this character
         abort_if($character->user_id !== auth()->id(), 403);
 
         session(['active_character_id' => $character->id]);
@@ -45,5 +44,10 @@ class CharacterController extends Controller
         return redirect()
             ->route('characters.index')
             ->with('status', 'Switched to ' . $character->name . '.');
+    }
+
+    public function show(Character $character)
+    {
+        return view('characters.show', compact('character'));
     }
 }

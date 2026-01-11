@@ -23,6 +23,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/characters', [CharacterController::class, 'index'])->name('characters.index');
     Route::post('/characters', [CharacterController::class, 'store'])->name('characters.store');
     Route::post('/characters/{character}/switch', [CharacterController::class, 'switch'])->name('characters.switch');
+    Route::get('/characters/{character}', [CharacterController::class, 'show'])
+    ->name('characters.show');
+    Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
+
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
