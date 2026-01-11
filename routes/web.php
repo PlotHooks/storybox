@@ -28,7 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
     Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
-
+    Route::post('/rooms/{room:slug}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
     Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
     Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])->name('rooms.messages.latest');
