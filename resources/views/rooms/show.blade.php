@@ -263,10 +263,11 @@ function refreshUserList() {
                 const row = document.createElement('div');
                 row.className = 'char-row border-b border-gray-800 pb-2';
 
+                // List shows ONLY the name; card shows name + sigil
                 row.innerHTML = `
                     <a href="/characters/${p.character_id}"
                        class="text-gray-100 hover:underline">
-                        ${p.character_name} ⟡${sigil}
+                        ${p.character_name}
                     </a>
 
                     <div class="char-card text-xs text-gray-200">
@@ -274,7 +275,7 @@ function refreshUserList() {
                             ${p.character_name} ⟡${sigil}
                         </div>
                         <div class="text-[10px] text-gray-400">
-                            Character sigil
+                            ID verification
                         </div>
                     </div>
                 `;
