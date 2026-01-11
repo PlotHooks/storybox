@@ -6,10 +6,10 @@
     </x-slot>
 
     <div class="py-4">
-        <div class="max-w-7xl mx-auto h-[calc(100vh-6rem)] flex gap-4 px-4">
+        <div class="max-w-none w-full mx-auto h-[calc(100vh-6rem)] flex flex-col lg:flex-row gap-4 px-2 md:px-4">
 
             {{-- LEFT COLUMN: reserved for later --}}
-            <div class="w-1/4 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
+            <div id="left-panel" class="w-full lg:w-72 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400">
                     Left Panel (reserved)
                 </div>
@@ -36,6 +36,20 @@
 
                     @if ($characters->count() > 0)
                         <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                id="toggle-left"
+                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                Toggle Left
+                            </button>
+
+                            <button
+                                type="button"
+                                id="toggle-right"
+                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                Toggle Right
+                            </button>
+
                             <span class="text-xs text-gray-300">Posting as:</span>
 
                             <select id="character-switcher"
@@ -89,7 +103,7 @@
                                 rows="3"
                                 required
                                 placeholder="Type your message. Enter to send, Shift+Enter for a new line."
-                                class="mt-1 block w-full rounded-md border-gray-700 bg-gray-950 text-sm text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                class="mt-1 block w-full rounded-md border-gray-700 bg-gray-950 text-base md:text-lg text-gray-100 leading-relaxed shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             >{{ old('body') }}</textarea>
 
                             @error('body')
@@ -107,7 +121,7 @@
             </div>
 
             {{-- RIGHT COLUMN: Rooms / Users tabs --}}
-            <div class="w-1/5 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
+            <div id="right-panel" class="w-full lg:w-80 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex items-center justify-between">
                     <div class="flex gap-2">
                         <button id="tab-rooms" type="button" class="px-2 py-1 rounded bg-gray-800">Rooms</button>
@@ -148,30 +162,34 @@
     </div>
 
     <style>
-  .char-row { position: relative; }
-  .char-card {
-    position: absolute;
-    right: 0;
-    top: 100%;
-    margin-top: 6px;
-    z-index: 50;
-    display: none;
-    width: 220px;
-    padding: 8px;
-    border-radius: 8px;
-    background: #111827;
-    border: 1px solid #374151;
-    box-shadow: 0 10px 25px rgba(0,0,0,.35);
-    pointer-events: none;
-  }
-  .char-row:hover .char-card { display: block; }
-</style>
-
+      .char-row { position: relative; }
+      .char-card {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        margin-top: 6px;
+        z-index: 50;
+        display: none;
+        width: 220px;
+        padding: 8px;
+        border-radius: 8px;
+        background: #111827;
+        border: 1px solid #374151;
+        box-shadow: 0 10px 25px rgba(0,0,0,.35);
+        pointer-events: none;
+      }
+      .char-row:hover .char-card { display: block; }
+    </style>
 
     <script>
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
+
+        const leftPanel = document.getElementById('left-panel');
+        const rightPanel = document.getElementById('right-panel');
+        const toggleLeftBtn = document.getElementById('toggle-left');
+        const toggleRightBtn = document.getElementById('toggle-right');
 
         const container  = document.getElementById('message-container');
         const roomListEl = document.getElementById('room-list');
@@ -187,14 +205,36 @@
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
 
-        function shortSigil(id) {
-         return Math.abs(id * 2654435761 % 0xFFFFFFFF)
-        .toString(16)
-        .toUpperCase()
-        .slice(0, 4);
-}
+        function setPanelHidden(panel, key, hidden) {
+            if (!panel) return;
+            panel.classList.toggle('hidden', hidden);
+            sessionStorage.setItem(key, hidden ? '1' : '0');
+        }
 
-        
+        function togglePanel(panel, key) {
+            if (!panel) return;
+            const hidden = panel.classList.contains('hidden');
+            setPanelHidden(panel, key, !hidden);
+        }
+
+        // restore per-tab panel state
+        setPanelHidden(leftPanel, 'hide_left_panel', sessionStorage.getItem('hide_left_panel') === '1');
+        setPanelHidden(rightPanel, 'hide_right_panel', sessionStorage.getItem('hide_right_panel') === '1');
+
+        if (toggleLeftBtn) {
+            toggleLeftBtn.addEventListener('click', () => togglePanel(leftPanel, 'hide_left_panel'));
+        }
+        if (toggleRightBtn) {
+            toggleRightBtn.addEventListener('click', () => togglePanel(rightPanel, 'hide_right_panel'));
+        }
+
+        function shortSigil(id) {
+            return Math.abs(id * 2654435761 % 0xFFFFFFFF)
+                .toString(16)
+                .toUpperCase()
+                .slice(0, 4);
+        }
+
         function getTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
@@ -219,23 +259,22 @@
         })();
 
         (function redirectToTabCharacterRoomOnLoad() {
-    const id = getTabCharacterId();
-    if (!id) return;
+            const id = getTabCharacterId();
+            if (!id) return;
 
-    fetch(`/characters/${id}/current-room`, {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin',
-    })
-    .then(r => r.json())
-    .then(data => {
-        const targetSlug = data?.room_slug || null;
-        if (targetSlug && targetSlug !== roomSlug) {
-            window.location.href = `/rooms/${targetSlug}`;
-        }
-    })
-    .catch(() => {});
-})();
-
+            fetch(`/characters/${id}/current-room`, {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
+            })
+            .then(r => r.json())
+            .then(data => {
+                const targetSlug = data?.room_slug || null;
+                if (targetSlug && targetSlug !== roomSlug) {
+                    window.location.href = `/rooms/${targetSlug}`;
+                }
+            })
+            .catch(() => {});
+        })();
 
         function showRoomsTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
@@ -260,54 +299,51 @@
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
         showRoomsTab();
 
-function refreshUserList() {
-    if (!userListEl) return;
+        function refreshUserList() {
+            if (!userListEl) return;
 
-    fetch(`/rooms/${roomSlug}/roster`, {
-        headers: { 'Accept': 'application/json' }
-    })
-        .then(r => r.json())
-        .then(data => {
-            const roster = Array.isArray(data.roster) ? data.roster : [];
-            userListEl.innerHTML = '';
+            fetch(`/rooms/${roomSlug}/roster`, {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const roster = Array.isArray(data.roster) ? data.roster : [];
+                    userListEl.innerHTML = '';
 
-            if (roster.length === 0) {
-                userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
-                return;
-            }
+                    if (roster.length === 0) {
+                        userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                        return;
+                    }
 
-            roster.forEach(p => {
-                const sigil = shortSigil(p.character_id);
+                    roster.forEach(p => {
+                        const sigil = shortSigil(p.character_id);
 
-                const row = document.createElement('div');
-                row.className = 'char-row border-b border-gray-800 pb-2';
+                        const row = document.createElement('div');
+                        row.className = 'char-row border-b border-gray-800 pb-2';
 
-                // List shows ONLY the name; card shows name + sigil
-                row.innerHTML = `
-                    <a href="/characters/${p.character_id}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-gray-100 hover:underline">
-                    ${p.character_name}
-                    </a>
+                        row.innerHTML = `
+                            <a href="/characters/${p.character_id}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="text-gray-100 hover:underline">
+                               ${p.character_name}
+                            </a>
 
-                    <div class="char-card text-xs text-gray-200">
-                        <div class="font-semibold">
-                            ${p.character_name} ⟡${sigil}
-                        </div>
-                        <div class="text-[10px] text-gray-400">
-                            ID verification
-                        </div>
-                    </div>
-                `;
+                            <div class="char-card text-xs text-gray-200">
+                                <div class="font-semibold">
+                                    ${p.character_name} ⟡${sigil}
+                                </div>
+                                <div class="text-[10px] text-gray-400">
+                                    ID verification
+                                </div>
+                            </div>
+                        `;
 
-                userListEl.appendChild(row);
-            });
-        })
-        .catch(() => {});
-}
-
-
+                        userListEl.appendChild(row);
+                    });
+                })
+                .catch(() => {});
+        }
 
         setInterval(() => {
             if (panelUsers && !panelUsers.classList.contains('hidden')) {
@@ -383,43 +419,37 @@ function refreshUserList() {
         }
 
         // character switching is now PER TAB
-if (switcher) {
-    switcher.addEventListener('change', async function () {
-        const newId = parseInt(this.value, 10);
+        if (switcher) {
+            switcher.addEventListener('change', async function () {
+                const newId = parseInt(this.value, 10);
 
-        switcher.disabled = true;
+                switcher.disabled = true;
 
-        try {
-            // set active character for THIS TAB
-            setTabCharacterId(newId);
+                try {
+                    setTabCharacterId(newId);
 
-            // find where the character currently is
-            const res = await fetch(`/characters/${newId}/current-room`, {
-                headers: { 'Accept': 'application/json' },
-                credentials: 'same-origin',
+                    const res = await fetch(`/characters/${newId}/current-room`, {
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                    });
+                    const data = await res.json();
+                    const targetSlug = data?.room_slug || null;
+
+                    if (targetSlug && targetSlug !== roomSlug) {
+                        window.location.href = `/rooms/${targetSlug}`;
+                        return;
+                    }
+
+                    sendPresencePing();
+
+                    if (panelUsers && !panelUsers.classList.contains('hidden')) {
+                        refreshUserList();
+                    }
+                } finally {
+                    switcher.disabled = false;
+                }
             });
-            const data = await res.json();
-            const targetSlug = data?.room_slug || null;
-
-            // if character is in a different room, go there
-            if (targetSlug && targetSlug !== roomSlug) {
-                window.location.href = `/rooms/${targetSlug}`;
-                return;
-            }
-
-            // if character is not in any room (or already here), join/refresh presence here
-            sendPresencePing();
-
-            if (panelUsers && !panelUsers.classList.contains('hidden')) {
-                refreshUserList();
-            }
-        } finally {
-            switcher.disabled = false;
         }
-    });
-}
-
-
 
         // ensure hidden field is set before submit
         if (form) {
