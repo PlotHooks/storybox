@@ -187,6 +187,14 @@
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
 
+        function shortSigil(id) {
+         return Math.abs(id * 2654435761 % 0xFFFFFFFF)
+        .toString(16)
+        .toUpperCase()
+        .slice(0, 4);
+}
+
+        
         function getTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
@@ -250,19 +258,23 @@ function refreshUserList() {
             }
 
             roster.forEach(p => {
+                const sigil = shortSigil(p.character_id);
+
                 const row = document.createElement('div');
                 row.className = 'char-row border-b border-gray-800 pb-2';
 
                 row.innerHTML = `
                     <a href="/characters/${p.character_id}"
                        class="text-gray-100 hover:underline">
-                        ${p.character_name}
+                        ${p.character_name} ⟡${sigil}
                     </a>
 
                     <div class="char-card text-xs text-gray-200">
-                        <div class="font-semibold">${p.character_name}</div>
+                        <div class="font-semibold">
+                            ${p.character_name} ⟡${sigil}
+                        </div>
                         <div class="text-[10px] text-gray-400">
-                            Character ID: ${p.character_id}
+                            Character sigil
                         </div>
                     </div>
                 `;
@@ -272,6 +284,7 @@ function refreshUserList() {
         })
         .catch(() => {});
 }
+
 
 
         setInterval(() => {
