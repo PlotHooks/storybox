@@ -218,6 +218,25 @@
             }
         })();
 
+        (function redirectToTabCharacterRoomOnLoad() {
+    const id = getTabCharacterId();
+    if (!id) return;
+
+    fetch(`/characters/${id}/current-room`, {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+    })
+    .then(r => r.json())
+    .then(data => {
+        const targetSlug = data?.room_slug || null;
+        if (targetSlug && targetSlug !== roomSlug) {
+            window.location.href = `/rooms/${targetSlug}`;
+        }
+    })
+    .catch(() => {});
+})();
+
+
         function showRoomsTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
             tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
@@ -364,43 +383,58 @@ function refreshUserList() {
         }
 
         // character switching is now PER TAB
-        if (switcher) {
-            switcher.addEventListener('change', async function () {
-                const oldId = getTabCharacterId();
-                const newId = parseInt(this.value, 10);
+if (switcher) {
+    switcher.addEventListener('change', async function () {
+        const oldId = getTabCharacterId();
+        const newId = parseInt(this.value, 10);
 
-                switcher.disabled = true;
+        switcher.disabled = true;
 
-                try {
-                    // leave as old character
-                    if (oldId) {
-                        await fetch(`/rooms/${roomSlug}/leave`, {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': csrf,
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'same-origin',
-                            keepalive: true,
-                            body: JSON.stringify({ character_id: oldId }),
-                        }).catch(() => {});
-                    }
+        try {
+            // stop old character from staying in this room
+            if (oldId && oldId !== newId) {
+                await fetch(`/rooms/${roomSlug}/leave`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    keepalive: true,
+                    body: JSON.stringify({ character_id: oldId }),
+                }).catch(() => {});
+            }
 
-                    // set new per-tab active character
-                    setTabCharacterId(newId);
+            // set active character for THIS TAB
+            setTabCharacterId(newId);
 
-                    // join as new character
-                    sendPresencePing();
-
-                    if (panelUsers && !panelUsers.classList.contains('hidden')) {
-                        refreshUserList();
-                    }
-                } finally {
-                    switcher.disabled = false;
-                }
+            // find where the new character currently is
+            const res = await fetch(`/characters/${newId}/current-room`, {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin',
             });
+            const data = await res.json();
+            const targetSlug = data?.room_slug || null;
+
+            // if character is in a different room, go there
+            if (targetSlug && targetSlug !== roomSlug) {
+                window.location.href = `/rooms/${targetSlug}`;
+                return;
+            }
+
+            // if character is not in any room (or already here), join/refresh presence here
+            sendPresencePing();
+
+            if (panelUsers && !panelUsers.classList.contains('hidden')) {
+                refreshUserList();
+            }
+        } finally {
+            switcher.disabled = false;
         }
+    });
+}
+
 
         // ensure hidden field is set before submit
         if (form) {

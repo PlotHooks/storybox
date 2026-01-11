@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Character;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CharacterController extends Controller
 {
@@ -50,4 +51,16 @@ class CharacterController extends Controller
     {
         return view('characters.show', compact('character'));
     }
+
+    public function currentRoom(Character $character)
+{
+    abort_if($character->user_id !== auth()->id(), 403);
+
+    $slug = DB::table('character_presences')
+        ->join('rooms', 'rooms.id', '=', 'character_presences.room_id')
+        ->where('character_presences.character_id', $character->id)
+        ->value('rooms.slug');
+
+    return response()->json(['room_slug' => $slug]);
+}
 }
