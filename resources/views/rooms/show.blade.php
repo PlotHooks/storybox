@@ -262,18 +262,41 @@
         setInterval(fetchNewMessages, 2500);
 
         if (switcher) {
-            switcher.addEventListener('change', function () {
-                const charId = this.value;
+    switcher.addEventListener('change', async function () {
+        const charId = this.value;
 
-                fetch(`/characters/${charId}/switch`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Accept': 'application/json',
-                    },
-                }).catch(() => {});
+        // prevent double-fires
+        switcher.disabled = true;
+
+        try {
+            // leave current room as old character
+            await leaveRoom();
+
+            // switch active character (server-side session)
+            await fetch(`/characters/${charId}/switch`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin',
             });
+
+            // join room as new character
+            sendPresencePing();
+
+            // if Users tab is open, refresh roster immediately
+            if (panelUsers && !panelUsers.classList.contains('hidden')) {
+                refreshUserList();
+            }
+        } catch (e) {
+            // noop
+        } finally {
+            switcher.disabled = false;
         }
+    });
+}
+
 
         if (textarea && form) {
             textarea.addEventListener('keydown', function (e) {

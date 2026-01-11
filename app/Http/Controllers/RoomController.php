@@ -129,10 +129,10 @@ class RoomController extends Controller
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
             [
-                'room_id' => $room->id,
+                'room_id'      => $room->id,
                 'last_seen_at' => now(),
-                'updated_at' => now(),
-                'created_at' => now(),
+                'updated_at'   => now(),
+                'created_at'   => now(),
             ]
         );
 
@@ -173,24 +173,24 @@ class RoomController extends Controller
 
         return response()->json(['rooms' => $rooms]);
     }
+
     public function roster(Room $room)
     {
         $cutoff = now()->subMinutes(5);
 
         $roster = DB::table('character_presences')
-        ->join('characters', 'characters.id', '=', 'character_presences.character_id')
-        ->join('users', 'users.id', '=', 'characters.user_id')
-        ->where('character_presences.room_id', $room->id)
-        ->where('character_presences.last_seen_at', '>=', $cutoff)
-        ->orderBy('characters.name')
-        ->select([
-            'characters.id as character_id',
-            'characters.name as character_name',
-            'users.name as user_name',
-        ])
-        ->get();
+            ->join('characters', 'characters.id', '=', 'character_presences.character_id')
+            ->join('users', 'users.id', '=', 'characters.user_id')
+            ->where('character_presences.room_id', $room->id)
+            ->where('character_presences.last_seen_at', '>=', $cutoff)
+            ->orderBy('characters.name')
+            ->select([
+                'characters.id as character_id',
+                'characters.name as character_name',
+                'users.name as user_name',
+            ])
+            ->get();
 
-    return response()->json(['roster' => $roster]);
+        return response()->json(['roster' => $roster]);
     }
-    
 }
