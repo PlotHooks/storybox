@@ -131,23 +131,26 @@ class RoomController extends Controller
     /**
      * Presence ping: mark current user as "seen" in this room.
      */
-    public function ping(Room $room, Request $request)
-    {
-        $userId = $request->user()->id;
+   public function ping(Room $room, Request $request)
+{
+    $characterId = session('active_character_id');
 
-        DB::table('room_presences')->updateOrInsert(
-            [
-                'room_id' => $room->id,
-                'user_id' => $userId,
-            ],
-            [
-                'last_seen_at' => now(),
-            ]
-        );
-
-        return response()->json(['ok' => true]);
+    if (! $characterId) {
+        return response()->json(['ok' => false], 422);
     }
 
+    DB::table('character_presences')->updateOrInsert(
+        ['character_id' => $characterId],
+        [
+            'room_id' => $room->id,
+            'last_seen_at' => now(),
+            'updated_at' => now(),
+            'created_at' => now(),
+        ]
+    );
+
+    return response()->json(['ok' => true]);
+}
     /**
      * Sidebar data: list of rooms + active_users counts.
      */
