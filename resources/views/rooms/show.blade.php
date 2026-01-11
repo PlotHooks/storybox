@@ -147,6 +147,27 @@
         </div>
     </div>
 
+    <style>
+  .char-row { position: relative; }
+  .char-card {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 6px;
+    z-index: 50;
+    display: none;
+    width: 220px;
+    padding: 8px;
+    border-radius: 8px;
+    background: #111827;
+    border: 1px solid #374151;
+    box-shadow: 0 10px 25px rgba(0,0,0,.35);
+    pointer-events: none;
+  }
+  .char-row:hover .char-card { display: block; }
+</style>
+
+
     <script>
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const roomSlug = @json($room->slug);
@@ -212,31 +233,46 @@
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
         showRoomsTab();
 
-        function refreshUserList() {
-            if (!userListEl) return;
-            fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
-                .then(r => r.json())
-                .then(data => {
-                    const roster = Array.isArray(data.roster) ? data.roster : [];
-                    userListEl.innerHTML = '';
+function refreshUserList() {
+    if (!userListEl) return;
 
-                    if (roster.length === 0) {
-                        userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
-                        return;
-                    }
+    fetch(`/rooms/${roomSlug}/roster`, {
+        headers: { 'Accept': 'application/json' }
+    })
+        .then(r => r.json())
+        .then(data => {
+            const roster = Array.isArray(data.roster) ? data.roster : [];
+            userListEl.innerHTML = '';
 
-                    roster.forEach(p => {
-                        const row = document.createElement('div');
-                        row.className = 'border-b border-gray-800 pb-2';
-                        row.innerHTML = `
-                            <div class="text-gray-100">${p.character_name}</div>
-                            <div class="text-[10px] text-gray-500">${p.user_name}</div>
-                        `;
-                        userListEl.appendChild(row);
-                    });
-                })
-                .catch(() => {});
-        }
+            if (roster.length === 0) {
+                userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                return;
+            }
+
+            roster.forEach(p => {
+                const row = document.createElement('div');
+                row.className = 'char-row border-b border-gray-800 pb-2';
+
+                row.innerHTML = `
+                    <a href="/characters/${p.character_id}"
+                       class="text-gray-100 hover:underline">
+                        ${p.character_name}
+                    </a>
+
+                    <div class="char-card text-xs text-gray-200">
+                        <div class="font-semibold">${p.character_name}</div>
+                        <div class="text-[10px] text-gray-400">
+                            Character ID: ${p.character_id}
+                        </div>
+                    </div>
+                `;
+
+                userListEl.appendChild(row);
+            });
+        })
+        .catch(() => {});
+}
+
 
         setInterval(() => {
             if (panelUsers && !panelUsers.classList.contains('hidden')) {
