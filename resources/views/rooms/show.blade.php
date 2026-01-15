@@ -89,22 +89,34 @@
 
                             $fadeMsg = (bool) ($c->fade_message ?? false);
                             $fadeName = (bool) ($c->fade_name ?? false);
+
+                            $nameStyleJson = json_encode([
+                                'c1' => $c1,
+                                'c2' => $c2,
+                                'c3' => $c3,
+                                'c4' => $c4,
+                                'fade' => $fadeName,
+                            ], JSON_UNESCAPED_SLASHES);
+
+                            $bodyStyleJson = json_encode([
+                                'c1' => $c1,
+                                'c2' => $c2,
+                                'c3' => $c3,
+                                'c4' => $c4,
+                                'fade' => $fadeMsg,
+                            ], JSON_UNESCAPED_SLASHES);
                         @endphp
 
                         <div class="border-b border-gray-800 pb-2 mb-2">
                             <div class="text-[10px] text-gray-400">
-                                <span class="msg-name"
-                                      data-style='@json(["c1"=>$c1,"c2"=>$c2,"c3"=>$c3,"c4"=>$c4,"fade"=>$fadeName])'>
+                                <span class="msg-name" data-style='{!! $nameStyleJson !!}'>
                                     {{ $name }}
                                 </span>
                                 · {{ $message->created_at->diffForHumans() }}
                             </div>
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
-                                <span class="msg-body"
-                                      data-style='@json(["c1"=>$c1,"c2"=>$c2,"c3"=>$c3,"c4"=>$c4,"fade"=>$fadeMsg])'>
-                                    {{ $message->body }}
-                                </span>
+                                <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $message->body }}</span>
                             </div>
                         </div>
                     @endforeach
@@ -230,17 +242,13 @@
             panel.classList.toggle('hidden', hidden);
             sessionStorage.setItem(key, hidden ? '1' : '0');
         }
-
         function togglePanel(panel, key) {
             if (!panel) return;
             const hidden = panel.classList.contains('hidden');
             setPanelHidden(panel, key, !hidden);
         }
-
-        // restore per-tab panel state
         setPanelHidden(leftPanel, 'hide_left_panel', sessionStorage.getItem('hide_left_panel') === '1');
         setPanelHidden(rightPanel, 'hide_right_panel', sessionStorage.getItem('hide_right_panel') === '1');
-
         if (toggleLeftBtn) toggleLeftBtn.addEventListener('click', () => togglePanel(leftPanel, 'hide_left_panel'));
         if (toggleRightBtn) toggleRightBtn.addEventListener('click', () => togglePanel(rightPanel, 'hide_right_panel'));
 
@@ -260,7 +268,6 @@
             if (s.c4) stops.push(s.c4);
             return stops.filter(Boolean);
         }
-
         function applyGradientText(el, stops) {
             el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
             el.style.webkitBackgroundClip = 'text';
@@ -268,44 +275,34 @@
             el.style.color = 'transparent';
             el.style.display = 'inline-block';
         }
-
         function applySolidText(el, color) {
             el.style.backgroundImage = '';
             el.style.webkitBackgroundClip = '';
             el.style.backgroundClip = '';
             el.style.color = color || '#D8F3FF';
         }
-
         function applyStyleFromDataset(el) {
             if (!el) return;
             let s = {};
             try { s = JSON.parse(el.dataset.style || '{}'); } catch (e) { s = {}; }
-
             const stops = buildStops(s);
             const shouldFade = !!s.fade && stops.length >= 2;
-
             if (shouldFade) applyGradientText(el, stops);
             else applySolidText(el, s.c1);
         }
-
         function applyStylesIn(root) {
             (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
         }
-
-        // apply to initial messages
         applyStylesIn(document);
 
         function getTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
         }
-
         function setTabCharacterId(id) {
             sessionStorage.setItem('active_character_id', String(id));
             if (hiddenChar) hiddenChar.value = String(id);
         }
-
-        // Initialize per-tab character: use stored value, else use current select
         (function initActiveCharacterPerTab() {
             if (!switcher) return;
             const stored = getTabCharacterId();
@@ -318,24 +315,6 @@
             }
         })();
 
-        (function redirectToTabCharacterRoomOnLoad() {
-            const id = getTabCharacterId();
-            if (!id) return;
-
-            fetch(`/characters/${id}/current-room`, {
-                headers: { 'Accept': 'application/json' },
-                credentials: 'same-origin',
-            })
-            .then(r => r.json())
-            .then(data => {
-                const targetSlug = data?.room_slug || null;
-                if (targetSlug && targetSlug !== roomSlug) {
-                    window.location.href = `/rooms/${targetSlug}`;
-                }
-            })
-            .catch(() => {});
-        })();
-
         function showRoomsTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
             tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
@@ -344,7 +323,6 @@
             panelUsers.classList.add('hidden');
             if (tabMeta) tabMeta.textContent = '# active / name';
         }
-
         function showUsersTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
             tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
@@ -354,31 +332,25 @@
             if (tabMeta) tabMeta.textContent = 'character / user';
             refreshUserList();
         }
-
         if (tabRooms) tabRooms.addEventListener('click', showRoomsTab);
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
         showRoomsTab();
 
         function refreshUserList() {
             if (!userListEl) return;
-
             fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(data => {
                     const roster = Array.isArray(data.roster) ? data.roster : [];
                     userListEl.innerHTML = '';
-
                     if (roster.length === 0) {
                         userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
                         return;
                     }
-
                     roster.forEach(p => {
                         const sigil = shortSigil(p.character_id);
-
                         const row = document.createElement('div');
                         row.className = 'char-row border-b border-gray-800 pb-2';
-
                         row.innerHTML = `
                             <a href="/characters/${p.character_id}"
                                target="_blank"
@@ -386,17 +358,11 @@
                                class="text-gray-100 hover:underline">
                                ${p.character_name}
                             </a>
-
                             <div class="char-card text-xs text-gray-200">
-                                <div class="font-semibold">
-                                    ${p.character_name} ⟡${sigil}
-                                </div>
-                                <div class="text-[10px] text-gray-400">
-                                    ID verification
-                                </div>
+                                <div class="font-semibold">${p.character_name} ⟡${sigil}</div>
+                                <div class="text-[10px] text-gray-400">ID verification</div>
                             </div>
                         `;
-
                         userListEl.appendChild(row);
                     });
                 })
@@ -441,10 +407,7 @@
                             </div>
                         `;
                         container.appendChild(div);
-
-                        // apply gradient/solid after insertion
                         applyStylesIn(div);
-
                         lastMessageId = msg.id;
                     });
 
@@ -452,7 +415,6 @@
                 })
                 .catch(() => {});
         }
-
         setInterval(fetchNewMessages, 2500);
 
         function sendPresencePing() {
@@ -470,7 +432,6 @@
                 body: JSON.stringify({ character_id: characterId }),
             }).catch(() => {});
         }
-
         function leaveRoom() {
             const characterId = getTabCharacterId();
             if (!characterId) return Promise.resolve();
@@ -488,38 +449,9 @@
             }).catch(() => {});
         }
 
-        // character switching is now PER TAB
-        if (switcher) {
-            switcher.addEventListener('change', async function () {
-                const newId = parseInt(this.value, 10);
+        sendPresencePing();
+        setInterval(sendPresencePing, 30000);
 
-                switcher.disabled = true;
-
-                try {
-                    setTabCharacterId(newId);
-
-                    const res = await fetch(`/characters/${newId}/current-room`, {
-                        headers: { 'Accept': 'application/json' },
-                        credentials: 'same-origin',
-                    });
-                    const data = await res.json();
-                    const targetSlug = data?.room_slug || null;
-
-                    if (targetSlug && targetSlug !== roomSlug) {
-                        window.location.href = `/rooms/${targetSlug}`;
-                        return;
-                    }
-
-                    sendPresencePing();
-
-                    if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
-                } finally {
-                    switcher.disabled = false;
-                }
-            });
-        }
-
-        // ensure hidden field is set before submit
         if (form) {
             form.addEventListener('submit', function () {
                 const id = getTabCharacterId();
@@ -527,7 +459,6 @@
             });
         }
 
-        // enter-to-send
         if (textarea && form) {
             textarea.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -537,52 +468,13 @@
             });
         }
 
-        // presence heartbeat
-        sendPresencePing();
-        setInterval(sendPresencePing, 30000);
-
         const leaveBtn = document.getElementById('leave-room-btn');
         if (leaveBtn) {
             leaveBtn.addEventListener('click', () => {
-                leaveRoom().finally(() => {
-                    window.location.href = '/rooms';
-                });
+                leaveRoom().finally(() => window.location.href = '/rooms');
             });
         }
 
-        window.addEventListener('beforeunload', () => {
-            leaveRoom();
-        });
-
-        function refreshRoomList() {
-            if (!roomListEl) return;
-
-            fetch(`{{ route('rooms.sidebar') }}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.rooms) return;
-
-                    roomListEl.innerHTML = '';
-
-                    data.rooms.forEach(r => {
-                        const button = document.createElement('button');
-                        button.type = 'button';
-                        button.onclick = () => window.location.href = '/rooms/' + r.slug;
-                        button.className =
-                            'w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-800 text-xs ' +
-                            (r.slug === roomSlug ? 'bg-gray-800 font-semibold text-teal-300' : 'text-gray-200');
-
-                        button.innerHTML = `
-                            <span class="w-6 text-[10px] text-gray-400 text-right">${r.active_users ?? 0}</span>
-                            <span class="flex-1 truncate ml-1">${r.name}</span>
-                        `;
-
-                        roomListEl.appendChild(button);
-                    });
-                })
-                .catch(() => {});
-        }
-
-        setInterval(refreshRoomList, 10000);
+        window.addEventListener('beforeunload', () => leaveRoom());
     </script>
 </x-app-layout>
