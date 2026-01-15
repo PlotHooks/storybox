@@ -108,8 +108,8 @@
                             ], JSON_UNESCAPED_SLASHES);
                         @endphp
 
-                        <div class="border-b border-gray-800 pb-2 mb-2">
-                            <div class="text-[10px] text-gray-400">
+                        <<div class="border-b border-gray-800 py-1.5">
+                            <div class="text-[11px] text-gray-500 leading-tight mb-0.5">
                                 <span class="msg-name" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
                                 · {{ $message->created_at->diffForHumans() }}
                             </div>
