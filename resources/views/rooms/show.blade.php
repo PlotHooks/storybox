@@ -109,12 +109,12 @@
                         @endphp
 
                         <div class="border-b border-gray-800 py-1">
-                            <div class="flex items-baseline gap-2 leading-tight mb-0">
+                            <div class="flex items-start gap-2 leading-tight mb-0">
                                 <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
                                 <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
                             </div>
 
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $message->body }}</span>
                             </div>
                         </div>
@@ -431,7 +431,7 @@
                             <div class="text-[10px] text-gray-400">
                                 <span class="msg-name" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
                             </div>
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
                                 <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
                             </div>
                         `;
