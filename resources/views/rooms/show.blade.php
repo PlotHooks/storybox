@@ -109,9 +109,9 @@
                         @endphp
 
                         <div class="border-b border-gray-800 py-1.5">
-                            <div class="text-[11px] text-gray-500 leading-tight mb-0.5">
-                                <span class="msg-name" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
-                                · {{ $message->created_at->diffForHumans() }}
+                            <div class="flex items-baseline gap-2 leading-tight mb-0.5">
+                                <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
+                                <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
                             </div>
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
