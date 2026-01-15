@@ -1,135 +1,127 @@
-{{-- resources/views/characters/index.blade.php --}}
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Your Characters
+        <h2 class="font-semibold text-xl text-gray-200 leading-tight">
+            Characters
         </h2>
     </x-slot>
 
     <div class="py-6">
-        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900 dark:text-gray-100">
+        <div class="max-w-none w-full mx-auto px-4 sm:px-6 lg:px-8">
 
-                    @if (session('status'))
-                        <div class="mb-4 rounded border border-green-500 bg-green-100/70 px-4 py-2 text-sm text-green-900">
-                            {{ session('status') }}
+            @if (session('status'))
+                <div class="mb-4 rounded bg-gray-900 border border-gray-800 px-4 py-2 text-sm text-green-300">
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {{-- Create character --}}
+                <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-100 mb-3">Create Character</h3>
+
+                    <form method="POST" action="{{ route('characters.store') }}">
+                        @csrf
+                        <input
+                            name="name"
+                            placeholder="Character name"
+                            class="w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-gray-100"
+                            required
+                        />
+                        @error('name')
+                            <div class="text-sm text-red-400 mt-2">{{ $message }}</div>
+                        @enderror
+
+                        <div class="mt-3">
+                            <x-primary-button>Create</x-primary-button>
                         </div>
-                    @endif
+                    </form>
+                </div>
 
-                    <h3 class="text-lg font-bold mb-4">
-                        Active character:
-                    </h3>
+                {{-- List --}}
+                <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-100 mb-3">Your Characters</h3>
 
-                    @php
-                        $activeId = $activeId ?? session('active_character_id');
-                        $active = $characters->firstWhere('id', $activeId);
-                    @endphp
+                    <div class="space-y-4">
+                        @foreach ($characters as $char)
+                            <div class="border border-gray-800 rounded-lg p-3">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="text-gray-100 font-semibold">
+                                        {{ $char->name }}
+                                        @if ($activeId === $char->id)
+                                            <span class="ml-2 text-xs text-teal-300">(active)</span>
+                                        @endif
+                                    </div>
 
-                    @if ($active)
-                        <div class="mb-6 rounded border border-teal-500 bg-teal-900/40 px-4 py-3">
-                            <div class="text-sm uppercase tracking-wide text-teal-200">
-                                Currently playing as
-                            </div>
-                            <div class="mt-1 text-2xl font-bold text-teal-100">
-                                {{ $active->name }}
-                            </div>
-                        </div>
-                    @else
-                        <p class="mb-6 text-sm text-gray-400">
-                            No active character selected yet.
-                        </p>
-                    @endif
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {{-- Character list --}}
-                        <div class="md:col-span-2">
-                            <h3 class="text-lg font-bold mb-3">
-                                Your roster
-                            </h3>
-
-                            @if ($characters->isEmpty())
-                                <p class="text-sm text-gray-400">
-                                    You do not have any characters yet. Use the form on the right to create one.
-                                </p>
-                            @else
-                                <ul class="space-y-2">
-                                    @foreach ($characters as $character)
-                                        @php
-                                            $isActive = $activeId && $activeId === $character->id;
-                                        @endphp
-                                        <li
-                                            class="flex items-center justify-between rounded border px-3 py-2 text-sm
-                                                   {{ $isActive ? 'border-teal-500 bg-teal-900/40' : 'border-gray-700 bg-gray-900/40' }}">
-                                            <div>
-                                                <div class="font-semibold">
-                                                    {{ $character->name }}
-                                                </div>
-                                                <div class="text-xs text-gray-400">
-                                                    ID #{{ $character->id }}
-                                                </div>
-                                            </div>
-
-                                            <div class="flex items-center gap-2">
-                                                @if ($isActive)
-                                                    <span class="rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white">
-                                                        Active
-                                                    </span>
-                                                @else
-                                                    <form method="POST"
-                                                          action="{{ route('characters.switch', $character) }}">
-                                                        @csrf
-                                                        <button
-                                                            type="submit"
-                                                            class="rounded bg-teal-600 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-500">
-                                                            Switch
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            @endif
-                        </div>
-
-                        {{-- New character form --}}
-                        <div>
-                            <h3 class="text-lg font-bold mb-3">
-                                New character
-                            </h3>
-
-                            <form method="POST" action="{{ route('characters.store') }}" class="space-y-3">
-                                @csrf
-
-                                <div>
-                                    <label for="name" class="block text-sm font-medium text-gray-300">
-                                        Name
-                                    </label>
-                                    <input
-                                        id="name"
-                                        name="name"
-                                        type="text"
-                                        required
-                                        maxlength="100"
-                                        class="mt-1 block w-full rounded-md border-gray-600 bg-gray-900 text-sm text-gray-100 focus:border-teal-500 focus:ring-teal-500"
-                                        placeholder="Red Woods, Plot Hooks, etc."
-                                    >
-                                    @error('name')
-                                        <p class="mt-1 text-xs text-red-400">{{ $message }}</p>
-                                    @enderror
+                                    <form method="POST" action="{{ route('characters.switch', $char) }}">
+                                        @csrf
+                                        <x-primary-button>Use</x-primary-button>
+                                    </form>
                                 </div>
 
-                                <button
-                                    type="submit"
-                                    class="w-full rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                                    Create character
-                                </button>
-                            </form>
-                        </div>
-                    </div>
+                                {{-- Style editor --}}
+                                <form method="POST" action="{{ route('characters.style', $char) }}" class="mt-3">
+                                    @csrf
 
+                                    <div class="text-xs text-gray-400 mb-2">
+                                        Style (Color 1 required. Color 2+ enable fades.)
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <label class="text-xs text-gray-300">
+                                            Color 1
+                                            <input type="color" name="text_color_1"
+                                                   value="{{ $char->text_color_1 ?? '#D8F3FF' }}"
+                                                   class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
+                                        </label>
+
+                                        <label class="text-xs text-gray-300">
+                                            Color 2
+                                            <input type="color" name="text_color_2"
+                                                   value="{{ $char->text_color_2 ?? '#000000' }}"
+                                                   class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
+                                        </label>
+
+                                        <label class="text-xs text-gray-300">
+                                            Color 3
+                                            <input type="color" name="text_color_3"
+                                                   value="{{ $char->text_color_3 ?? '#000000' }}"
+                                                   class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
+                                        </label>
+
+                                        <label class="text-xs text-gray-300">
+                                            Color 4
+                                            <input type="color" name="text_color_4"
+                                                   value="{{ $char->text_color_4 ?? '#000000' }}"
+                                                   class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
+                                        </label>
+                                    </div>
+
+                                    <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-200">
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="checkbox" name="fade_message" value="1"
+                                                   class="rounded border-gray-700 bg-gray-950"
+                                                   {{ $char->fade_message ? 'checked' : '' }}>
+                                            Fade message text
+                                        </label>
+
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="checkbox" name="fade_name" value="1"
+                                                   class="rounded border-gray-700 bg-gray-950"
+                                                   {{ $char->fade_name ? 'checked' : '' }}>
+                                            Fade name
+                                        </label>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <x-primary-button>Save Style</x-primary-button>
+                                    </div>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
+
             </div>
         </div>
     </div>

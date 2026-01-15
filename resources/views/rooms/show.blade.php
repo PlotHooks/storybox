@@ -78,14 +78,33 @@
                 {{-- Messages list --}}
                 <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-3">
                     @foreach ($messages as $message)
+                        @php
+                            $c = $message->character;
+                            $name = optional($c)->name ?? $message->user->name;
+
+                            $c1 = $c->text_color_1 ?? '#D8F3FF';
+                            $c2 = $c->text_color_2 ?? null;
+                            $c3 = $c->text_color_3 ?? null;
+                            $c4 = $c->text_color_4 ?? null;
+
+                            $fadeMsg = (bool) ($c->fade_message ?? false);
+                            $fadeName = (bool) ($c->fade_name ?? false);
+                        @endphp
+
                         <div class="border-b border-gray-800 pb-2 mb-2">
                             <div class="text-[10px] text-gray-400">
-                                {{ optional($message->character)->name ?? $message->user->name }}
+                                <span class="msg-name"
+                                      data-style='@json(["c1"=>$c1,"c2"=>$c2,"c3"=>$c3,"c4"=>$c4,"fade"=>$fadeName])'>
+                                    {{ $name }}
+                                </span>
                                 · {{ $message->created_at->diffForHumans() }}
                             </div>
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
 
-                                {{ $message->body }}
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
+                                <span class="msg-body"
+                                      data-style='@json(["c1"=>$c1,"c2"=>$c2,"c3"=>$c3,"c4"=>$c4,"fade"=>$fadeMsg])'>
+                                    {{ $message->body }}
+                                </span>
                             </div>
                         </div>
                     @endforeach
@@ -222,12 +241,8 @@
         setPanelHidden(leftPanel, 'hide_left_panel', sessionStorage.getItem('hide_left_panel') === '1');
         setPanelHidden(rightPanel, 'hide_right_panel', sessionStorage.getItem('hide_right_panel') === '1');
 
-        if (toggleLeftBtn) {
-            toggleLeftBtn.addEventListener('click', () => togglePanel(leftPanel, 'hide_left_panel'));
-        }
-        if (toggleRightBtn) {
-            toggleRightBtn.addEventListener('click', () => togglePanel(rightPanel, 'hide_right_panel'));
-        }
+        if (toggleLeftBtn) toggleLeftBtn.addEventListener('click', () => togglePanel(leftPanel, 'hide_left_panel'));
+        if (toggleRightBtn) toggleRightBtn.addEventListener('click', () => togglePanel(rightPanel, 'hide_right_panel'));
 
         function shortSigil(id) {
             return Math.abs(id * 2654435761 % 0xFFFFFFFF)
@@ -235,6 +250,50 @@
                 .toUpperCase()
                 .slice(0, 4);
         }
+
+        // ===== Gradient helpers =====
+        function buildStops(s) {
+            const stops = [];
+            if (s.c1) stops.push(s.c1);
+            if (s.c2) stops.push(s.c2);
+            if (s.c3) stops.push(s.c3);
+            if (s.c4) stops.push(s.c4);
+            return stops.filter(Boolean);
+        }
+
+        function applyGradientText(el, stops) {
+            el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
+            el.style.webkitBackgroundClip = 'text';
+            el.style.backgroundClip = 'text';
+            el.style.color = 'transparent';
+            el.style.display = 'inline-block';
+        }
+
+        function applySolidText(el, color) {
+            el.style.backgroundImage = '';
+            el.style.webkitBackgroundClip = '';
+            el.style.backgroundClip = '';
+            el.style.color = color || '#D8F3FF';
+        }
+
+        function applyStyleFromDataset(el) {
+            if (!el) return;
+            let s = {};
+            try { s = JSON.parse(el.dataset.style || '{}'); } catch (e) { s = {}; }
+
+            const stops = buildStops(s);
+            const shouldFade = !!s.fade && stops.length >= 2;
+
+            if (shouldFade) applyGradientText(el, stops);
+            else applySolidText(el, s.c1);
+        }
+
+        function applyStylesIn(root) {
+            (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
+        }
+
+        // apply to initial messages
+        applyStylesIn(document);
 
         function getTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
@@ -303,9 +362,7 @@
         function refreshUserList() {
             if (!userListEl) return;
 
-            fetch(`/rooms/${roomSlug}/roster`, {
-                headers: { 'Accept': 'application/json' }
-            })
+            fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
                 .then(r => r.json())
                 .then(data => {
                     const roster = Array.isArray(data.roster) ? data.roster : [];
@@ -347,9 +404,7 @@
         }
 
         setInterval(() => {
-            if (panelUsers && !panelUsers.classList.contains('hidden')) {
-                refreshUserList();
-            }
+            if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
         }, 5000);
 
         if (container) container.scrollTop = container.scrollHeight;
@@ -365,17 +420,31 @@
                         container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
                     data.forEach(msg => {
+                        const name = (msg.character && msg.character.name) ? msg.character.name : msg.user.name;
+
+                        const c1 = msg.character?.text_color_1 || '#D8F3FF';
+                        const c2 = msg.character?.text_color_2 || null;
+                        const c3 = msg.character?.text_color_3 || null;
+                        const c4 = msg.character?.text_color_4 || null;
+
+                        const fadeMsg = !!msg.character?.fade_message;
+                        const fadeName = !!msg.character?.fade_name;
+
                         const div = document.createElement('div');
                         div.className = "border-b border-gray-800 pb-2 mb-2";
                         div.innerHTML = `
                             <div class="text-[10px] text-gray-400">
-                                ${(msg.character && msg.character.name) ? msg.character.name : msg.user.name}
+                                <span class="msg-name" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
                             </div>
-                            <div class="text-sm text-gray-100 whitespace-pre-line">
-                                ${msg.content ?? msg.body}
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed">
+                                <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
                             </div>
                         `;
                         container.appendChild(div);
+
+                        // apply gradient/solid after insertion
+                        applyStylesIn(div);
+
                         lastMessageId = msg.id;
                     });
 
@@ -443,9 +512,7 @@
 
                     sendPresencePing();
 
-                    if (panelUsers && !panelUsers.classList.contains('hidden')) {
-                        refreshUserList();
-                    }
+                    if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
                 } finally {
                     switcher.disabled = false;
                 }

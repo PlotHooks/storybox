@@ -28,6 +28,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
     Route::get('/characters/{character}/current-room', [CharacterController::class, 'currentRoom'])
     ->name('characters.currentRoom');
+    Route::post('/characters/{character}/style', [CharacterController::class, 'updateStyle'])
+    ->name('characters.style');
 
 
     // Rooms

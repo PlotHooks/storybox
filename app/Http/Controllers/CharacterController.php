@@ -63,4 +63,38 @@ class CharacterController extends Controller
 
     return response()->json(['room_slug' => $slug]);
 }
+
+public function updateStyle(Request $request, Character $character)
+{
+    abort_if($character->user_id !== auth()->id(), 403);
+
+    $request->validate([
+        'text_color_1' => ['required','regex:/^#?[0-9a-fA-F]{6}$/'],
+        'text_color_2' => ['nullable','regex:/^#?[0-9a-fA-F]{6}$/'],
+        'text_color_3' => ['nullable','regex:/^#?[0-9a-fA-F]{6}$/'],
+        'text_color_4' => ['nullable','regex:/^#?[0-9a-fA-F]{6}$/'],
+        'fade_message' => ['nullable'],
+        'fade_name'    => ['nullable'],
+    ]);
+
+    $norm = function ($v) {
+        if ($v === null || $v === '') return null;
+        $v = ltrim($v, '#');
+        return '#' . strtoupper($v);
+    };
+
+    $character->update([
+        'text_color_1' => $norm($request->text_color_1),
+        'text_color_2' => $norm($request->text_color_2),
+        'text_color_3' => $norm($request->text_color_3),
+        'text_color_4' => $norm($request->text_color_4),
+        'fade_message' => $request->boolean('fade_message'),
+        'fade_name'    => $request->boolean('fade_name'),
+    ]);
+
+    return redirect()
+        ->route('characters.index')
+        ->with('status', 'Style updated for ' . $character->name . '.');
+}
+
 }
