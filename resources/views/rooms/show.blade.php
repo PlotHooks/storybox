@@ -114,7 +114,7 @@
                                 <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
                             </div>
 
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-2.5">
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-5">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $message->body }}</span>
                             </div>
                         </div>
@@ -432,7 +432,7 @@
     <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
     <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
   </div>
-  <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-2.5">
+  <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-5">
     <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
   </div>
 `;
