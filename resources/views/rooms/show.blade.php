@@ -364,38 +364,66 @@
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
         showRoomsTab();
 
-        function refreshUserList() {
-            if (!userListEl) return;
-            fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
-                .then(r => r.json())
-                .then(data => {
-                    const roster = Array.isArray(data.roster) ? data.roster : [];
-                    userListEl.innerHTML = '';
-                    if (roster.length === 0) {
-                        userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
-                        return;
-                    }
-                    roster.forEach(p => {
-                        const sigil = shortSigil(p.character_id);
-                        const row = document.createElement('div');
-                        row.className = 'char-row border-b border-gray-800 pb-2';
-                        row.innerHTML = `
-                            <a href="/characters/${p.character_id}"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               class="text-gray-100 hover:underline">
-                               ${p.character_name}
-                            </a>
-                            <div class="char-card text-xs text-gray-200">
-                                <div class="font-semibold">${p.character_name} ⟡${sigil}</div>
-                                <div class="text-[10px] text-gray-400">ID verification</div>
-                            </div>
-                        `;
-                        userListEl.appendChild(row);
-                    });
-                })
-                .catch(() => {});
-        }
+function refreshUserList() {
+    if (!userListEl) return;
+
+    fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.json())
+        .then(data => {
+            const roster = Array.isArray(data.roster) ? data.roster : [];
+            userListEl.innerHTML = '';
+
+            if (roster.length === 0) {
+                userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                return;
+            }
+
+            roster.forEach(p => {
+                const sigil = shortSigil(p.character_id);
+
+                // settings may arrive as JSON string or object
+                let s = {};
+                try {
+                    s = typeof p.settings === 'string'
+                        ? JSON.parse(p.settings)
+                        : (p.settings || {});
+                } catch {
+                    s = {};
+                }
+
+                const c1 = s.text_color_1 || '#D8F3FF';
+                const c2 = s.text_color_2 || null;
+                const c3 = s.text_color_3 || null;
+                const c4 = s.text_color_4 || null;
+                const fadeName = !!s.fade_name;
+
+                const row = document.createElement('div');
+                row.className = 'char-row border-b border-gray-800 pb-2';
+
+                row.innerHTML = `
+                    <a href="/characters/${p.character_id}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="msg-name text-sm md:text-base font-medium hover:underline"
+                       data-style='${JSON.stringify({ c1, c2, c3, c4, fade: fadeName })}'>
+                       ${p.character_name}
+                    </a>
+
+                    <div class="char-card text-xs text-gray-200">
+                        <div class="font-semibold">${p.character_name} ⟡${sigil}</div>
+                        <div class="text-[10px] text-gray-400">ID verification</div>
+                    </div>
+                `;
+
+                userListEl.appendChild(row);
+            });
+
+            // apply gradient / color styling to names
+            applyStylesIn(userListEl);
+        })
+        .catch(() => {});
+}
+
 
         setInterval(() => {
             if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();

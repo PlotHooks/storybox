@@ -195,6 +195,7 @@ class RoomController extends Controller
             ->select([
                 'characters.id as character_id',
                 'characters.name as character_name',
+                'characters.settings as settings',
                 'users.name as user_name',
             ])
             ->get();
