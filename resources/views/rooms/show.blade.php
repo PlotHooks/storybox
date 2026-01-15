@@ -76,7 +76,7 @@
                 </div>
 
                 {{-- Messages list --}}
-                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-1.5">
                     @foreach ($messages as $message)
                         @php
                             $c = $message->character;
