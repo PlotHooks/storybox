@@ -44,6 +44,16 @@
 
                     <div class="space-y-4">
                         @foreach ($characters as $char)
+                            @php
+                                $s = $char->settings ?? [];
+                                $c1 = $s['text_color_1'] ?? '#D8F3FF';
+                                $c2 = $s['text_color_2'] ?? '#000000';
+                                $c3 = $s['text_color_3'] ?? '#000000';
+                                $c4 = $s['text_color_4'] ?? '#000000';
+                                $fadeMsg = (bool) ($s['fade_message'] ?? false);
+                                $fadeName = (bool) ($s['fade_name'] ?? false);
+                            @endphp
+
                             <div class="border border-gray-800 rounded-lg p-3">
                                 <div class="flex items-center justify-between gap-3">
                                     <div class="text-gray-100 font-semibold">
@@ -71,28 +81,28 @@
                                         <label class="text-xs text-gray-300">
                                             Color 1
                                             <input type="color" name="text_color_1"
-                                                   value="{{ $char->text_color_1 ?? '#D8F3FF' }}"
+                                                   value="{{ $c1 }}"
                                                    class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
                                         </label>
 
                                         <label class="text-xs text-gray-300">
                                             Color 2
                                             <input type="color" name="text_color_2"
-                                                   value="{{ $char->text_color_2 ?? '#000000' }}"
+                                                   value="{{ $c2 }}"
                                                    class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
                                         </label>
 
                                         <label class="text-xs text-gray-300">
                                             Color 3
                                             <input type="color" name="text_color_3"
-                                                   value="{{ $char->text_color_3 ?? '#000000' }}"
+                                                   value="{{ $c3 }}"
                                                    class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
                                         </label>
 
                                         <label class="text-xs text-gray-300">
                                             Color 4
                                             <input type="color" name="text_color_4"
-                                                   value="{{ $char->text_color_4 ?? '#000000' }}"
+                                                   value="{{ $c4 }}"
                                                    class="mt-1 w-full h-10 rounded bg-gray-950 border border-gray-800" />
                                         </label>
                                     </div>
@@ -101,14 +111,14 @@
                                         <label class="inline-flex items-center gap-2">
                                             <input type="checkbox" name="fade_message" value="1"
                                                    class="rounded border-gray-700 bg-gray-950"
-                                                   {{ $char->fade_message ? 'checked' : '' }}>
+                                                   {{ $fadeMsg ? 'checked' : '' }}>
                                             Fade message text
                                         </label>
 
                                         <label class="inline-flex items-center gap-2">
                                             <input type="checkbox" name="fade_name" value="1"
                                                    class="rounded border-gray-700 bg-gray-950"
-                                                   {{ $char->fade_name ? 'checked' : '' }}>
+                                                   {{ $fadeName ? 'checked' : '' }}>
                                             Fade name
                                         </label>
                                     </div>

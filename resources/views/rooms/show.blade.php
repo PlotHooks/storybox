@@ -462,8 +462,14 @@
         if (textarea && form) {
             textarea.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    form.submit();
+                e.preventDefault();
+
+                 // make sure we always submit the tab’s character id
+                const id = getTabCharacterId();
+                if (hiddenChar) hiddenChar.value = String(id);
+
+                // requestSubmit triggers normal submit flow (unlike form.submit())
+                form.requestSubmit();
                 }
             });
         }
