@@ -76,7 +76,7 @@
                 </div>
 
                 {{-- Messages list --}}
-                <div id="message-container" class="flex-1 overflow-y-auto px-4 py-2 space-y-1.5">
+                <div id="message-container" class="flex-1 overflow-y-auto px-4 py-2">
                     @foreach ($messages as $message)
                         @php
                             $c = $message->character;
@@ -108,7 +108,7 @@
                             ], JSON_UNESCAPED_SLASHES);
                         @endphp
 
-                        <div class="border-b border-gray-800 py-1">
+                        <div class="border-b border-gray-800 py-1.5">
                             <div class="flex items-start gap-2 leading-tight mb-0">
                                 <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
                                 <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
