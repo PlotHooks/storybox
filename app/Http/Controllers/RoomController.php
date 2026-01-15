@@ -70,7 +70,7 @@ class RoomController extends Controller
             ->get();
 
         // NOTE: active character is now per-tab (client-side). We still pass something for initial select.
-        $activeCharacterId = Auth::user()->characters()->value('id');
+        $activeCharacterId = null;
 
         return view('rooms.show', compact(
             'room',
