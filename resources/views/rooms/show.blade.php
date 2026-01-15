@@ -82,13 +82,14 @@
                             $c = $message->character;
                             $name = optional($c)->name ?? $message->user->name;
 
-                            $c1 = $c->text_color_1 ?? '#D8F3FF';
-                            $c2 = $c->text_color_2 ?? null;
-                            $c3 = $c->text_color_3 ?? null;
-                            $c4 = $c->text_color_4 ?? null;
+                            $s = $c->settings ?? [];
+                            $c1 = $s['text_color_1'] ?? '#D8F3FF';
+                            $c2 = $s['text_color_2'] ?? null;
+                            $c3 = $s['text_color_3'] ?? null;
+                            $c4 = $s['text_color_4'] ?? null;
 
-                            $fadeMsg = (bool) ($c->fade_message ?? false);
-                            $fadeName = (bool) ($c->fade_name ?? false);
+                            $fadeMsg = (bool) ($s['fade_message'] ?? false);
+                            $fadeName = (bool) ($s['fade_name'] ?? false);
 
                             $nameStyleJson = json_encode([
                                 'c1' => $c1,
@@ -109,9 +110,7 @@
 
                         <div class="border-b border-gray-800 pb-2 mb-2">
                             <div class="text-[10px] text-gray-400">
-                                <span class="msg-name" data-style='{!! $nameStyleJson !!}'>
-                                    {{ $name }}
-                                </span>
+                                <span class="msg-name" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
                                 · {{ $message->created_at->diffForHumans() }}
                             </div>
 
@@ -259,7 +258,6 @@
                 .slice(0, 4);
         }
 
-        // ===== Gradient helpers =====
         function buildStops(s) {
             const stops = [];
             if (s.c1) stops.push(s.c1);
@@ -303,6 +301,7 @@
             sessionStorage.setItem('active_character_id', String(id));
             if (hiddenChar) hiddenChar.value = String(id);
         }
+
         (function initActiveCharacterPerTab() {
             if (!switcher) return;
             const stored = getTabCharacterId();
@@ -314,6 +313,35 @@
                 setTabCharacterId(initial);
             }
         })();
+
+        // IMPORTANT: update tab character when dropdown changes
+        if (switcher) {
+            switcher.addEventListener('change', function () {
+                const newId = parseInt(this.value, 10);
+                if (!newId) return;
+
+                setTabCharacterId(newId);
+
+                fetch(`/characters/${newId}/current-room`, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                })
+                .then(r => r.json())
+                .then(data => {
+                    const targetSlug = data?.room_slug || null;
+
+                    if (targetSlug && targetSlug !== roomSlug) {
+                        window.location.href = `/rooms/${targetSlug}`;
+                        return;
+                    }
+
+                    sendPresencePing();
+                })
+                .catch(() => {
+                    sendPresencePing();
+                });
+            });
+        }
 
         function showRoomsTab() {
             if (!tabRooms || !tabUsers || !panelRooms || !panelUsers) return;
@@ -388,13 +416,14 @@
                     data.forEach(msg => {
                         const name = (msg.character && msg.character.name) ? msg.character.name : msg.user.name;
 
-                        const c1 = msg.character?.text_color_1 || '#D8F3FF';
-                        const c2 = msg.character?.text_color_2 || null;
-                        const c3 = msg.character?.text_color_3 || null;
-                        const c4 = msg.character?.text_color_4 || null;
+                        const s = msg.character?.settings || {};
+                        const c1 = s.text_color_1 || '#D8F3FF';
+                        const c2 = s.text_color_2 || null;
+                        const c3 = s.text_color_3 || null;
+                        const c4 = s.text_color_4 || null;
 
-                        const fadeMsg = !!msg.character?.fade_message;
-                        const fadeName = !!msg.character?.fade_name;
+                        const fadeMsg = !!s.fade_message;
+                        const fadeName = !!s.fade_name;
 
                         const div = document.createElement('div');
                         div.className = "border-b border-gray-800 pb-2 mb-2";
@@ -462,14 +491,10 @@
         if (textarea && form) {
             textarea.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-
-                 // make sure we always submit the tab’s character id
-                const id = getTabCharacterId();
-                if (hiddenChar) hiddenChar.value = String(id);
-
-                // requestSubmit triggers normal submit flow (unlike form.submit())
-                form.requestSubmit();
+                    e.preventDefault();
+                    const id = getTabCharacterId();
+                    if (hiddenChar) hiddenChar.value = String(id);
+                    form.requestSubmit();
                 }
             });
         }
