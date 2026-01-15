@@ -76,7 +76,7 @@
                 </div>
 
                 {{-- Messages list --}}
-                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-1.5">
+                <div id="message-container" class="flex-1 overflow-y-auto px-4 py-2 space-y-1.5">
                     @foreach ($messages as $message)
                         @php
                             $c = $message->character;
@@ -428,13 +428,14 @@
                         const div = document.createElement('div');
                         div.className = "border-b border-gray-800 py-1";
                         div.innerHTML = `
-                            <div class="text-[10px] text-gray-400">
-                                <span class="msg-name" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
-                            </div>
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
-                                <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
-                            </div>
-                        `;
+  <div class="flex items-start gap-2 leading-tight mb-0">
+    <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
+    <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
+  </div>
+  <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+    <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
+  </div>
+`;
                         container.appendChild(div);
                         applyStylesIn(div);
                         lastMessageId = msg.id;
