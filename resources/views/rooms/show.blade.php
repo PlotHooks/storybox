@@ -426,7 +426,7 @@
                         const fadeName = !!s.fade_name;
 
                         const div = document.createElement('div');
-                        div.className = "border-b border-gray-800 pb-2 mb-2";
+                        div.className = "border-b border-gray-800 py-1";
                         div.innerHTML = `
                             <div class="text-[10px] text-gray-400">
                                 <span class="msg-name" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
