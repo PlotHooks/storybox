@@ -7,20 +7,30 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('message_edits', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('message_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('editor_user_id')->constrained('users')->cascadeOnDelete();
-            $table->text('old_body');
-            $table->text('new_body');
-            $table->timestamps();
+        Schema::table('messages', function (Blueprint $table) {
+            if (!Schema::hasColumn('messages', 'deleted_at')) {
+                $table->softDeletes(); // adds deleted_at
+            }
 
-            $table->index(['message_id', 'created_at']);
+            if (!Schema::hasColumn('messages', 'deleted_by')) {
+                $table->foreignId('deleted_by')
+                    ->nullable()
+                    ->constrained('users')
+                    ->nullOnDelete();
+            }
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('message_edits');
+        Schema::table('messages', function (Blueprint $table) {
+            if (Schema::hasColumn('messages', 'deleted_by')) {
+                $table->dropConstrainedForeignId('deleted_by');
+            }
+
+            if (Schema::hasColumn('messages', 'deleted_at')) {
+                $table->dropSoftDeletes();
+            }
+        });
     }
 };
