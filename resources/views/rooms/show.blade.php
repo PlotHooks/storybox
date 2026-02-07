@@ -638,6 +638,14 @@ function shortSigil(id) {
         .slice(0, 4);
 }
 
+function shortSigil(id) {
+    const n = Number.isFinite(id) ? id : 0;
+    return Math.abs((n * 2654435761) % 0xFFFFFFFF)
+        .toString(16)
+        .toUpperCase()
+        .slice(0, 4);
+}
+
 function refreshUserList() {
     if (!userListEl) return;
 
@@ -665,15 +673,20 @@ function refreshUserList() {
             const c4 = s.text_color_4 || null;
             const fadeName = !!s.fade_name;
 
-            const sigil = shortSigil(parseInt(p.character_id || 0, 10));
-            const displayName = p.character_name ?? ('#' + p.character_id);
+            const charId = parseInt(p.character_id, 10) || 0;
+            const sigil = shortSigil(charId);
+            const displayName = (p.character_name ?? ('#' + charId));
+
+            const row = document.createElement('div');
+            row.className = 'char-row border-b border-gray-800 pb-2';
 
             row.innerHTML = `
-                <a href="/characters/${p.character_id}" target="_blank" rel="noopener noreferrer"
-                class="msg-name text-sm font-medium hover:underline"
-                data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
-                ${displayName}
+                <a href="/characters/${charId}" target="_blank" rel="noopener noreferrer"
+                   class="msg-name text-sm font-medium hover:underline"
+                   data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
+                   ${displayName}
                 </a>
+
                 <div class="text-[10px] text-gray-500">${displayName}</div>
 
                 <div class="char-card text-xs text-gray-200">
@@ -687,10 +700,12 @@ function refreshUserList() {
 
         applyStylesIn(userListEl);
     })
-    .catch(() => {
+    .catch((err) => {
+        console.error('Roster error:', err);
         userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
     });
 }
+
 
 /* tabs */
 function showRoomsTab(){
