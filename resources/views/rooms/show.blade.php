@@ -87,7 +87,8 @@
                 <div class="border-t border-gray-800 p-3">
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
-                        <input type="hidden" name="character_id" id="character-id-input">
+                        <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
+
 
                         <textarea
                             id="body"
