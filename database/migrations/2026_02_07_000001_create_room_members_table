@@ -1,0 +1,12 @@
+Schema::create('room_members', function (Blueprint $table) {
+
+    $table->id();
+
+    $table->foreignId('room_id')->constrained()->cascadeOnDelete();
+
+    $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+
+    $table->timestamps();
+
+    $table->unique(['room_id','user_id']);
+});

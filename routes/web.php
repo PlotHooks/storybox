@@ -52,6 +52,11 @@ Route::middleware('auth')->group(function () {
 
     // Sidebar JSON endpoint
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
+
+    // DMs
+    Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');               // JSON: list my DM rooms
+    Route::post('/dms/start', [RoomController::class, 'dmStart'])->name('dms.start');        // create/find DM, returns room slug
+
 });
 
 require __DIR__ . '/auth.php';

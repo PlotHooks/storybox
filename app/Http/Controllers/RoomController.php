@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class RoomController extends Controller
 {
@@ -277,4 +278,84 @@ class RoomController extends Controller
 
         return response()->json(['roster' => $roster]);
     }
+
+    public function dmIndex()
+{
+    // room_user_presence is being used as "membership"
+    // return DM rooms this user belongs to
+    $rooms = DB::table('room_user_presence')
+        ->join('rooms', 'rooms.id', '=', 'room_user_presence.room_id')
+        ->where('room_user_presence.user_id', Auth::id())
+        ->where('rooms.type', 'dm')
+        ->orderByDesc('rooms.updated_at')
+        ->select([
+            'rooms.id',
+            'rooms.slug',
+            'rooms.name',
+            'rooms.updated_at',
+        ])
+        ->get();
+
+    return response()->json(['rooms' => $rooms]);
+}
+
+    public function dmStart(Request $request)
+{
+    $request->validate([
+        'other_user_id' => ['required', 'integer'],
+    ]);
+
+    $me = Auth::id();
+    $other = (int) $request->other_user_id;
+
+    abort_if($other <= 0 || $other === $me, 422, 'Bad other_user_id');
+
+    // Find an existing DM room shared by both users
+    $existingRoomId = DB::table('room_user_presence as a')
+        ->join('room_user_presence as b', function ($join) use ($me, $other) {
+            $join->on('a.room_id', '=', 'b.room_id')
+                ->where('a.user_id', '=', $me)
+                ->where('b.user_id', '=', $other);
+        })
+        ->join('rooms', 'rooms.id', '=', 'a.room_id')
+        ->where('rooms.type', 'dm')
+        ->value('rooms.id');
+
+    if ($existingRoomId) {
+        $room = Room::find($existingRoomId);
+        return response()->json(['ok' => true, 'slug' => $room->slug]);
+    }
+
+    // Create new DM room
+    $slug = 'dm-' . Str::random(20);
+
+    $room = Room::create([
+        'name'        => 'DM',
+        'slug'        => $slug,
+        'description' => null,
+        'user_id'     => $me,
+        'created_by'  => $me,
+        'type'        => 'dm',
+    ]);
+
+    // Add both users as members in room_user_presence
+    // (If your table has other columns, this still works as long as user_id + room_id exist)
+    DB::table('room_user_presence')->insert([
+        [
+            'room_id' => $room->id,
+            'user_id' => $me,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'room_id' => $room->id,
+            'user_id' => $other,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    return response()->json(['ok' => true, 'slug' => $room->slug]);
+}
+
 }
