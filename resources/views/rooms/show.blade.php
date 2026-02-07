@@ -30,7 +30,10 @@
                         </span>
                     </div>
 
-                    @php $characters = Auth::user()->characters; @endphp
+                    @php
+                        $characters = Auth::user()->characters;
+                        $isAdminBlade = (bool) (Auth::user()->is_admin ?? false);
+                    @endphp
 
                     @if ($characters->count() > 0)
                         <div class="flex items-center gap-2">
@@ -95,6 +98,9 @@
                                 'c1' => $c1, 'c2' => $c2, 'c3' => $c3, 'c4' => $c4, 'fade' => $fadeMsg,
                             ], JSON_UNESCAPED_SLASHES);
 
+                            $isOwner = (int)$message->user_id === (int)Auth::id();
+                            $canEdit = $isOwner || $isAdminBlade;
+
                             $isDeleted = false;
                             if (method_exists($message, 'trashed')) {
                                 $isDeleted = $message->trashed();
@@ -107,25 +113,53 @@
 
                         <div class="border-b border-gray-800 py-1.5 msg-row"
                              data-message-id="{{ $message->id }}"
+                             data-user-id="{{ $message->user_id }}"
+                             data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}">
 
-                            <div class="flex items-start gap-2">
-                                <span class="msg-name font-medium text-gray-200" data-style='{!! $nameStyleJson !!}'>
-                                    {{ $name }}
-                                </span>
+                            <div class="flex items-start justify-between gap-2 leading-tight mb-0">
+                                <div class="flex items-start gap-2">
+                                    <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
+                                    <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
+                                    <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
+                                    <span class="msg-deleted text-[10px] text-gray-500 opacity-70 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                </div>
 
-                                <span class="text-[10px] text-gray-500 opacity-70">
-                                    {{ $message->created_at->diffForHumans() }}
-                                </span>
-
-                                <span class="msg-deleted text-[10px] text-gray-500 opacity-70 {{ $isDeleted ? '' : 'hidden' }}">
-                                    (deleted)
-                                </span>
+                                @if ($canEdit)
+                                    <div class="flex items-center gap-2 text-[10px]">
+                                        <button type="button"
+                                            class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
+                                            {{ $isDeleted ? 'disabled' : '' }}>
+                                            Edit
+                                        </button>
+                                        <button type="button"
+                                            class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
+                                            {{ $isDeleted ? 'disabled' : '' }}>
+                                            Delete
+                                        </button>
+                                    </div>
+                                @endif
                             </div>
 
-                            <div class="msg-body text-gray-100 whitespace-pre-line"
-                                 data-style='{!! $bodyStyleJson !!}'>
-                                {{ $isDeleted ? '[deleted]' : $text }}
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+                                <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>
+                                    {{ $isDeleted ? '[deleted]' : $text }}
+                                </span>
+
+                                @if ($canEdit)
+                                    <div class="msg-editbox hidden mt-2">
+                                        <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2"
+                                                  rows="3"></textarea>
+                                        <div class="mt-2 flex gap-2 justify-end">
+                                            <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                                Cancel
+                                            </button>
+                                            <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     @endforeach
@@ -136,11 +170,11 @@
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
-                        {{-- character id --}}
                         <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
 
-                        {{-- We submit BOTH fields so your controller can validate either "body" or "content" --}}
+                        {{-- submit both so controller can accept either --}}
                         <input type="hidden" name="content" id="content-mirror" value="">
+
                         <textarea
                             id="body"
                             name="body"
@@ -203,6 +237,7 @@ let lastMessageId = {{ $messages->last()?->id ?? 0 }};
 const roomSlug = @json($room->slug);
 const csrf = @json(csrf_token());
 const currentUserId = {{ (int) Auth::id() }};
+const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
 
 const container  = document.getElementById('message-container');
 const form       = document.getElementById('message-form');
@@ -226,19 +261,10 @@ const panelDms   = document.getElementById('panel-dms');
 const tabMeta    = document.getElementById('tab-meta');
 const userListEl = document.getElementById('user-list');
 
-/* ---------------------------
-   LEFT/RIGHT TOGGLES
----------------------------- */
-document.getElementById('toggle-left')?.addEventListener('click', () => {
-    leftPanel?.classList.toggle('hidden');
-});
-document.getElementById('toggle-right')?.addEventListener('click', () => {
-    rightPanel?.classList.toggle('hidden');
-});
+document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
+document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
 
-/* ---------------------------
-   GRADIENT / FADE
----------------------------- */
+/* fades */
 function buildStops(s){
     const stops = [];
     if (s.c1) stops.push(s.c1);
@@ -274,9 +300,7 @@ function applyStylesIn(root){
 }
 applyStylesIn(document);
 
-/* ---------------------------
-   ACTIVE CHARACTER (per tab)
----------------------------- */
+/* active character */
 function getTabCharacterId() {
     const v = sessionStorage.getItem('active_character_id');
     return v ? parseInt(v, 10) : 0;
@@ -284,6 +308,15 @@ function getTabCharacterId() {
 function setTabCharacterId(id) {
     sessionStorage.setItem('active_character_id', String(id));
     if (hiddenChar) hiddenChar.value = String(id);
+}
+
+/* room per character (client-side snapping) */
+function setLastRoomForCharacter(characterId, slug) {
+    if (!characterId || !slug) return;
+    localStorage.setItem('char_room_' + characterId, slug);
+}
+function getLastRoomForCharacter(characterId) {
+    return localStorage.getItem('char_room_' + characterId) || '';
 }
 
 (function initActiveCharacterPerTab() {
@@ -295,18 +328,33 @@ function setTabCharacterId(id) {
     } else {
         setTabCharacterId(parseInt(switcher.value, 10));
     }
+
+    // remember current room for current character
+    const cid = getTabCharacterId();
+    if (cid) setLastRoomForCharacter(cid, roomSlug);
 })();
 
 switcher?.addEventListener('change', function(){
     const newId = parseInt(this.value, 10);
     if (!newId) return;
+
+    // remember current room for old character
+    const oldId = getTabCharacterId();
+    if (oldId) setLastRoomForCharacter(oldId, roomSlug);
+
     setTabCharacterId(newId);
+
+    // snap to last room for this character if known
+    const target = getLastRoomForCharacter(newId);
+    if (target && target !== roomSlug) {
+        window.location.href = `/rooms/${target}`;
+        return;
+    }
+
     sendPresencePing();
 });
 
-/* ---------------------------
-   PRESENCE PING
----------------------------- */
+/* presence */
 function sendPresencePing() {
     const characterId = getTabCharacterId();
     if (!characterId) return;
@@ -325,9 +373,7 @@ function sendPresencePing() {
 sendPresencePing();
 setInterval(sendPresencePing, 30000);
 
-/* ---------------------------
-   LEAVE ROOM
----------------------------- */
+/* leave room */
 function leaveRoom() {
     const characterId = getTabCharacterId();
     if (!characterId) return Promise.resolve();
@@ -345,13 +391,13 @@ function leaveRoom() {
     }).catch(() => {});
 }
 document.getElementById('leave-room-btn')?.addEventListener('click', () => {
+    const cid = getTabCharacterId();
+    if (cid) setLastRoomForCharacter(cid, roomSlug);
     leaveRoom().finally(() => window.location.href = '/rooms');
 });
 window.addEventListener('beforeunload', () => leaveRoom());
 
-/* ---------------------------
-   ENTER TO SEND + mirror content
----------------------------- */
+/* send */
 function syncContentMirror() {
     if (contentMirror && textarea) contentMirror.value = textarea.value;
 }
@@ -366,17 +412,118 @@ textarea?.addEventListener('keydown', function(e){
 });
 
 form?.addEventListener('submit', function(){
-    // make sure both fields are set
     syncContentMirror();
     const id = getTabCharacterId();
     if (hiddenChar) hiddenChar.value = String(id);
 });
 
-/* ---------------------------
-   FETCH NEW MESSAGES
-   - respects deleted_at
-   - respects character name + styles
----------------------------- */
+/* edit/delete restore */
+function canEditMessageRow(row) {
+    if (!row) return false;
+    if (row.dataset.canEdit === '1') return true;
+    const uid = parseInt(row.dataset.userId || '0', 10);
+    return (uid && uid === currentUserId) || !!isAdmin;
+}
+function attachMessageActions(root) {
+    (root || document).querySelectorAll('.msg-row').forEach(row => {
+        if (row.dataset.bound === '1') return;
+        row.dataset.bound = '1';
+
+        const editBtn = row.querySelector('.msg-edit-btn');
+        const delBtn  = row.querySelector('.msg-del-btn');
+        const bodyEl  = row.querySelector('.msg-body');
+        const editBox = row.querySelector('.msg-editbox');
+        const ta      = row.querySelector('.msg-edit-textarea');
+        const saveBtn = row.querySelector('.msg-save-btn');
+        const cancelBtn = row.querySelector('.msg-cancel-btn');
+        const editedTag = row.querySelector('.msg-edited');
+        const deletedTag = row.querySelector('.msg-deleted');
+
+        const id = row.dataset.messageId;
+        const isDeleted = row.dataset.deleted === '1';
+
+        if (!canEditMessageRow(row)) return;
+
+        if (isDeleted) {
+            if (editBtn) editBtn.disabled = true;
+            if (delBtn) delBtn.disabled = true;
+            return;
+        }
+
+        editBtn?.addEventListener('click', () => {
+            if (!bodyEl || !editBox || !ta) return;
+            ta.value = (bodyEl.textContent || '').trim();
+            editBox.classList.remove('hidden');
+            editBtn.disabled = true;
+            if (delBtn) delBtn.disabled = true;
+        });
+
+        cancelBtn?.addEventListener('click', () => {
+            if (!editBox) return;
+            editBox.classList.add('hidden');
+            if (editBtn) editBtn.disabled = false;
+            if (delBtn) delBtn.disabled = false;
+        });
+
+        saveBtn?.addEventListener('click', () => {
+            if (!ta || !bodyEl) return;
+            const newBody = ta.value;
+
+            fetch(`/messages/${id}`, {
+                method: 'PATCH',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ body: newBody, content: newBody }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.ok) return;
+
+                bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
+                editedTag?.classList.remove('hidden');
+
+                editBox?.classList.add('hidden');
+                if (editBtn) editBtn.disabled = false;
+                if (delBtn) delBtn.disabled = false;
+            })
+            .catch(() => {});
+        });
+
+        delBtn?.addEventListener('click', () => {
+            if (!confirm('Delete this message?')) return;
+
+            fetch(`/messages/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.ok) return;
+
+                row.dataset.deleted = '1';
+                if (bodyEl) bodyEl.textContent = '[deleted]';
+                deletedTag?.classList.remove('hidden');
+
+                if (editBtn) editBtn.disabled = true;
+                if (delBtn) delBtn.disabled = true;
+                editBox?.classList.add('hidden');
+            })
+            .catch(() => {});
+        });
+    });
+}
+attachMessageActions(document);
+
+/* fetch new messages */
 function fetchNewMessages() {
     fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
         headers: { 'Accept': 'application/json' },
@@ -406,42 +553,64 @@ function fetchNewMessages() {
             const fadeMsg = !!s.fade_message;
             const fadeName = !!s.fade_name;
 
-            const isDeleted = !!msg.deleted_at;
+            const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
             const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
+
+            const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
 
             const div = document.createElement('div');
             div.className = "border-b border-gray-800 py-1.5 msg-row";
             div.dataset.messageId = String(msg.id);
+            div.dataset.userId = String(msg.user_id ?? 0);
+            div.dataset.canEdit = canEdit ? '1' : '0';
             div.dataset.deleted = isDeleted ? '1' : '0';
 
             div.innerHTML = `
-                <div class="flex items-start gap-2">
-                    <span class="msg-name font-medium text-gray-200"
-                        data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
-                    <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
-                    <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                <div class="flex items-start justify-between gap-2 leading-tight mb-0">
+                    <div class="flex items-start gap-2">
+                        <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
+                        <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
+                        <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
+                        <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                    </div>
+
+                    ${canEdit ? `
+                        <div class="flex items-center gap-2 text-[10px]">
+                            <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
+                            <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
+                        </div>
+                    ` : ''}
                 </div>
-                <div class="msg-body text-gray-100 whitespace-pre-line"
-                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</div>
+
+                <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+                    <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</span>
+
+                    ${canEdit ? `
+                        <div class="msg-editbox hidden mt-2">
+                            <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2" rows="3"></textarea>
+                            <div class="mt-2 flex gap-2 justify-end">
+                                <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Cancel</button>
+                                <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Save</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
             `;
 
             container.appendChild(div);
             applyStylesIn(div);
+            attachMessageActions(div);
+
             lastMessageId = msg.id;
         });
 
         if (wasNearBottom) container.scrollTop = container.scrollHeight;
     })
-    .catch((e) => {
-        console.error('fetchNewMessages error', e);
-    });
+    .catch(() => {});
 }
 setInterval(fetchNewMessages, 2500);
 
-/* ---------------------------
-   USERS TAB (ROSTER)
-   - accepts {roster:[...]} OR direct [...]
----------------------------- */
+/* roster */
 function refreshUserList() {
     if (!userListEl) return;
 
@@ -449,10 +618,7 @@ function refreshUserList() {
         headers: { 'Accept': 'application/json' },
         credentials: 'same-origin'
     })
-    .then(r => {
-        if (!r.ok) throw new Error('Roster HTTP ' + r.status);
-        return r.json();
-    })
+    .then(r => r.json())
     .then(data => {
         const roster = Array.isArray(data) ? data : (Array.isArray(data.roster) ? data.roster : []);
         userListEl.innerHTML = '';
@@ -489,15 +655,12 @@ function refreshUserList() {
 
         applyStylesIn(userListEl);
     })
-    .catch((e) => {
-        console.error('refreshUserList error', e);
-        userListEl.innerHTML = `<div class="text-red-400">Roster error. Check console.</div>`;
+    .catch(() => {
+        userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
     });
 }
 
-/* ---------------------------
-   TABS
----------------------------- */
+/* tabs */
 function showRoomsTab(){
     tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
     tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
@@ -532,7 +695,6 @@ function showDmsTab(){
 
     if (tabMeta) tabMeta.textContent = 'direct messages';
 }
-
 tabRooms?.addEventListener('click', showRoomsTab);
 tabUsers?.addEventListener('click', showUsersTab);
 tabDms?.addEventListener('click', showDmsTab);
@@ -542,9 +704,7 @@ setInterval(() => {
     if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
 }, 5000);
 
-/* ---------------------------
-   INITIAL SCROLL
----------------------------- */
+/* initial scroll */
 if (container) container.scrollTop = container.scrollHeight;
 </script>
 
