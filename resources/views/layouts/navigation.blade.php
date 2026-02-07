@@ -1,117 +1,65 @@
-<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
-    <!-- Primary Navigation Menu -->
+<nav x-data="{ open: false }" class="bg-gray-900 border-b border-gray-800">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
+
+            <!-- LEFT -->
             <div class="flex">
+
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('dashboard') }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
+                        <x-application-logo class="block h-9 w-auto fill-current text-gray-200" />
                     </a>
                 </div>
 
-                <!-- Navigation Links -->
+                <!-- Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
+
+                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" class="text-gray-300">
+                        Dashboard
                     </x-nav-link>
 
-                    <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
-                        {{ __('Characters') }}
+                    <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')" class="text-gray-300">
+                        Characters
                     </x-nav-link>
 
-                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')">
-                        {{ __('Rooms') }}
+                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')" class="text-gray-300">
+                        Rooms
                     </x-nav-link>
-                </div>
-            </div>
 
-            <!-- Rooms dropdown (RPC-style switcher) -->
-            <div
-                class="hidden sm:flex sm:items-center sm:ms-6"
-                x-data="{
-                    openRooms: false,
-                    rooms: [],
-                    loading: false,
-                    async toggleRooms() {
-                        this.openRooms = !this.openRooms;
-
-                        if (this.openRooms && this.rooms.length === 0) {
-                            this.loading = true;
-                            try {
-                                const res = await fetch('{{ route('rooms.sidebar') }}');
-                                const data = await res.json();
-                                this.rooms = data.rooms || [];
-                            } catch (e) {
-                                console.error(e);
-                            } finally {
-                                this.loading = false;
-                            }
-                        }
-                    },
-                    goRoom(room) {
-                        if (!room || !room.slug) return;
-                        window.location.href = '/rooms/' + room.slug;
-                    }
-                }"
-            >
-                <div class="relative">
+                    <!-- 🔥 DM BUTTON -->
                     <button
-                        type="button"
-                        @click="toggleRooms"
-                        class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-600 bg-white hover:text-gray-800 focus:outline-none transition ease-in-out duration-150"
+                        id="global-dm-button"
+                        class="relative text-gray-300 hover:text-white transition"
+                        onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))"
                     >
-                        <span class="mr-1">Rooms</span>
-                        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.086l3.71-3.855a.75.75 0 111.08 1.04l-4.24 4.4a.75.75 0 01-1.08 0l-4.24-4.4a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                        </svg>
+                        DMs
+
+                        <!-- unread badge placeholder -->
+                        <span
+                            id="dm-unread-badge"
+                            class="hidden absolute -top-2 -right-4 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"
+                        >
+                            0
+                        </span>
                     </button>
 
-                    <!-- Dropdown list -->
-                    <div
-                        x-show="openRooms"
-                        @click.outside="openRooms = false"
-                        x-transition
-                        class="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-50"
-                        style="display: none;"
-                    >
-                        <div class="py-1 text-sm max-h-72 overflow-y-auto">
-                            <div class="px-3 py-1 text-[11px] text-gray-500 flex items-center justify-between border-b border-gray-100">
-                                <span>#</span>
-                                <span class="flex-1 text-center">Room name</span>
-                            </div>
-
-                            <template x-if="loading">
-                                <div class="px-3 py-2 text-xs text-gray-500">
-                                    Loading rooms…
-                                </div>
-                            </template>
-
-                            <template x-for="room in rooms" :key="room.id">
-                                <button
-                                    type="button"
-                                    @click="goRoom(room)"
-                                    class="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-gray-100"
-                                >
-                                    <span class="w-6 text-[11px] text-gray-400" x-text="room.active_users || ''"></span>
-                                    <span class="flex-1 truncate text-gray-800" x-text="room.name"></span>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            <!-- Settings Dropdown -->
+            <!-- RIGHT -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
                 <x-dropdown align="right" width="48">
+
                     <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
+                        <button class="inline-flex items-center px-3 py-2 text-sm rounded-md text-gray-300 hover:text-white transition">
                             <div>{{ Auth::user()->name }}</div>
 
                             <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                <svg class="fill-current h-4 w-4" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4z"
+                                          clip-rule="evenodd" />
                                 </svg>
                             </div>
                         </button>
@@ -119,74 +67,40 @@
 
                     <x-slot name="content">
                         <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
+                            Profile
                         </x-dropdown-link>
 
-                        <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-
                             <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
-                                                this.closest('form').submit();">
-                                {{ __('Log Out') }}
+                                             onclick="event.preventDefault(); this.closest('form').submit();">
+                                Log Out
                             </x-dropdown-link>
                         </form>
                     </x-slot>
+
                 </x-dropdown>
             </div>
 
-            <!-- Hamburger -->
+            <!-- MOBILE -->
             <div class="-me-2 flex items-center sm:hidden">
-                <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
-                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <button @click="open = ! open"
+                        class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path :class="{'hidden': open, 'inline-flex': ! open }"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M4 6h16M4 12h16M4 18h16"/>
+                        <path :class="{'hidden': ! open, 'inline-flex': open }"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
-        </div>
-    </div>
 
-    <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                {{ __('Dashboard') }}
-            </x-responsive-nav-link>
-
-            <x-responsive-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
-                {{ __('Characters') }}
-            </x-responsive-nav-link>
-
-            <x-responsive-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')">
-                {{ __('Rooms') }}
-            </x-responsive-nav-link>
-        </div>
-
-        <!-- Responsive Settings Options -->
-        <div class="pt-4 pb-1 border-t border-gray-200">
-            <div class="px-4">
-                <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
-                <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
-                <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();">
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </form>
-            </div>
         </div>
     </div>
 </nav>

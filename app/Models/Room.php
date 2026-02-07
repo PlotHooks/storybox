@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\RoomPresence;
+use App\Models\User;
 
 class Room extends Model
 {
@@ -16,9 +17,26 @@ class Room extends Model
         'description',
         'created_by',
         'user_id',
+        'type', // IMPORTANT
     ];
 
-    // relationships
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function isDm(): bool
+    {
+        return $this->type === 'dm';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     public function owner()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -29,10 +47,17 @@ class Room extends Model
         return $this->hasMany(Message::class);
     }
 
-    /**
-     * Computed attribute: number of "active" users in the last 5 minutes,
-     * based on distinct user_ids that have posted in this room.
-     */
+    public function presences()
+    {
+        return $this->hasMany(RoomPresence::class);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attributes
+    |--------------------------------------------------------------------------
+    */
+
     public function getActiveUsersAttribute(): int
     {
         $cutoff = now()->subMinutes(5);
@@ -42,10 +67,4 @@ class Room extends Model
             ->distinct('user_id')
             ->count('user_id');
     }
-
-     public function presences()
-    {
-        return $this->hasMany(RoomPresence::class);
-    }
-
 }
