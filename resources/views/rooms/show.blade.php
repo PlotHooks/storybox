@@ -687,7 +687,7 @@ function refreshUserList() {
                    ${displayName}
                 </a>
 
-                <div class="text-[10px] text-gray-500">${displayName}</div>
+                <div class="text-[10px] text-gray-500">${displayName} ⟡${sigil}</div>
 
                 <div class="char-card text-xs text-gray-200">
                     <div class="font-semibold">${displayName} ⟡${sigil}</div>
