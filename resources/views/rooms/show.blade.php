@@ -666,20 +666,18 @@ function refreshUserList() {
             const fadeName = !!s.fade_name;
 
             const sigil = shortSigil(parseInt(p.character_id || 0, 10));
-
-            const row = document.createElement('div');
-            row.className = 'char-row border-b border-gray-800 pb-2';
+            const displayName = p.character_name ?? ('#' + p.character_id);
 
             row.innerHTML = `
                 <a href="/characters/${p.character_id}" target="_blank" rel="noopener noreferrer"
-                   class="msg-name text-sm font-medium hover:underline"
-                   data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
-                   ${p.character_name ?? ('#' + p.character_id)}
+                class="msg-name text-sm font-medium hover:underline"
+                data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
+                ${displayName}
                 </a>
-                <div class="text-[10px] text-gray-500">${p.character_name ?? ('#' + p.character_id)}</div>
+                <div class="text-[10px] text-gray-500">${displayName}</div>
 
                 <div class="char-card text-xs text-gray-200">
-                    <div class="font-semibold">${p.character_name ?? ('#' + p.character_id)} ⟡${sigil}</div>
+                    <div class="font-semibold">${displayName} ⟡${sigil}</div>
                     <div class="text-[10px] text-gray-400">ID verification</div>
                 </div>
             `;
