@@ -62,6 +62,10 @@
                             </button>
 
                         </div>
+                    @else
+                        <div class="text-xs text-red-400">
+                            You need at least one character to post.
+                        </div>
                     @endif
                 </div>
 
@@ -90,6 +94,8 @@
                             $bodyStyleJson = json_encode([
                                 'c1' => $c1, 'c2' => $c2, 'c3' => $c3, 'c4' => $c4, 'fade' => $fadeMsg,
                             ], JSON_UNESCAPED_SLASHES);
+
+                            $text = $message->content ?? $message->body ?? '';
                         @endphp
 
                         <div class="border-b border-gray-800 py-1.5">
@@ -101,7 +107,7 @@
                             </span>
 
                             <div class="msg-body text-gray-100 whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>
-                                {{ $message->content }}
+                                {{ $text }}
                             </div>
                         </div>
                     @endforeach
@@ -140,11 +146,10 @@
             <div id="right-panel" class="w-full lg:w-80 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
 
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex gap-2">
-
                     <button id="tab-rooms" type="button" class="px-2 py-1 rounded bg-gray-800">Rooms</button>
                     <button id="tab-users" type="button" class="px-2 py-1 rounded hover:bg-gray-800">Users</button>
                     <button id="tab-dms" type="button" class="px-2 py-1 rounded hover:bg-gray-800">DMs</button>
-
+                    <span id="tab-meta" class="text-[10px] text-gray-500 ml-auto"># active / name</span>
                 </div>
 
                 <div class="flex-1 overflow-y-auto text-xs">
@@ -160,7 +165,9 @@
                     </div>
 
                     <div id="panel-users" class="hidden p-3">
-                        Loading...
+                        <div id="user-list" class="space-y-2 text-gray-200">
+                            <div class="text-gray-500">Loading...</div>
+                        </div>
                     </div>
 
                     <div id="panel-dms" class="hidden p-3">
@@ -240,17 +247,6 @@ function applyStylesIn(root){
 applyStylesIn(document);
 
 /* ---------------------------
-   AUTO SCROLL ON SEND
----------------------------- */
-if (form) {
-    form.addEventListener('submit', () => {
-        setTimeout(() => {
-            container.scrollTop = container.scrollHeight;
-        }, 50);
-    });
-}
-
-/* ---------------------------
    ENTER TO SEND
 ---------------------------- */
 textarea?.addEventListener('keydown', function(e){
@@ -264,55 +260,114 @@ textarea?.addEventListener('keydown', function(e){
    FETCH NEW MESSAGES
 ---------------------------- */
 function fetchNewMessages() {
-    fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId)
-        .then(r => r.json())
-        .then(data => {
-            if(!Array.isArray(data) || !data.length) return;
+    fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(!Array.isArray(data) || !data.length) return;
 
-            const nearBottom =
-                container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+        const nearBottom =
+            container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
-            data.forEach(msg => {
-                // name
-                const name = (msg.character && msg.character.name) ? msg.character.name : (msg.user?.name ?? 'Unknown');
+        data.forEach(msg => {
+            const name = (msg.character && msg.character.name)
+                ? msg.character.name
+                : (msg.user?.name ?? 'Unknown');
 
-                // settings for fade
-                let s = msg.character?.settings || {};
-                if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
+            let s = msg.character?.settings || {};
+            if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
 
-                const c1 = s.text_color_1 || '#D8F3FF';
-                const c2 = s.text_color_2 || null;
-                const c3 = s.text_color_3 || null;
-                const c4 = s.text_color_4 || null;
+            const c1 = s.text_color_1 || '#D8F3FF';
+            const c2 = s.text_color_2 || null;
+            const c3 = s.text_color_3 || null;
+            const c4 = s.text_color_4 || null;
 
-                const fadeMsg = !!s.fade_message;
-                const fadeName = !!s.fade_name;
+            const fadeMsg = !!s.fade_message;
+            const fadeName = !!s.fade_name;
 
-                const div = document.createElement('div');
-                div.className = "border-b border-gray-800 py-1.5";
+            const text = (msg.content ?? msg.body ?? '');
 
-                div.innerHTML = `
-                    <span class="msg-name font-medium text-gray-200"
-                        data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
-                    <div class="msg-body text-gray-100 whitespace-pre-line"
-                        data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? ''}</div>
-                `;
+            const div = document.createElement('div');
+            div.className = "border-b border-gray-800 py-1.5";
 
-                container.appendChild(div);
-                applyStylesIn(div);
+            div.innerHTML = `
+                <span class="msg-name font-medium text-gray-200"
+                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
+                <div class="msg-body text-gray-100 whitespace-pre-line"
+                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</div>
+            `;
 
-                lastMessageId = msg.id;
-            });
+            container.appendChild(div);
+            applyStylesIn(div);
 
-            if(nearBottom){
-                container.scrollTop = container.scrollHeight;
-            }
-        })
-        .catch(() => {});
+            lastMessageId = msg.id;
+        });
+
+        if(nearBottom){
+            container.scrollTop = container.scrollHeight;
+        }
+    })
+    .catch(() => {});
 }
 
-/* slowed from 2500 */
-setInterval(fetchNewMessages, 4000);
+setInterval(fetchNewMessages, 2500);
+
+/* ---------------------------
+   USERS TAB (ROSTER)
+---------------------------- */
+const userListEl = document.getElementById('user-list');
+
+function refreshUserList() {
+    if (!userListEl) return;
+
+    fetch(`/rooms/${roomSlug}/roster`, {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+    })
+    .then(r => r.json())
+    .then(data => {
+        const roster = Array.isArray(data.roster) ? data.roster : [];
+        userListEl.innerHTML = '';
+
+        if (!roster.length) {
+            userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+            return;
+        }
+
+        roster.forEach(p => {
+            // settings for fade on names in roster
+            let s = p.settings || {};
+            if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
+
+            const c1 = s.text_color_1 || '#D8F3FF';
+            const c2 = s.text_color_2 || null;
+            const c3 = s.text_color_3 || null;
+            const c4 = s.text_color_4 || null;
+            const fadeName = !!s.fade_name;
+
+            const row = document.createElement('div');
+            row.className = 'border-b border-gray-800 pb-2';
+
+            row.innerHTML = `
+                <a href="/characters/${p.character_id}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="msg-name text-sm font-medium hover:underline"
+                   data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
+                   ${p.character_name}
+                </a>
+                <div class="text-[10px] text-gray-500">${p.user_name ?? ''}</div>
+            `;
+
+            userListEl.appendChild(row);
+        });
+
+        applyStylesIn(userListEl);
+    })
+    .catch(() => {});
+}
 
 /* ---------------------------
    TABS
@@ -325,22 +380,28 @@ const panelRooms = document.getElementById('panel-rooms');
 const panelUsers = document.getElementById('panel-users');
 const panelDms   = document.getElementById('panel-dms');
 
+const tabMeta = document.getElementById('tab-meta');
+
 function showRoomsTab(){
     panelRooms.classList.remove('hidden');
     panelUsers.classList.add('hidden');
     panelDms.classList.add('hidden');
+    if (tabMeta) tabMeta.textContent = '# active / name';
 }
 
 function showUsersTab(){
     panelRooms.classList.add('hidden');
     panelUsers.classList.remove('hidden');
     panelDms.classList.add('hidden');
+    if (tabMeta) tabMeta.textContent = 'character / user';
+    refreshUserList();
 }
 
 function showDmsTab(){
     panelRooms.classList.add('hidden');
     panelUsers.classList.add('hidden');
     panelDms.classList.remove('hidden');
+    if (tabMeta) tabMeta.textContent = 'direct messages';
 }
 
 tabRooms?.addEventListener('click', showRoomsTab);
@@ -348,6 +409,10 @@ tabUsers?.addEventListener('click', showUsersTab);
 tabDms?.addEventListener('click', showDmsTab);
 
 showRoomsTab();
+
+setInterval(() => {
+    if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
+}, 5000);
 </script>
 
 </x-app-layout>
