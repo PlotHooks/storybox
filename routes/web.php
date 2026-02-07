@@ -56,6 +56,8 @@ Route::middleware('auth')->group(function () {
     // DMs
     Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');               // JSON: list my DM rooms
     Route::post('/dms/start', [RoomController::class, 'dmStart'])->name('dms.start');        // create/find DM, returns room slug
+    
+
 
 });
 

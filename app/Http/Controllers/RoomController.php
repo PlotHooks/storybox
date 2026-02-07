@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class RoomController extends Controller
 {
@@ -38,6 +37,7 @@ class RoomController extends Controller
             'description' => $request->description,
             'user_id'     => $userId,
             'created_by'  => $userId,
+            'type'        => 'public', // IMPORTANT
         ]);
 
         return redirect()
@@ -47,7 +47,16 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        // Include soft-deleted messages so the UI can show [deleted] placeholders
+        // Block access to DMs you are not part of
+        if ($room->type === 'dm') {
+            $isMember = DB::table('room_user_presence')
+                ->where('room_id', $room->id)
+                ->where('user_id', Auth::id())
+                ->exists();
+
+            abort_unless($isMember, 403);
+        }
+
         $messages = $room->messages()
             ->withTrashed()
             ->with(['character', 'user'])
@@ -58,7 +67,19 @@ class RoomController extends Controller
 
         $cutoff = now()->subMinutes(5);
 
+        // ONLY show:
+        // public rooms
+        // OR rooms user belongs to (DM)
         $sidebarRooms = Room::query()
+            ->where(function ($q) {
+                $q->where('rooms.type', 'public')
+                    ->orWhereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('room_user_presence')
+                            ->whereColumn('room_user_presence.room_id', 'rooms.id')
+                            ->where('room_user_presence.user_id', Auth::id());
+                    });
+            })
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
                     ->where('character_presences.last_seen_at', '>=', $cutoff);
@@ -73,7 +94,6 @@ class RoomController extends Controller
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
-        // NOTE: active character is now per-tab (client-side). We still pass something for initial select.
         $activeCharacterId = null;
 
         return view('rooms.show', compact(
@@ -98,14 +118,14 @@ class RoomController extends Controller
     {
         $characterId = (int) $request->input('character_id', 0);
         abort_if($characterId <= 0, 422, 'character_id is required');
+
         $this->assertCharacterOwnedByUser($characterId);
+
         return $characterId;
     }
 
     private function canModerate(): bool
     {
-        // If you have is_admin on users, this works.
-        // If you do not, it behaves as author-only.
         return (bool) (Auth::user()->is_admin ?? false);
     }
 
@@ -119,14 +139,12 @@ class RoomController extends Controller
     {
         $this->assertCanEditOrDelete($message);
 
-        // Don't allow editing a deleted message
-        abort_if($message->deleted_at, 410, 'Message is deleted');
+        abort_if($message->deleted_at, 410);
 
         $request->validate([
             'body' => ['required', 'string', 'max:2000'],
         ]);
 
-        // audit
         DB::table('message_edits')->insert([
             'message_id'      => $message->id,
             'editor_user_id'  => Auth::id(),
@@ -152,13 +170,12 @@ class RoomController extends Controller
         $message->deleted_by = Auth::id();
         $message->save();
 
-        $message->delete(); // soft delete
-        $message->refresh(); // ensure deleted_at is populated
+        $message->delete();
+        $message->refresh();
 
         return response()->json([
-            'ok'         => true,
-            'id'         => $message->id,
-            'deleted_at' => optional($message->deleted_at)->toISOString(),
+            'ok' => true,
+            'id' => $message->id,
         ]);
     }
 
@@ -186,7 +203,7 @@ class RoomController extends Controller
     public function latest(Room $room, Request $request)
     {
         $lastId = (int) $request->query('after', 0);
-        $since  = $request->query('since'); // ISO string
+        $since  = $request->query('since');
 
         $q = $room->messages()
             ->withTrashed()
@@ -203,9 +220,7 @@ class RoomController extends Controller
             $q->where('id', '>', $lastId);
         }
 
-        $messages = $q->get();
-
-        return response()->json($messages);
+        return response()->json($q->get());
     }
 
     public function ping(Room $room, Request $request)
@@ -241,6 +256,15 @@ class RoomController extends Controller
         $cutoff = now()->subMinutes(5);
 
         $rooms = Room::query()
+            ->where(function ($q) {
+                $q->where('rooms.type', 'public')
+                    ->orWhereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('room_user_presence')
+                            ->whereColumn('room_user_presence.room_id', 'rooms.id')
+                            ->where('room_user_presence.user_id', Auth::id());
+                    });
+            })
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
                     ->where('character_presences.last_seen_at', '>=', $cutoff);
@@ -273,6 +297,7 @@ class RoomController extends Controller
                 'characters.name as character_name',
                 'characters.settings as settings',
                 'users.name as user_name',
+                'users.id as user_id', // IMPORTANT FOR DM BUTTON
             ])
             ->get();
 
@@ -280,82 +305,62 @@ class RoomController extends Controller
     }
 
     public function dmIndex()
-{
-    // room_user_presence is being used as "membership"
-    // return DM rooms this user belongs to
-    $rooms = DB::table('room_user_presence')
-        ->join('rooms', 'rooms.id', '=', 'room_user_presence.room_id')
-        ->where('room_user_presence.user_id', Auth::id())
-        ->where('rooms.type', 'dm')
-        ->orderByDesc('rooms.updated_at')
-        ->select([
-            'rooms.id',
-            'rooms.slug',
-            'rooms.name',
-            'rooms.updated_at',
-        ])
-        ->get();
+    {
+        $rooms = DB::table('room_user_presence')
+            ->join('rooms', 'rooms.id', '=', 'room_user_presence.room_id')
+            ->where('room_user_presence.user_id', Auth::id())
+            ->where('rooms.type', 'dm')
+            ->orderByDesc('rooms.updated_at')
+            ->select(
+                'rooms.id',
+                'rooms.slug',
+                'rooms.name',
+                'rooms.updated_at'
+            )
+            ->get();
 
-    return response()->json(['rooms' => $rooms]);
-}
-
-    public function dmStart(Request $request)
-{
-    $request->validate([
-        'other_user_id' => ['required', 'integer'],
-    ]);
-
-    $me = Auth::id();
-    $other = (int) $request->other_user_id;
-
-    abort_if($other <= 0 || $other === $me, 422, 'Bad other_user_id');
-
-    // Find an existing DM room shared by both users
-    $existingRoomId = DB::table('room_user_presence as a')
-        ->join('room_user_presence as b', function ($join) use ($me, $other) {
-            $join->on('a.room_id', '=', 'b.room_id')
-                ->where('a.user_id', '=', $me)
-                ->where('b.user_id', '=', $other);
-        })
-        ->join('rooms', 'rooms.id', '=', 'a.room_id')
-        ->where('rooms.type', 'dm')
-        ->value('rooms.id');
-
-    if ($existingRoomId) {
-        $room = Room::find($existingRoomId);
-        return response()->json(['ok' => true, 'slug' => $room->slug]);
+        return response()->json(['rooms' => $rooms]);
     }
 
-    // Create new DM room
-    $slug = 'dm-' . Str::random(20);
+    public function dmStart(Request $request)
+    {
+        $request->validate([
+            'other_user_id' => ['required', 'integer'],
+        ]);
 
-    $room = Room::create([
-        'name'        => 'DM',
-        'slug'        => $slug,
-        'description' => null,
-        'user_id'     => $me,
-        'created_by'  => $me,
-        'type'        => 'dm',
-    ]);
+        $me = Auth::id();
+        $other = (int) $request->other_user_id;
 
-    // Add both users as members in room_user_presence
-    // (If your table has other columns, this still works as long as user_id + room_id exist)
-    DB::table('room_user_presence')->insert([
-        [
-            'room_id' => $room->id,
-            'user_id' => $me,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ],
-        [
-            'room_id' => $room->id,
-            'user_id' => $other,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ],
-    ]);
+        abort_if($other <= 0 || $other === $me, 422);
 
-    return response()->json(['ok' => true, 'slug' => $room->slug]);
-}
+        $existingRoomId = DB::table('room_user_presence as a')
+            ->join('room_user_presence as b', function ($join) use ($me, $other) {
+                $join->on('a.room_id', '=', 'b.room_id')
+                    ->where('a.user_id', '=', $me)
+                    ->where('b.user_id', '=', $other);
+            })
+            ->join('rooms', 'rooms.id', '=', 'a.room_id')
+            ->where('rooms.type', 'dm')
+            ->value('rooms.id');
 
+        if ($existingRoomId) {
+            $room = Room::find($existingRoomId);
+            return response()->json(['slug' => $room->slug]);
+        }
+
+        $room = Room::create([
+            'name'        => 'DM',
+            'slug'        => 'dm-' . Str::random(20),
+            'user_id'     => $me,
+            'created_by'  => $me,
+            'type'        => 'dm',
+        ]);
+
+        DB::table('room_user_presence')->insert([
+            ['room_id' => $room->id, 'user_id' => $me, 'created_at' => now(), 'updated_at' => now()],
+            ['room_id' => $room->id, 'user_id' => $other, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        return response()->json(['slug' => $room->slug]);
+    }
 }

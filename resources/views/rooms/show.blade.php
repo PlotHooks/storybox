@@ -171,8 +171,6 @@
                         @csrf
 
                         <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
-
-                        {{-- submit both so controller can accept either --}}
                         <input type="hidden" name="content" id="content-mirror" value="">
 
                         <textarea
@@ -329,7 +327,6 @@ function getLastRoomForCharacter(characterId) {
         setTabCharacterId(parseInt(switcher.value, 10));
     }
 
-    // remember current room for current character
     const cid = getTabCharacterId();
     if (cid) setLastRoomForCharacter(cid, roomSlug);
 })();
@@ -338,13 +335,11 @@ switcher?.addEventListener('change', function(){
     const newId = parseInt(this.value, 10);
     if (!newId) return;
 
-    // remember current room for old character
     const oldId = getTabCharacterId();
     if (oldId) setLastRoomForCharacter(oldId, roomSlug);
 
     setTabCharacterId(newId);
 
-    // snap to last room for this character if known
     const target = getLastRoomForCharacter(newId);
     if (target && target !== roomSlug) {
         window.location.href = `/rooms/${target}`;
@@ -417,199 +412,6 @@ form?.addEventListener('submit', function(){
     if (hiddenChar) hiddenChar.value = String(id);
 });
 
-/* edit/delete restore */
-function canEditMessageRow(row) {
-    if (!row) return false;
-    if (row.dataset.canEdit === '1') return true;
-    const uid = parseInt(row.dataset.userId || '0', 10);
-    return (uid && uid === currentUserId) || !!isAdmin;
-}
-function attachMessageActions(root) {
-    (root || document).querySelectorAll('.msg-row').forEach(row => {
-        if (row.dataset.bound === '1') return;
-        row.dataset.bound = '1';
-
-        const editBtn = row.querySelector('.msg-edit-btn');
-        const delBtn  = row.querySelector('.msg-del-btn');
-        const bodyEl  = row.querySelector('.msg-body');
-        const editBox = row.querySelector('.msg-editbox');
-        const ta      = row.querySelector('.msg-edit-textarea');
-        const saveBtn = row.querySelector('.msg-save-btn');
-        const cancelBtn = row.querySelector('.msg-cancel-btn');
-        const editedTag = row.querySelector('.msg-edited');
-        const deletedTag = row.querySelector('.msg-deleted');
-
-        const id = row.dataset.messageId;
-        const isDeleted = row.dataset.deleted === '1';
-
-        if (!canEditMessageRow(row)) return;
-
-        if (isDeleted) {
-            if (editBtn) editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-            return;
-        }
-
-        editBtn?.addEventListener('click', () => {
-            if (!bodyEl || !editBox || !ta) return;
-            ta.value = (bodyEl.textContent || '').trim();
-            editBox.classList.remove('hidden');
-            editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-        });
-
-        cancelBtn?.addEventListener('click', () => {
-            if (!editBox) return;
-            editBox.classList.add('hidden');
-            if (editBtn) editBtn.disabled = false;
-            if (delBtn) delBtn.disabled = false;
-        });
-
-        saveBtn?.addEventListener('click', () => {
-            if (!ta || !bodyEl) return;
-            const newBody = ta.value;
-
-            fetch(`/messages/${id}`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({ body: newBody, content: newBody }),
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
-
-                bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
-                editedTag?.classList.remove('hidden');
-
-                editBox?.classList.add('hidden');
-                if (editBtn) editBtn.disabled = false;
-                if (delBtn) delBtn.disabled = false;
-            })
-            .catch(() => {});
-        });
-
-        delBtn?.addEventListener('click', () => {
-            if (!confirm('Delete this message?')) return;
-
-            fetch(`/messages/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
-
-                row.dataset.deleted = '1';
-                if (bodyEl) bodyEl.textContent = '[deleted]';
-                deletedTag?.classList.remove('hidden');
-
-                if (editBtn) editBtn.disabled = true;
-                if (delBtn) delBtn.disabled = true;
-                editBox?.classList.add('hidden');
-            })
-            .catch(() => {});
-        });
-    });
-}
-attachMessageActions(document);
-
-/* fetch new messages */
-function fetchNewMessages() {
-    fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin'
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!Array.isArray(data) || data.length === 0) return;
-        if (!container) return;
-
-        const wasNearBottom =
-            container.scrollHeight - container.scrollTop - container.clientHeight < 80;
-
-        data.forEach(msg => {
-            const name = (msg.character && msg.character.name)
-                ? msg.character.name
-                : (msg.user?.name ?? 'Unknown');
-
-            let s = msg.character?.settings || {};
-            if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
-
-            const c1 = s.text_color_1 || '#D8F3FF';
-            const c2 = s.text_color_2 || null;
-            const c3 = s.text_color_3 || null;
-            const c4 = s.text_color_4 || null;
-
-            const fadeMsg = !!s.fade_message;
-            const fadeName = !!s.fade_name;
-
-            const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
-            const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
-
-            const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
-
-            const div = document.createElement('div');
-            div.className = "border-b border-gray-800 py-1.5 msg-row";
-            div.dataset.messageId = String(msg.id);
-            div.dataset.userId = String(msg.user_id ?? 0);
-            div.dataset.canEdit = canEdit ? '1' : '0';
-            div.dataset.deleted = isDeleted ? '1' : '0';
-
-            div.innerHTML = `
-                <div class="flex items-start justify-between gap-2 leading-tight mb-0">
-                    <div class="flex items-start gap-2">
-                        <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
-                        <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
-                        <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
-                        <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
-                    </div>
-
-                    ${canEdit ? `
-                        <div class="flex items-center gap-2 text-[10px]">
-                            <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
-                            <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
-                        </div>
-                    ` : ''}
-                </div>
-
-                <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
-                    <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</span>
-
-                    ${canEdit ? `
-                        <div class="msg-editbox hidden mt-2">
-                            <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2" rows="3"></textarea>
-                            <div class="mt-2 flex gap-2 justify-end">
-                                <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Cancel</button>
-                                <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Save</button>
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-
-            container.appendChild(div);
-            applyStylesIn(div);
-            attachMessageActions(div);
-
-            lastMessageId = msg.id;
-        });
-
-        if (wasNearBottom) container.scrollTop = container.scrollHeight;
-    })
-    .catch(() => {});
-}
-setInterval(fetchNewMessages, 2500);
-
 /* roster */
 function refreshUserList() {
     if (!userListEl) return;
@@ -641,13 +443,30 @@ function refreshUserList() {
             const row = document.createElement('div');
             row.className = 'border-b border-gray-800 pb-2';
 
+            const otherUserId = parseInt(p.user_id || '0', 10);
+
             row.innerHTML = `
-                <a href="/characters/${p.character_id}" target="_blank" rel="noopener noreferrer"
-                   class="msg-name text-sm font-medium hover:underline"
-                   data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
-                   ${p.character_name ?? ('#' + p.character_id)}
-                </a>
-                <div class="text-[10px] text-gray-500">${p.user_name ?? ''}</div>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <a href="/characters/${p.character_id}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="msg-name text-sm font-medium hover:underline"
+                           data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
+                            ${p.character_name ?? ('#' + p.character_id)}
+                        </a>
+                        <div class="text-[10px] text-gray-500">${p.user_name ?? ''}</div>
+                    </div>
+
+                    ${(otherUserId && otherUserId !== currentUserId) ? `
+                        <button
+                            type="button"
+                            class="dm-start-btn text-xs text-blue-400 hover:underline"
+                            data-user="${otherUserId}">
+                            DM
+                        </button>
+                    ` : ''}
+                </div>
             `;
 
             userListEl.appendChild(row);
@@ -659,6 +478,33 @@ function refreshUserList() {
         userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
     });
 }
+
+/* DM start click */
+document.addEventListener('click', function(e){
+    const btn = e.target.closest('.dm-start-btn');
+    if(!btn) return;
+
+    const otherUserId = parseInt(btn.dataset.user || '0', 10);
+    if (!otherUserId) return;
+
+    fetch('/dms/start', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrf,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ other_user_id: otherUserId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data && data.slug){
+            window.location.href = `/rooms/${data.slug}`;
+        }
+    })
+    .catch(() => {});
+});
 
 /* tabs */
 function showRoomsTab(){

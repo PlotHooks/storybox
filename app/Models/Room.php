@@ -67,4 +67,14 @@ class Room extends Model
             ->distinct('user_id')
             ->count('user_id');
     }
+    /*
+    |--------------------------------------------------------------------------
+    | DMs
+    |--------------------------------------------------------------------------
+    */
+    public function rooms()
+{
+    return $this->belongsToMany(Room::class, 'room_members');
+}
+
 }
