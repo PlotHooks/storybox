@@ -676,7 +676,7 @@ function refreshUserList() {
                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
                    ${p.character_name ?? ('#' + p.character_id)}
                 </a>
-                <div class="text-[10px] text-gray-500">${p.character_name ?? ('#' + p.character_id)}</div>
+                <div class="text-[10px] text-gray-500">${displayName} ⟡${sigil}</div>
 
                 <div class="char-card text-xs text-gray-200">
                     <div class="font-semibold">${p.character_name ?? ('#' + p.character_id)} ⟡${sigil}</div>
