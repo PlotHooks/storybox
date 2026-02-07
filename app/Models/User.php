@@ -51,19 +51,20 @@ class User extends Authenticatable
         return $this->hasMany(Character::class);
     }
 
+    // Rooms this user created (owner/creator)
     public function rooms()
     {
-        return $this->hasMany(Room::class);
+        return $this->hasMany(Room::class, 'created_by');
+    }
+
+    // Rooms this user is a member of (DM membership lives here)
+    public function memberRooms()
+    {
+        return $this->belongsToMany(Room::class, 'room_user_presence', 'user_id', 'room_id');
     }
 
     public function messages()
     {
         return $this->hasMany(Message::class);
     }
-
-    public function rooms()
-{
-    return $this->belongsToMany(Room::class, 'room_members');
-}
-
 }
