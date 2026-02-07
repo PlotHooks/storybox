@@ -106,12 +106,36 @@
                                 'c4' => $c4,
                                 'fade' => $fadeMsg,
                             ], JSON_UNESCAPED_SLASHES);
+
+                            $isOwner = $message->user_id === Auth::id();
+                            $isAdmin = (bool) (Auth::user()->is_admin ?? false);
+                            $canEditDelete = $isOwner || $isAdmin;
                         @endphp
 
-                        <div class="border-b border-gray-800 py-1.5">
+                        <div class="border-b border-gray-800 py-1.5 group"
+                             data-message-id="{{ $message->id }}"
+                             data-user-id="{{ $message->user_id }}">
                             <div class="flex items-start gap-2 leading-tight mb-0">
-                                <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
-                                <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
+                                <span class="msg-name text-sm md:text-base font-medium"
+                                      data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
+
+                                <span class="text-[10px] text-gray-500 opacity-70">
+                                    {{ $message->created_at->diffForHumans() }}
+                                </span>
+
+                                @if ($canEditDelete)
+                                    <div class="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button type="button"
+                                                class="msg-edit-btn text-[10px] px-2 py-1 rounded border border-gray-700 bg-gray-800 text-gray-100 hover:bg-gray-700">
+                                            Edit
+                                        </button>
+
+                                        <button type="button"
+                                                class="msg-delete-btn text-[10px] px-2 py-1 rounded border border-gray-700 bg-gray-800 text-gray-100 hover:bg-gray-700">
+                                            Delete
+                                        </button>
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-5">
@@ -216,6 +240,13 @@
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
+
+        const currentUserId = @json(Auth::id());
+        const canModerate = @json((bool) (Auth::user()->is_admin ?? false));
+
+        // Adjust these if your routes differ:
+        function messageUpdateUrl(id) { return `/messages/${id}`; }
+        function messageDeleteUrl(id) { return `/messages/${id}`; }
 
         const leftPanel = document.getElementById('left-panel');
         const rightPanel = document.getElementById('right-panel');
@@ -364,66 +395,65 @@
         if (tabUsers) tabUsers.addEventListener('click', showUsersTab);
         showRoomsTab();
 
-function refreshUserList() {
-    if (!userListEl) return;
+        function refreshUserList() {
+            if (!userListEl) return;
 
-    fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.json())
-        .then(data => {
-            const roster = Array.isArray(data.roster) ? data.roster : [];
-            userListEl.innerHTML = '';
+            fetch(`/rooms/${roomSlug}/roster`, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.json())
+                .then(data => {
+                    const roster = Array.isArray(data.roster) ? data.roster : [];
+                    userListEl.innerHTML = '';
 
-            if (roster.length === 0) {
-                userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
-                return;
-            }
+                    if (roster.length === 0) {
+                        userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                        return;
+                    }
 
-            roster.forEach(p => {
-                const sigil = shortSigil(p.character_id);
+                    roster.forEach(p => {
+                        const sigil = shortSigil(p.character_id);
 
-                // settings may arrive as JSON string or object
-                let s = {};
-                try {
-                    s = typeof p.settings === 'string'
-                        ? JSON.parse(p.settings)
-                        : (p.settings || {});
-                } catch {
-                    s = {};
-                }
+                        // settings may arrive as JSON string or object
+                        let s = {};
+                        try {
+                            s = typeof p.settings === 'string'
+                                ? JSON.parse(p.settings)
+                                : (p.settings || {});
+                        } catch {
+                            s = {};
+                        }
 
-                const c1 = s.text_color_1 || '#D8F3FF';
-                const c2 = s.text_color_2 || null;
-                const c3 = s.text_color_3 || null;
-                const c4 = s.text_color_4 || null;
-                const fadeName = !!s.fade_name;
+                        const c1 = s.text_color_1 || '#D8F3FF';
+                        const c2 = s.text_color_2 || null;
+                        const c3 = s.text_color_3 || null;
+                        const c4 = s.text_color_4 || null;
+                        const fadeName = !!s.fade_name;
 
-                const row = document.createElement('div');
-                row.className = 'char-row border-b border-gray-800 pb-2';
+                        const row = document.createElement('div');
+                        row.className = 'char-row border-b border-gray-800 pb-2';
 
-                row.innerHTML = `
-                    <a href="/characters/${p.character_id}"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="msg-name text-sm md:text-base font-medium hover:underline"
-                       data-style='${JSON.stringify({ c1, c2, c3, c4, fade: fadeName })}'>
-                       ${p.character_name}
-                    </a>
+                        row.innerHTML = `
+                            <a href="/characters/${p.character_id}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="msg-name text-sm md:text-base font-medium hover:underline"
+                               data-style='${JSON.stringify({ c1, c2, c3, c4, fade: fadeName })}'>
+                               ${p.character_name}
+                            </a>
 
-                    <div class="char-card text-xs text-gray-200">
-                        <div class="font-semibold">${p.character_name} ⟡${sigil}</div>
-                        <div class="text-[10px] text-gray-400">ID verification</div>
-                    </div>
-                `;
+                            <div class="char-card text-xs text-gray-200">
+                                <div class="font-semibold">${p.character_name} ⟡${sigil}</div>
+                                <div class="text-[10px] text-gray-400">ID verification</div>
+                            </div>
+                        `;
 
-                userListEl.appendChild(row);
-            });
+                        userListEl.appendChild(row);
+                    });
 
-            // apply gradient / color styling to names
-            applyStylesIn(userListEl);
-        })
-        .catch(() => {});
-}
-
+                    // apply gradient / color styling to names
+                    applyStylesIn(userListEl);
+                })
+                .catch(() => {});
+        }
 
         setInterval(() => {
             if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
@@ -453,12 +483,24 @@ function refreshUserList() {
                         const fadeMsg = !!s.fade_message;
                         const fadeName = !!s.fade_name;
 
+                        const msgUserId = msg.user?.id ?? msg.user_id ?? 0;
+                        const canEditDelete = canModerate || (parseInt(msgUserId, 10) === parseInt(currentUserId, 10));
+
                         const div = document.createElement('div');
-                        div.className = "border-b border-gray-800 py-1";
+                        div.className = "border-b border-gray-800 py-1.5 group";
+                        div.setAttribute('data-message-id', String(msg.id));
+                        div.setAttribute('data-user-id', String(msgUserId));
+
                         div.innerHTML = `
   <div class="flex items-start gap-2 leading-tight mb-0">
     <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
     <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
+    ${canEditDelete ? `
+      <div class="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button type="button" class="msg-edit-btn text-[10px] px-2 py-1 rounded border border-gray-700 bg-gray-800 text-gray-100 hover:bg-gray-700">Edit</button>
+        <button type="button" class="msg-delete-btn text-[10px] px-2 py-1 rounded border border-gray-700 bg-gray-800 text-gray-100 hover:bg-gray-700">Delete</button>
+      </div>
+    ` : ``}
   </div>
   <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug -mt-5">
     <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${msg.content ?? msg.body}</span>
@@ -534,6 +576,144 @@ function refreshUserList() {
                 leaveRoom().finally(() => window.location.href = '/rooms');
             });
         }
+
+        // --- Edit/Delete UI handlers ---
+
+        function setMessageBody(el, text) {
+            const bodySpan = el.querySelector('.msg-body');
+            if (bodySpan) bodySpan.textContent = text;
+        }
+
+        function markMessageDeleted(el) {
+            el.classList.add('opacity-60');
+            setMessageBody(el, '(deleted)');
+            const editBtn = el.querySelector('.msg-edit-btn');
+            const delBtn = el.querySelector('.msg-delete-btn');
+            if (editBtn) editBtn.remove();
+            if (delBtn) delBtn.remove();
+        }
+
+        function canEditDeleteMessageEl(messageEl) {
+            const ownerId = parseInt(messageEl.dataset.userId || '0', 10);
+            return canModerate || ownerId === currentUserId;
+        }
+
+        function beginInlineEdit(messageEl) {
+            const bodySpan = messageEl.querySelector('.msg-body');
+            if (!bodySpan) return;
+
+            if (messageEl.querySelector('textarea.msg-edit-area')) return;
+
+            const original = bodySpan.textContent ?? '';
+
+            bodySpan.style.display = 'none';
+
+            const area = document.createElement('textarea');
+            area.className = 'msg-edit-area mt-2 w-full rounded-md border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2';
+            area.rows = Math.min(8, Math.max(3, (original.match(/\n/g) || []).length + 2));
+            area.value = original;
+
+            const actions = document.createElement('div');
+            actions.className = 'mt-2 flex justify-end gap-2';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'msg-cancel-btn rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700';
+            cancelBtn.textContent = 'Cancel';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'msg-save-btn rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700';
+            saveBtn.textContent = 'Save';
+
+            actions.appendChild(cancelBtn);
+            actions.appendChild(saveBtn);
+
+            const bodyContainer = bodySpan.parentElement;
+            bodyContainer.appendChild(area);
+            bodyContainer.appendChild(actions);
+
+            cancelBtn.addEventListener('click', () => {
+                area.remove();
+                actions.remove();
+                bodySpan.style.display = '';
+            });
+
+            saveBtn.addEventListener('click', () => {
+                const newBody = area.value;
+
+                fetch(messageUpdateUrl(messageEl.dataset.messageId), {
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ body: newBody }),
+                })
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(data => {
+                    if (!data?.ok) return;
+
+                    setMessageBody(messageEl, data.message?.body ?? newBody);
+
+                    area.remove();
+                    actions.remove();
+                    bodySpan.style.display = '';
+
+                    applyStylesIn(messageEl);
+                })
+                .catch(() => {});
+            });
+
+            area.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    saveBtn.click();
+                }
+            });
+
+            area.focus();
+        }
+
+        document.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.msg-edit-btn');
+            if (editBtn) {
+                const messageEl = editBtn.closest('[data-message-id]');
+                if (!messageEl) return;
+                if (!canEditDeleteMessageEl(messageEl)) return;
+                beginInlineEdit(messageEl);
+                return;
+            }
+
+            const delBtn = e.target.closest('.msg-delete-btn');
+            if (delBtn) {
+                const messageEl = delBtn.closest('[data-message-id]');
+                if (!messageEl) return;
+                if (!canEditDeleteMessageEl(messageEl)) return;
+
+                const id = messageEl.dataset.messageId;
+                if (!id) return;
+
+                if (!confirm('Delete this message?')) return;
+
+                fetch(messageDeleteUrl(id), {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                })
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(data => {
+                    if (data?.ok) markMessageDeleted(messageEl);
+                })
+                .catch(() => {});
+            }
+        });
 
         window.addEventListener('beforeunload', () => leaveRoom());
     </script>
