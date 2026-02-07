@@ -91,7 +91,7 @@
 
                         <textarea
                             id="body"
-                            name="body"
+                            name="content"
                             rows="3"
                             required
                             placeholder="Enter to send. Shift+Enter for newline."
