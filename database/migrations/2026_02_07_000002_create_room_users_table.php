@@ -8,7 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // This is the table your controllers are using
+        // Your app uses room_user_presence for DM membership.
+        // If it already exists, do nothing.
+        if (Schema::hasTable('room_user_presence')) {
+            return;
+        }
+
         Schema::create('room_user_presence', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('room_id');
@@ -22,6 +27,7 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Only drops what this migration would have created
         Schema::dropIfExists('room_user_presence');
     }
 };
