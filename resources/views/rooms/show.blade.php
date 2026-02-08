@@ -123,8 +123,8 @@
                                     <button type="button"
                                         class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
                                         data-style='{!! $nameStyleJson !!}'
-                                        data-character-id="{{ optional($c)->id }}"
-                                        data-user-id="{{ $message->user_id }}"
+                                        data-character-id="${msg.character?.id ?? ''}"
+                                        data-user-id="${msg.user_id ?? ''}"
                                         data-character-name="{{ e($name) }}">
                                         {{ $name }}
                                     </button>
@@ -352,6 +352,9 @@
         }
 
         function openPopoverFromTrigger(triggerEl) {
+            console.log('popover trigger dataset:', {
+  characterId, userIdRaw, userId, characterName
+});
             if (!pop || !triggerEl) return;
 
             const characterId = triggerEl.dataset.characterId || '';
