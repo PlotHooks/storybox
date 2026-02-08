@@ -1,12 +1,15 @@
-// database/migrations/xxxx_xx_xx_xxxxxx_create_room_users_table.php
+<?php
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
-    public function up(): void {
+class CreateRoomUsersTable extends Migration
+{
+    public function up(): void
+    {
         Schema::create('room_users', function (Blueprint $table) {
-            $table->id();
+            $table->bigIncrements('id');
             $table->unsignedBigInteger('room_id');
             $table->unsignedBigInteger('user_id');
             $table->timestamps();
@@ -16,7 +19,8 @@ return new class extends Migration {
         });
     }
 
-    public function down(): void {
+    public function down(): void
+    {
         Schema::dropIfExists('room_users');
     }
-};
+}
