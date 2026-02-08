@@ -861,6 +861,36 @@
                 userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
             });
         }
+        /* Refresh DMs */
+        const dmListEl = document.getElementById('panel-dms');
+
+        function refreshDmList() {
+        if (!dmListEl) return;
+
+        dmListEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+
+        fetch('/dms', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+            const rooms = Array.isArray(data.rooms) ? data.rooms : [];
+            if (!rooms.length) {
+                dmListEl.innerHTML = `<div class="text-gray-500">No DMs yet.</div>`;
+                return;
+            }
+
+            dmListEl.innerHTML = rooms.map(r => `
+                <button type="button"
+                class="w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onclick="window.location.href='/rooms/${r.slug}'">
+                DM <span class="text-[10px] text-gray-500">(${new Date(r.updated_at).toLocaleString()})</span>
+                </button>
+            `).join('');
+            })
+            .catch(() => {
+            dmListEl.innerHTML = `<div class="text-red-400">DM list error</div>`;
+            });
+        }
+
 
         /* tabs */
         function showRoomsTab() {
@@ -898,7 +928,15 @@
             panelDms.classList.remove('hidden');
 
             if (tabMeta) tabMeta.textContent = 'direct messages';
-        }
+
+            refreshDmList();
+        }   
+
+        setInterval(() => {
+            if (panelDms && !panelDms.classList.contains('hidden')) refreshDmList();
+            }, 5000);
+
+
 
         tabRooms?.addEventListener('click', showRoomsTab);
         tabUsers?.addEventListener('click', showUsersTab);
