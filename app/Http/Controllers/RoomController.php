@@ -1,5 +1,5 @@
 <?php
-/* */
+
 namespace App\Http\Controllers;
 
 use App\Models\Room;
@@ -13,7 +13,18 @@ class RoomController extends Controller
 {
     public function index()
     {
-        $rooms = Room::orderBy('created_at', 'desc')->get();
+        // Public rooms only.
+        // If you want admins to see everything, keep the admin block below.
+        $q = Room::query()->orderBy('created_at', 'desc');
+
+        $isAdmin = (bool) (Auth::user()->is_admin ?? false);
+
+        if (!$isAdmin) {
+            $q->where('type', 'public');
+        }
+
+        $rooms = $q->get();
+
         return view('rooms.index', compact('rooms'));
     }
 
@@ -37,7 +48,7 @@ class RoomController extends Controller
             'description' => $request->description,
             'user_id'     => $userId,
             'created_by'  => $userId,
-            'type'        => 'public', // IMPORTANT
+            'type'        => 'public',
         ]);
 
         return redirect()
@@ -47,7 +58,7 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-       // Block access to DMs you are not part of
+        // Block access to DMs you are not part of
         if ($room->type === 'dm') {
             $isMember = DB::table('room_users')
                 ->where('room_id', $room->id)
@@ -56,7 +67,6 @@ class RoomController extends Controller
 
             abort_unless($isMember, 403);
         }
-
 
         $messages = $room->messages()
             ->withTrashed()
@@ -68,9 +78,8 @@ class RoomController extends Controller
 
         $cutoff = now()->subMinutes(5);
 
-        // ONLY show:
-        // public rooms
-        // OR rooms user belongs to (DM)
+        // Right sidebar Rooms list inside a room view:
+        // show public rooms only (keeps DMs out of the Rooms tab in the sidebar)
         $sidebarRooms = Room::query()
             ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
@@ -86,7 +95,6 @@ class RoomController extends Controller
             ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
-
 
         $activeCharacterId = null;
 
@@ -254,9 +262,9 @@ class RoomController extends Controller
                 $q->where('rooms.type', 'public')
                     ->orWhereExists(function ($sub) {
                         $sub->select(DB::raw(1))
-                            ->from('room_user_presence')
-                            ->whereColumn('room_user_presence.room_id', 'rooms.id')
-                            ->where('room_user_presence.user_id', Auth::id());
+                            ->from('room_users') // FIX: use room_users
+                            ->whereColumn('room_users.room_id', 'rooms.id')
+                            ->where('room_users.user_id', Auth::id());
                     });
             })
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
@@ -299,59 +307,57 @@ class RoomController extends Controller
     }
 
     public function dmIndex()
-        {
-            $rooms = DB::table('room_users')
-                ->join('rooms', 'rooms.id', '=', 'room_users.room_id')
-                ->where('room_users.user_id', Auth::id())
-                ->where('rooms.type', 'dm')
-                ->orderByDesc('rooms.updated_at')
-                ->select('rooms.id', 'rooms.slug', 'rooms.name', 'rooms.updated_at')
-                ->get();
+    {
+        $rooms = DB::table('room_users')
+            ->join('rooms', 'rooms.id', '=', 'room_users.room_id')
+            ->where('room_users.user_id', Auth::id())
+            ->where('rooms.type', 'dm')
+            ->orderByDesc('rooms.updated_at')
+            ->select('rooms.id', 'rooms.slug', 'rooms.name', 'rooms.updated_at')
+            ->get();
 
-            return response()->json(['rooms' => $rooms]);
-        }
-
-
-public function dmStart(Request $request)
-{
-    $request->validate([
-        'other_user_id' => ['required', 'integer'],
-    ]);
-
-    $me = Auth::id();
-    $other = (int) $request->other_user_id;
-
-    abort_if($other <= 0 || $other === $me, 422);
-
-    $existingRoomId = DB::table('room_users as a')
-        ->join('room_users as b', function ($join) use ($me, $other) {
-            $join->on('a.room_id', '=', 'b.room_id')
-                ->where('a.user_id', '=', $me)
-                ->where('b.user_id', '=', $other);
-        })
-        ->join('rooms', 'rooms.id', '=', 'a.room_id')
-        ->where('rooms.type', 'dm')
-        ->value('rooms.id');
-
-    if ($existingRoomId) {
-        $room = Room::find($existingRoomId);
-        return response()->json(['slug' => $room->slug]);
+        return response()->json(['rooms' => $rooms]);
     }
 
-    $room = Room::create([
-        'name'        => 'DM',
-        'slug'        => 'dm-' . Str::random(20),
-        'user_id'     => $me,
-        'created_by'  => $me,
-        'type'        => 'dm',
-    ]);
+    public function dmStart(Request $request)
+    {
+        $request->validate([
+            'other_user_id' => ['required', 'integer'],
+        ]);
 
-    DB::table('room_users')->insert([
-        ['room_id' => $room->id, 'user_id' => $me, 'created_at' => now(), 'updated_at' => now()],
-        ['room_id' => $room->id, 'user_id' => $other, 'created_at' => now(), 'updated_at' => now()],
-    ]);
+        $me = Auth::id();
+        $other = (int) $request->other_user_id;
 
-    return response()->json(['slug' => $room->slug]);
-}
+        abort_if($other <= 0 || $other === $me, 422);
 
+        $existingRoomId = DB::table('room_users as a')
+            ->join('room_users as b', function ($join) use ($me, $other) {
+                $join->on('a.room_id', '=', 'b.room_id')
+                    ->where('a.user_id', '=', $me)
+                    ->where('b.user_id', '=', $other);
+            })
+            ->join('rooms', 'rooms.id', '=', 'a.room_id')
+            ->where('rooms.type', 'dm')
+            ->value('rooms.id');
+
+        if ($existingRoomId) {
+            $room = Room::find($existingRoomId);
+            return response()->json(['slug' => $room->slug]);
+        }
+
+        $room = Room::create([
+            'name'        => 'DM',
+            'slug'        => 'dm-' . Str::random(20),
+            'user_id'     => $me,
+            'created_by'  => $me,
+            'type'        => 'dm',
+        ]);
+
+        DB::table('room_users')->insert([
+            ['room_id' => $room->id, 'user_id' => $me, 'created_at' => now(), 'updated_at' => now()],
+            ['room_id' => $room->id, 'user_id' => $other, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        return response()->json(['slug' => $room->slug]);
+    }
 }
