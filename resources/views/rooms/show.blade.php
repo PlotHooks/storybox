@@ -404,14 +404,12 @@
         window.addEventListener('resize', () => hidePopover());
         window.addEventListener('scroll', () => hidePopover(), true);
 
-        popDm?.addEventListener('click', async function(e) {
+        popDm?.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-
             if (!popState.userId) return;
 
-            try {
-                const resp = await fetch('/dms/start', {
+            fetch('/dms/start', {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrf,
@@ -420,28 +418,18 @@
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({ other_user_id: popState.userId })
-                });
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.slug) return;
 
-                if (!resp.ok) {
-                const text = await resp.text();
-                console.error('DM start failed:', resp.status, text);
-                alert(`DM start failed (${resp.status}). Check console.`);
-                return;
-                }
+                window.dispatchEvent(new CustomEvent('open-dm-window', {
+                    detail: { slug: data.slug }
+                }));
+            })
+            .catch(() => {});
+        });
 
-                const data = await resp.json();
-                if (data && data.slug) {
-                window.location.href = `/rooms/${data.slug}`;
-                return;
-                }
-
-                console.error('DM start returned no slug:', data);
-                alert('DM start returned no slug. Check console.');
-            } catch (err) {
-                console.error('DM start exception:', err);
-                alert('DM start threw an error. Check console.');
-            }
-            });
 
 
 

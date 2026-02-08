@@ -258,15 +258,7 @@ class RoomController extends Controller
         $cutoff = now()->subMinutes(5);
 
         $rooms = Room::query()
-            ->where(function ($q) {
-                $q->where('rooms.type', 'public')
-                ->orWhereExists(function ($sub) {
-                    $sub->select(DB::raw(1))
-                        ->from('room_users')
-                        ->whereColumn('room_users.room_id', 'rooms.id')
-                        ->where('room_users.user_id', Auth::id());
-                });
-            })
+            ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
                     ->where('character_presences.last_seen_at', '>=', $cutoff);
@@ -275,15 +267,15 @@ class RoomController extends Controller
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
-                'rooms.type',
                 DB::raw('COUNT(character_presences.id) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug', 'rooms.type')
-            ->orderBy('rooms.updated_at', 'desc')
+            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
+            ->orderBy('rooms.created_at', 'desc')
             ->get();
 
         return response()->json(['rooms' => $rooms]);
     }
+
 
 
     public function roster(Room $room)
@@ -362,4 +354,65 @@ class RoomController extends Controller
 
         return response()->json(['slug' => $room->slug]);
     }
+
+        private function assertDmMember(Room $room): void
+    {
+        abort_unless($room->type === 'dm', 404);
+
+        $isMember = DB::table('room_users')
+            ->where('room_id', $room->id)
+            ->where('user_id', Auth::id())
+            ->exists();
+
+        abort_unless($isMember, 403);
+    }
+
+    public function dmMessages(Room $room, Request $request)
+    {
+        $this->assertDmMember($room);
+
+        $after = (int) $request->query('after', 0);
+
+        $q = $room->messages()
+            ->with(['character', 'user'])
+            ->orderBy('id');
+
+        if ($after > 0) {
+            $q->where('id', '>', $after);
+        }
+
+        return response()->json([
+            'room' => [
+                'id' => $room->id,
+                'slug' => $room->slug,
+                'name' => $room->name,
+            ],
+            'messages' => $q->take(100)->get(),
+        ]);
+    }
+
+    public function dmSend(Room $room, Request $request)
+    {
+        $this->assertDmMember($room);
+
+        $request->validate([
+            'body' => 'required|string|max:2000',
+            'character_id' => 'required|integer',
+        ]);
+
+        $characterId = (int) $request->character_id;
+        $this->assertCharacterOwnedByUser($characterId);
+
+        $message = $room->messages()->create([
+            'user_id'      => Auth::id(),
+            'character_id' => $characterId,
+            'body'         => $request->body,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => $message->load(['user', 'character']),
+        ]);
+    }
+
 }

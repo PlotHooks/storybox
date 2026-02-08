@@ -122,6 +122,7 @@
     let activeDm = {
         slug: null,
         lastId: 0,
+        displayName: null,
     };
 
     function isOpen() {
@@ -150,6 +151,7 @@
     function clearThread() {
         activeDm.slug = null;
         activeDm.lastId = 0;
+        activeDm.displayName = null;
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
         if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">No conversation selected.</div>`;
@@ -247,12 +249,8 @@
             bubble.className = 'rounded border border-gray-800 bg-gray-950 px-2 py-1';
 
             bubble.innerHTML = `
-                <div class="text-[10px] text-gray-400">
-                    ${escapeHtml(who)}
-                </div>
-                <div class="text-sm text-gray-100 whitespace-pre-line">
-                    ${escapeHtml(isDeleted ? '[deleted]' : body)}
-                </div>
+                <div class="text-[10px] text-gray-400">${escapeHtml(who)}</div>
+                <div class="text-sm text-gray-100 whitespace-pre-line">${escapeHtml(isDeleted ? '[deleted]' : body)}</div>
             `;
 
             threadEl.appendChild(bubble);
@@ -269,18 +267,14 @@
     function fetchConversationInitial(slug) {
         if (!slug) return;
 
-        // Load from zero: we can just use latest?after=0 and take whatever server returns
-        fetch(`/rooms/${slug}/messages/latest?after=0`, {
+        fetch(`/dms/${encodeURIComponent(slug)}/messages?after=0`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
         .then(r => r.json())
         .then(data => {
-            if (!Array.isArray(data)) {
-                appendMessages([], true);
-                return;
-            }
-            appendMessages(data, true);
+            const msgs = data && Array.isArray(data.messages) ? data.messages : [];
+            appendMessages(msgs, true);
         })
         .catch(err => {
             console.error('DM thread load error:', err);
@@ -288,17 +282,18 @@
         });
     }
 
-    function pollConversation(slug) {
-        if (!slug) return;
+    function pollConversation() {
+        if (!activeDm.slug) return;
 
-        fetch(`/rooms/${slug}/messages/latest?after=${activeDm.lastId || 0}`, {
+        fetch(`/dms/${encodeURIComponent(activeDm.slug)}/messages?after=${activeDm.lastId || 0}`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
         .then(r => r.json())
         .then(data => {
-            if (!Array.isArray(data) || data.length === 0) return;
-            appendMessages(data, false);
+            const msgs = data && Array.isArray(data.messages) ? data.messages : [];
+            if (!msgs.length) return;
+            appendMessages(msgs, false);
         })
         .catch(() => {});
     }
@@ -308,7 +303,7 @@
         pollDmTimer = setInterval(() => {
             if (!isOpen()) return;
             if (!activeDm.slug) return;
-            pollConversation(activeDm.slug);
+            pollConversation();
         }, 2500);
     }
 
@@ -337,16 +332,16 @@
     function openConversation(slug, displayName) {
         activeDm.slug = slug;
         activeDm.lastId = 0;
+        activeDm.displayName = displayName || slug;
 
-        if (threadHeader) threadHeader.textContent = `DM: ${displayName || slug}`;
+        if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
         if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
 
-        // enable input only if we have an active character id
         const cid = getActiveCharacterId();
         setThreadEnabled(!!cid);
 
         fetchConversationInitial(slug);
-        fetchDmRooms(); // re-render highlighting
+        fetchDmRooms();
         startDmPolling();
     }
 
@@ -359,10 +354,9 @@
         const text = (inputEl?.value ?? '').trim();
         if (!text) return;
 
-        // Optimistic clear
         inputEl.value = '';
 
-        fetch(`/rooms/${activeDm.slug}/messages`, {
+        fetch(`/dms/${encodeURIComponent(activeDm.slug)}/messages`, {
             method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': csrf,
@@ -372,14 +366,12 @@
             credentials: 'same-origin',
             body: JSON.stringify({
                 body: text,
-                content: text,
                 character_id: cid,
             })
         })
         .then(r => r.json())
         .then(() => {
-            // After sending, poll immediately
-            pollConversation(activeDm.slug);
+            pollConversation();
             fetchDmRooms();
         })
         .catch(err => {
@@ -390,25 +382,31 @@
     /*
     | OPEN EVENT
     */
-    window.addEventListener('open-dm-window', () => {
+    window.addEventListener('open-dm-window', (e) => {
         dmWindow.classList.remove('hidden');
+
         fetchDmRooms();
         startListRefresh();
-        if (activeDm.slug) startDmPolling();
+
+        const slug = e?.detail?.slug;
+        const name = e?.detail?.name;
+
+        if (slug) {
+            openConversation(slug, name || slug);
+        } else {
+            clearThread();
+        }
     });
 
     refreshBtn?.addEventListener('click', () => {
         fetchDmRooms();
-        if (activeDm.slug) pollConversation(activeDm.slug);
+        if (activeDm.slug) pollConversation();
     });
 
     closeBtn?.addEventListener('click', () => {
         dmWindow.classList.add('hidden');
     });
 
-    /*
-    | Send behavior
-    */
     sendBtn?.addEventListener('click', () => sendDmMessage());
 
     inputEl?.addEventListener('keydown', (e) => {
@@ -428,10 +426,8 @@
 
     dragHandle?.addEventListener('mousedown', (e) => {
         isDragging = true;
-
         offsetX = e.clientX - dmWindow.offsetLeft;
         offsetY = e.clientY - dmWindow.offsetTop;
-
         document.body.style.userSelect = 'none';
     });
 
@@ -445,7 +441,6 @@
 
         dmWindow.style.left = (e.clientX - offsetX) + 'px';
         dmWindow.style.top = (e.clientY - offsetY) + 'px';
-
         dmWindow.style.right = 'auto';
     });
 
@@ -485,3 +480,4 @@
 
 })();
 </script>
+
