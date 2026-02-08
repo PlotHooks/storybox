@@ -260,12 +260,12 @@ class RoomController extends Controller
         $rooms = Room::query()
             ->where(function ($q) {
                 $q->where('rooms.type', 'public')
-                    ->orWhereExists(function ($sub) {
-                        $sub->select(DB::raw(1))
-                            ->from('room_users') // FIX: use room_users
-                            ->whereColumn('room_users.room_id', 'rooms.id')
-                            ->where('room_users.user_id', Auth::id());
-                    });
+                ->orWhereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('room_users')
+                        ->whereColumn('room_users.room_id', 'rooms.id')
+                        ->where('room_users.user_id', Auth::id());
+                });
             })
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
@@ -275,14 +275,16 @@ class RoomController extends Controller
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
+                'rooms.type',
                 DB::raw('COUNT(character_presences.id) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
-            ->orderBy('rooms.created_at', 'desc')
+            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug', 'rooms.type')
+            ->orderBy('rooms.updated_at', 'desc')
             ->get();
 
         return response()->json(['rooms' => $rooms]);
     }
+
 
     public function roster(Room $room)
     {
