@@ -400,7 +400,7 @@
 
             if (!clickedInsidePopover) hidePopover();
         });
-
+/* */
         window.addEventListener('resize', () => hidePopover());
         window.addEventListener('scroll', () => hidePopover(), true);
 
