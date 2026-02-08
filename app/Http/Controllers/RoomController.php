@@ -13,20 +13,14 @@ class RoomController extends Controller
 {
     public function index()
     {
-        // Public rooms only.
-        // If you want admins to see everything, keep the admin block below.
-        $q = Room::query()->orderBy('created_at', 'desc');
-
-        $isAdmin = (bool) (Auth::user()->is_admin ?? false);
-
-        if (!$isAdmin) {
-            $q->where('type', 'public');
-        }
-
-        $rooms = $q->get();
+        // Only public rooms belong on the Rooms page.
+        $rooms = Room::where('type', 'public')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return view('rooms.index', compact('rooms'));
     }
+
 
     public function create()
     {
@@ -257,6 +251,7 @@ class RoomController extends Controller
     {
         $cutoff = now()->subMinutes(5);
 
+        // Sidebar should ONLY show public rooms (DMs live only in the floating DM window)
         $rooms = Room::query()
             ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
@@ -275,6 +270,7 @@ class RoomController extends Controller
 
         return response()->json(['rooms' => $rooms]);
     }
+
 
 
 
