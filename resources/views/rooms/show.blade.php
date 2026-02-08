@@ -123,8 +123,8 @@
                                     <button type="button"
                                         class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
                                         data-style='{!! $nameStyleJson !!}'
-                                        data-character-id="${msg.character?.id ?? ''}"
-                                        data-user-id="${msg.user_id ?? ''}"
+                                        data-character-id="{{ $c?->id ?? '' }}"
+                                        data-user-id="{{ $message->user_id ?? '' }}"
                                         data-character-name="{{ e($name) }}">
                                         {{ $name }}
                                     </button>
@@ -352,21 +352,23 @@
         }
 
         function openPopoverFromTrigger(triggerEl) {
-            console.log('popover trigger dataset:', {
-  characterId, userIdRaw, userId, characterName
-});
             if (!pop || !triggerEl) return;
 
-            const characterId = triggerEl.dataset.characterId || '';
-            const userIdRaw = triggerEl.dataset.userId || '';
+            const characterId = (triggerEl.dataset.characterId || '').trim();
+            const userIdRaw = (triggerEl.dataset.userId || '').trim();
             const userId = userIdRaw ? parseInt(userIdRaw, 10) : null;
 
             const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
+
+            // Optional debug (safe: values exist now)
+            // console.log('popover trigger dataset:', { characterId, userIdRaw, userId, characterName });
+
             const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
 
             if (popTitle) popTitle.textContent = `${characterName} ⟡${sigil}`;
             if (popProfile) popProfile.href = characterId ? `/characters/${characterId}` : '#';
 
+            // DM button only if it is not me and we have a user id
             if (popDm) {
                 if (userId && userId !== currentUserId) {
                     popDm.classList.remove('hidden');
@@ -375,6 +377,7 @@
                     popState.characterId = characterId;
                 } else {
                     popDm.classList.add('hidden');
+                    popDm.disabled = true;
                     popState.userId = null;
                     popState.characterId = characterId;
                 }
@@ -425,6 +428,7 @@
             })
             .catch(() => {});
         });
+
 
         /* fade styles */
         function buildStops(s) {
