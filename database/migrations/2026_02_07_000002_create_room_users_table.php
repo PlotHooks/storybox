@@ -4,12 +4,13 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateRoomUsersTable extends Migration
+return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('room_users', function (Blueprint $table) {
-            $table->bigIncrements('id');
+        // This is the table your controllers are using
+        Schema::create('room_user_presence', function (Blueprint $table) {
+            $table->id();
             $table->unsignedBigInteger('room_id');
             $table->unsignedBigInteger('user_id');
             $table->timestamps();
@@ -21,6 +22,6 @@ class CreateRoomUsersTable extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('room_users');
+        Schema::dropIfExists('room_user_presence');
     }
-}
+};

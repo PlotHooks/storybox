@@ -1,0 +1,11 @@
+{
+  "name": "Storybox Laravel",
+  "image": "mcr.microsoft.com/devcontainers/php:1-8.3",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y sqlite3 && touch database/database.sqlite && composer install",
+  "forwardPorts": [8000]
+}
