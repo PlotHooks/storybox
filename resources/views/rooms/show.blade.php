@@ -120,7 +120,15 @@
 
                             <div class="flex items-start justify-between gap-2 leading-tight mb-0">
                                 <div class="flex items-start gap-2">
-                                    <span class="msg-name text-sm md:text-base font-medium" data-style='{!! $nameStyleJson !!}'>{{ $name }}</span>
+                                    <button type="button"
+                                        class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
+                                        data-style='{!! $nameStyleJson !!}'
+                                        data-character-id="{{ optional($c)->id }}"
+                                        data-user-id="{{ $message->user_id }}"
+                                        data-character-name="{{ e($name) }}">
+                                        {{ $name }}
+                                    </button>
+
                                     <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
                                     <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
                                     <span class="msg-deleted text-[10px] text-gray-500 opacity-70 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
@@ -152,10 +160,12 @@
                                         <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2"
                                                   rows="3"></textarea>
                                         <div class="mt-2 flex gap-2 justify-end">
-                                            <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                            <button type="button"
+                                                class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
                                                 Cancel
                                             </button>
-                                            <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                            <button type="button"
+                                                class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
                                                 Save
                                             </button>
                                         </div>
@@ -172,7 +182,6 @@
                         @csrf
 
                         <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
-                        {{-- submit both so controller can accept either --}}
                         <input type="hidden" name="content" id="content-mirror" value="">
 
                         <textarea
@@ -232,527 +241,652 @@
         </div>
     </div>
 
-    <style>
-        .char-row { position: relative; }
-        .char-card {
-            position: absolute;
-            right: 0;
-            top: 100%;
-            margin-top: 6px;
-            z-index: 50;
-            display: none;
-            width: 240px;
-            padding: 10px;
-            border-radius: 10px;
-            background: #111827;
-            border: 1px solid #374151;
-            box-shadow: 0 10px 25px rgba(0,0,0,.35);
-            pointer-events: none;
-        }
-        .char-row:hover .char-card { display: block; }
-    </style>
-
-<script>
-let lastMessageId = {{ $messages->last()?->id ?? 0 }};
-const roomSlug = @json($room->slug);
-const csrf = @json(csrf_token());
-const currentUserId = {{ (int) Auth::id() }};
-const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
-
-const container  = document.getElementById('message-container');
-const form       = document.getElementById('message-form');
-const textarea   = document.getElementById('body');
-const contentMirror = document.getElementById('content-mirror');
-
-const switcher   = document.getElementById('character-switcher');
-const hiddenChar = document.getElementById('character-id-input');
-
-const leftPanel  = document.getElementById('left-panel');
-const rightPanel = document.getElementById('right-panel');
-
-const tabRooms   = document.getElementById('tab-rooms');
-const tabUsers   = document.getElementById('tab-users');
-const tabDms     = document.getElementById('tab-dms');
-
-const panelRooms = document.getElementById('panel-rooms');
-const panelUsers = document.getElementById('panel-users');
-const panelDms   = document.getElementById('panel-dms');
-
-const tabMeta    = document.getElementById('tab-meta');
-const userListEl = document.getElementById('user-list');
-
-document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
-document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
-
-/* fades */
-function buildStops(s){
-    const stops = [];
-    if (s.c1) stops.push(s.c1);
-    if (s.c2) stops.push(s.c2);
-    if (s.c3) stops.push(s.c3);
-    if (s.c4) stops.push(s.c4);
-    return stops.filter(Boolean);
-}
-function applyGradientText(el, stops){
-    el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
-    el.style.webkitBackgroundClip = 'text';
-    el.style.backgroundClip = 'text';
-    el.style.color = 'transparent';
-    el.style.display = 'inline-block';
-}
-function applySolidText(el, color){
-    el.style.backgroundImage = '';
-    el.style.webkitBackgroundClip = '';
-    el.style.backgroundClip = '';
-    el.style.color = color || '#D8F3FF';
-}
-function applyStyleFromDataset(el){
-    if (!el) return;
-    let s = {};
-    try { s = JSON.parse(el.dataset.style || '{}'); } catch(e) { s = {}; }
-    const stops = buildStops(s);
-    const shouldFade = !!s.fade && stops.length >= 2;
-    if (shouldFade) applyGradientText(el, stops);
-    else applySolidText(el, s.c1);
-}
-function applyStylesIn(root){
-    (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
-}
-applyStylesIn(document);
-
-/* active character */
-function getTabCharacterId() {
-    const v = sessionStorage.getItem('active_character_id');
-    return v ? parseInt(v, 10) : 0;
-}
-function setTabCharacterId(id) {
-    sessionStorage.setItem('active_character_id', String(id));
-    if (hiddenChar) hiddenChar.value = String(id);
-}
-
-/* room per character (client-side snapping) */
-function setLastRoomForCharacter(characterId, slug) {
-    if (!characterId || !slug) return;
-    localStorage.setItem('char_room_' + characterId, slug);
-}
-function getLastRoomForCharacter(characterId) {
-    return localStorage.getItem('char_room_' + characterId) || '';
-}
-
-(function initActiveCharacterPerTab() {
-    if (!switcher) return;
-    const stored = getTabCharacterId();
-    if (stored) {
-        switcher.value = String(stored);
-        setTabCharacterId(stored);
-    } else {
-        setTabCharacterId(parseInt(switcher.value, 10));
-    }
-
-    // remember current room for current character
-    const cid = getTabCharacterId();
-    if (cid) setLastRoomForCharacter(cid, roomSlug);
-})();
-
-switcher?.addEventListener('change', function(){
-    const newId = parseInt(this.value, 10);
-    if (!newId) return;
-
-    // remember current room for old character
-    const oldId = getTabCharacterId();
-    if (oldId) setLastRoomForCharacter(oldId, roomSlug);
-
-    setTabCharacterId(newId);
-
-    // snap to last room for this character if known
-    const target = getLastRoomForCharacter(newId);
-    if (target && target !== roomSlug) {
-        window.location.href = `/rooms/${target}`;
-        return;
-    }
-
-    sendPresencePing();
-});
-
-/* presence */
-function sendPresencePing() {
-    const characterId = getTabCharacterId();
-    if (!characterId) return;
-
-    fetch(`/rooms/${roomSlug}/presence`, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': csrf,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ character_id: characterId }),
-    }).catch(() => {});
-}
-sendPresencePing();
-setInterval(sendPresencePing, 30000);
-
-/* leave room */
-function leaveRoom() {
-    const characterId = getTabCharacterId();
-    if (!characterId) return Promise.resolve();
-
-    return fetch(`/rooms/${roomSlug}/leave`, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': csrf,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-        },
-        credentials: 'same-origin',
-        keepalive: true,
-        body: JSON.stringify({ character_id: characterId }),
-    }).catch(() => {});
-}
-document.getElementById('leave-room-btn')?.addEventListener('click', () => {
-    const cid = getTabCharacterId();
-    if (cid) setLastRoomForCharacter(cid, roomSlug);
-    leaveRoom().finally(() => window.location.href = '/rooms');
-});
-window.addEventListener('beforeunload', () => leaveRoom());
-
-/* send */
-function syncContentMirror() {
-    if (contentMirror && textarea) contentMirror.value = textarea.value;
-}
-textarea?.addEventListener('input', syncContentMirror);
-
-textarea?.addEventListener('keydown', function(e){
-    if(e.key === 'Enter' && !e.shiftKey){
-        e.preventDefault();
-        syncContentMirror();
-        form.requestSubmit();
-    }
-});
-
-form?.addEventListener('submit', function(){
-    syncContentMirror();
-    const id = getTabCharacterId();
-    if (hiddenChar) hiddenChar.value = String(id);
-});
-
-/* edit/delete */
-function canEditMessageRow(row) {
-    if (!row) return false;
-    if (row.dataset.canEdit === '1') return true;
-    const uid = parseInt(row.dataset.userId || '0', 10);
-    return (uid && uid === currentUserId) || !!isAdmin;
-}
-function attachMessageActions(root) {
-    (root || document).querySelectorAll('.msg-row').forEach(row => {
-        if (row.dataset.bound === '1') return;
-        row.dataset.bound = '1';
-
-        const editBtn = row.querySelector('.msg-edit-btn');
-        const delBtn  = row.querySelector('.msg-del-btn');
-        const bodyEl  = row.querySelector('.msg-body');
-        const editBox = row.querySelector('.msg-editbox');
-        const ta      = row.querySelector('.msg-edit-textarea');
-        const saveBtn = row.querySelector('.msg-save-btn');
-        const cancelBtn = row.querySelector('.msg-cancel-btn');
-        const editedTag = row.querySelector('.msg-edited');
-        const deletedTag = row.querySelector('.msg-deleted');
-
-        const id = row.dataset.messageId;
-        const isDeleted = row.dataset.deleted === '1';
-
-        if (!canEditMessageRow(row)) return;
-
-        if (isDeleted) {
-            if (editBtn) editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-            return;
-        }
-
-        editBtn?.addEventListener('click', () => {
-            if (!bodyEl || !editBox || !ta) return;
-            ta.value = (bodyEl.textContent || '').trim();
-            editBox.classList.remove('hidden');
-            editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-        });
-
-        cancelBtn?.addEventListener('click', () => {
-            if (!editBox) return;
-            editBox.classList.add('hidden');
-            if (editBtn) editBtn.disabled = false;
-            if (delBtn) delBtn.disabled = false;
-        });
-
-        saveBtn?.addEventListener('click', () => {
-            if (!ta || !bodyEl) return;
-            const newBody = ta.value;
-
-            fetch(`/messages/${id}`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({ body: newBody, content: newBody }),
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
-
-                bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
-                editedTag?.classList.remove('hidden');
-
-                editBox?.classList.add('hidden');
-                if (editBtn) editBtn.disabled = false;
-                if (delBtn) delBtn.disabled = false;
-            })
-            .catch(() => {});
-        });
-
-        delBtn?.addEventListener('click', () => {
-            if (!confirm('Delete this message?')) return;
-
-            fetch(`/messages/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
-
-                row.dataset.deleted = '1';
-                if (bodyEl) bodyEl.textContent = '[deleted]';
-                deletedTag?.classList.remove('hidden');
-
-                if (editBtn) editBtn.disabled = true;
-                if (delBtn) delBtn.disabled = true;
-                editBox?.classList.add('hidden');
-            })
-            .catch(() => {});
-        });
-    });
-}
-attachMessageActions(document);
-
-/* fetch new messages */
-function fetchNewMessages() {
-    fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin'
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!Array.isArray(data) || data.length === 0) return;
-        if (!container) return;
-
-        const wasNearBottom =
-            container.scrollHeight - container.scrollTop - container.clientHeight < 80;
-
-        data.forEach(msg => {
-            const name = (msg.character && msg.character.name)
-                ? msg.character.name
-                : (msg.user?.name ?? 'Unknown');
-
-            let s = msg.character?.settings || {};
-            if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
-
-            const c1 = s.text_color_1 || '#D8F3FF';
-            const c2 = s.text_color_2 || null;
-            const c3 = s.text_color_3 || null;
-            const c4 = s.text_color_4 || null;
-
-            const fadeMsg = !!s.fade_message;
-            const fadeName = !!s.fade_name;
-
-            const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
-            const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
-
-            const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
-
-            const div = document.createElement('div');
-            div.className = "border-b border-gray-800 py-1.5 msg-row";
-            div.dataset.messageId = String(msg.id);
-            div.dataset.userId = String(msg.user_id ?? 0);
-            div.dataset.canEdit = canEdit ? '1' : '0';
-            div.dataset.deleted = isDeleted ? '1' : '0';
-
-            div.innerHTML = `
-                <div class="flex items-start justify-between gap-2 leading-tight mb-0">
-                    <div class="flex items-start gap-2">
-                        <span class="msg-name text-sm md:text-base font-medium" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>${name}</span>
-                        <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
-                        <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
-                        <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
-                    </div>
-
-                    ${canEdit ? `
-                        <div class="flex items-center gap-2 text-[10px]">
-                            <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
-                            <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
-                        </div>
-                    ` : ''}
-                </div>
-
-                <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
-                    <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</span>
-
-                    ${canEdit ? `
-                        <div class="msg-editbox hidden mt-2">
-                            <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2" rows="3"></textarea>
-                            <div class="mt-2 flex gap-2 justify-end">
-                                <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Cancel</button>
-                                <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Save</button>
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-
-            container.appendChild(div);
-            applyStylesIn(div);
-            attachMessageActions(div);
-
-            lastMessageId = msg.id;
-        });
-
-        if (wasNearBottom) container.scrollTop = container.scrollHeight;
-    })
-    .catch(() => {});
-}
-setInterval(fetchNewMessages, 2500);
-
-/* roster (with hover card) */
-function shortSigil(id) {
-    return Math.abs(id * 2654435761 % 0xFFFFFFFF)
-        .toString(16)
-        .toUpperCase()
-        .slice(0, 4);
-}
-
-function shortSigil(id) {
-    const n = Number.isFinite(id) ? id : 0;
-    return Math.abs((n * 2654435761) % 0xFFFFFFFF)
-        .toString(16)
-        .toUpperCase()
-        .slice(0, 4);
-}
-
-function refreshUserList() {
-    if (!userListEl) return;
-
-    fetch(`/rooms/${roomSlug}/roster`, {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'same-origin'
-    })
-    .then(r => r.json())
-    .then(data => {
-        const roster = Array.isArray(data.roster) ? data.roster : [];
-        userListEl.innerHTML = '';
-
-        if (!roster.length) {
-            userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
-            return;
-        }
-
-        roster.forEach(p => {
-            let s = p.settings || {};
-            if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
-
-            const c1 = s.text_color_1 || '#D8F3FF';
-            const c2 = s.text_color_2 || null;
-            const c3 = s.text_color_3 || null;
-            const c4 = s.text_color_4 || null;
-            const fadeName = !!s.fade_name;
-
-            const charId = parseInt(p.character_id, 10) || 0;
-            const sigil = shortSigil(charId);
-            const displayName = (p.character_name ?? ('#' + charId));
-
-            const row = document.createElement('div');
-            row.className = 'char-row border-b border-gray-800 pb-2';
-
-            row.innerHTML = `
-                <a href="/characters/${charId}" target="_blank" rel="noopener noreferrer"
-                   class="msg-name text-sm font-medium hover:underline"
-                   data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'>
-                   ${displayName}
+    {{-- Popover (must be before script so querySelector finds it) --}}
+    <div id="char-popover"
+         class="hidden fixed z-[9999] w-64 rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
+        <div class="p-3">
+            <div id="char-popover-title" class="font-semibold text-gray-100 text-sm"></div>
+            <div id="char-popover-sub" class="text-[10px] text-gray-400 mt-1">ID verification</div>
+
+            <div class="mt-3 flex gap-2 justify-end">
+                <a id="char-popover-profile"
+                   href="#"
+                   class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                    Profile
                 </a>
 
-                <div class="text-[10px] text-gray-500">${displayName} ⟡${sigil}</div>
+                <button id="char-popover-dm"
+                        type="button"
+                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                    DM
+                </button>
+            </div>
+        </div>
+    </div>
 
-                <div class="char-card text-xs text-gray-200">
-                    <div class="font-semibold">${displayName} ⟡${sigil}</div>
-                    <div class="text-[10px] text-gray-400">ID verification</div>
-                </div>
-            `;
+    <style>
+        .char-row { position: relative; }
+    </style>
 
-            userListEl.appendChild(row);
+    <script>
+        let lastMessageId = {{ $messages->last()?->id ?? 0 }};
+        const roomSlug = @json($room->slug);
+        const csrf = @json(csrf_token());
+        const currentUserId = {{ (int) Auth::id() }};
+        const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
+
+        const container  = document.getElementById('message-container');
+        const form       = document.getElementById('message-form');
+        const textarea   = document.getElementById('body');
+        const contentMirror = document.getElementById('content-mirror');
+
+        const switcher   = document.getElementById('character-switcher');
+        const hiddenChar = document.getElementById('character-id-input');
+
+        const leftPanel  = document.getElementById('left-panel');
+        const rightPanel = document.getElementById('right-panel');
+
+        const tabRooms   = document.getElementById('tab-rooms');
+        const tabUsers   = document.getElementById('tab-users');
+        const tabDms     = document.getElementById('tab-dms');
+
+        const panelRooms = document.getElementById('panel-rooms');
+        const panelUsers = document.getElementById('panel-users');
+        const panelDms   = document.getElementById('panel-dms');
+
+        const tabMeta    = document.getElementById('tab-meta');
+        const userListEl = document.getElementById('user-list');
+
+        document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
+        document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
+
+        function escAttr(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function shortSigil(id) {
+            const n = Number.isFinite(id) ? id : 0;
+            return Math.abs((n * 2654435761) % 0xFFFFFFFF)
+                .toString(16)
+                .toUpperCase()
+                .slice(0, 4);
+        }
+
+        /* Popover behavior */
+        const pop = document.getElementById('char-popover');
+        const popTitle = document.getElementById('char-popover-title');
+        const popProfile = document.getElementById('char-popover-profile');
+        const popDm = document.getElementById('char-popover-dm');
+
+        let popState = { userId: null, characterId: null };
+
+        function hidePopover() {
+            if (!pop) return;
+            pop.classList.add('hidden');
+            popState = { userId: null, characterId: null };
+        }
+
+        function positionPopoverNear(el) {
+            if (!pop || !el) return;
+            const r = el.getBoundingClientRect();
+
+            let top = r.bottom + 8;
+            let left = r.left;
+
+            const pad = 8;
+            const w = pop.offsetWidth || 256;
+            const h = pop.offsetHeight || 140;
+
+            if (left + w > window.innerWidth - pad) left = window.innerWidth - w - pad;
+            if (top + h > window.innerHeight - pad) top = r.top - h - 8;
+
+            if (left < pad) left = pad;
+            if (top < pad) top = pad;
+
+            pop.style.left = `${left}px`;
+            pop.style.top = `${top}px`;
+        }
+
+        function openPopoverFromTrigger(triggerEl) {
+            if (!pop || !triggerEl) return;
+
+            const characterId = triggerEl.dataset.characterId || '';
+            const userIdRaw = triggerEl.dataset.userId || '';
+            const userId = userIdRaw ? parseInt(userIdRaw, 10) : null;
+
+            const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
+            const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
+
+            if (popTitle) popTitle.textContent = `${characterName} ⟡${sigil}`;
+            if (popProfile) popProfile.href = characterId ? `/characters/${characterId}` : '#';
+
+            if (popDm) {
+                if (userId && userId !== currentUserId) {
+                    popDm.classList.remove('hidden');
+                    popDm.disabled = false;
+                    popState.userId = userId;
+                    popState.characterId = characterId;
+                } else {
+                    popDm.classList.add('hidden');
+                    popState.userId = null;
+                    popState.characterId = characterId;
+                }
+            }
+
+            pop.classList.remove('hidden');
+            positionPopoverNear(triggerEl);
+        }
+
+        document.addEventListener('click', function(e) {
+            const trigger = e.target.closest('.char-trigger');
+            const clickedInsidePopover = pop && pop.contains(e.target);
+
+            if (trigger) {
+                e.preventDefault();
+                e.stopPropagation();
+                openPopoverFromTrigger(trigger);
+                return;
+            }
+
+            if (!clickedInsidePopover) hidePopover();
         });
 
-        applyStylesIn(userListEl);
-    })
-    .catch((err) => {
-        console.error('Roster error:', err);
-        userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
-    });
-}
+        window.addEventListener('resize', () => hidePopover());
+        window.addEventListener('scroll', () => hidePopover(), true);
 
+        popDm?.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
 
-/* tabs */
-function showRoomsTab(){
-    tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
-    tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
-    tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+            if (!popState.userId) return;
 
-    panelRooms.classList.remove('hidden');
-    panelUsers.classList.add('hidden');
-    panelDms.classList.add('hidden');
+            fetch('/dms/start', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ other_user_id: popState.userId })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.slug) {
+                    window.location.href = `/rooms/${data.slug}`;
+                }
+            })
+            .catch(() => {});
+        });
 
-    if (tabMeta) tabMeta.textContent = '# active / name';
-}
-function showUsersTab(){
-    tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
-    tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
-    tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+        /* fade styles */
+        function buildStops(s) {
+            const stops = [];
+            if (s.c1) stops.push(s.c1);
+            if (s.c2) stops.push(s.c2);
+            if (s.c3) stops.push(s.c3);
+            if (s.c4) stops.push(s.c4);
+            return stops.filter(Boolean);
+        }
+        function applyGradientText(el, stops) {
+            el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
+            el.style.webkitBackgroundClip = 'text';
+            el.style.backgroundClip = 'text';
+            el.style.color = 'transparent';
+            el.style.display = 'inline-block';
+        }
+        function applySolidText(el, color) {
+            el.style.backgroundImage = '';
+            el.style.webkitBackgroundClip = '';
+            el.style.backgroundClip = '';
+            el.style.color = color || '#D8F3FF';
+        }
+        function applyStyleFromDataset(el) {
+            if (!el) return;
+            let s = {};
+            try { s = JSON.parse(el.dataset.style || '{}'); } catch(e) { s = {}; }
+            const stops = buildStops(s);
+            const shouldFade = !!s.fade && stops.length >= 2;
+            if (shouldFade) applyGradientText(el, stops);
+            else applySolidText(el, s.c1);
+        }
+        function applyStylesIn(root) {
+            (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
+        }
+        applyStylesIn(document);
 
-    panelRooms.classList.add('hidden');
-    panelUsers.classList.remove('hidden');
-    panelDms.classList.add('hidden');
+        /* active character */
+        function getTabCharacterId() {
+            const v = sessionStorage.getItem('active_character_id');
+            return v ? parseInt(v, 10) : 0;
+        }
+        function setTabCharacterId(id) {
+            sessionStorage.setItem('active_character_id', String(id));
+            if (hiddenChar) hiddenChar.value = String(id);
+        }
 
-    if (tabMeta) tabMeta.textContent = 'character / user';
-    refreshUserList();
-}
-function showDmsTab(){
-    tabDms.className   = 'px-2 py-1 rounded bg-gray-800';
-    tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
-    tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
+        /* room per character (client-side snapping) */
+        function setLastRoomForCharacter(characterId, slug) {
+            if (!characterId || !slug) return;
+            localStorage.setItem('char_room_' + characterId, slug);
+        }
+        function getLastRoomForCharacter(characterId) {
+            return localStorage.getItem('char_room_' + characterId) || '';
+        }
 
-    panelRooms.classList.add('hidden');
-    panelUsers.classList.add('hidden');
-    panelDms.classList.remove('hidden');
+        (function initActiveCharacterPerTab() {
+            if (!switcher) return;
+            const stored = getTabCharacterId();
+            if (stored) {
+                switcher.value = String(stored);
+                setTabCharacterId(stored);
+            } else {
+                setTabCharacterId(parseInt(switcher.value, 10));
+            }
 
-    if (tabMeta) tabMeta.textContent = 'direct messages';
-}
-tabRooms?.addEventListener('click', showRoomsTab);
-tabUsers?.addEventListener('click', showUsersTab);
-tabDms?.addEventListener('click', showDmsTab);
-showRoomsTab();
+            const cid = getTabCharacterId();
+            if (cid) setLastRoomForCharacter(cid, roomSlug);
+        })();
 
-setInterval(() => {
-    if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
-}, 5000);
+        switcher?.addEventListener('change', function() {
+            const newId = parseInt(this.value, 10);
+            if (!newId) return;
 
-/* initial scroll */
-if (container) container.scrollTop = container.scrollHeight;
-</script>
+            const oldId = getTabCharacterId();
+            if (oldId) setLastRoomForCharacter(oldId, roomSlug);
 
+            setTabCharacterId(newId);
+
+            const target = getLastRoomForCharacter(newId);
+            if (target && target !== roomSlug) {
+                window.location.href = `/rooms/${target}`;
+                return;
+            }
+
+            sendPresencePing();
+        });
+
+        /* presence */
+        function sendPresencePing() {
+            const characterId = getTabCharacterId();
+            if (!characterId) return;
+
+            fetch(`/rooms/${roomSlug}/presence`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ character_id: characterId }),
+            }).catch(() => {});
+        }
+        sendPresencePing();
+        setInterval(sendPresencePing, 30000);
+
+        /* leave room */
+        function leaveRoom() {
+            const characterId = getTabCharacterId();
+            if (!characterId) return Promise.resolve();
+
+            return fetch(`/rooms/${roomSlug}/leave`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                keepalive: true,
+                body: JSON.stringify({ character_id: characterId }),
+            }).catch(() => {});
+        }
+
+        document.getElementById('leave-room-btn')?.addEventListener('click', () => {
+            const cid = getTabCharacterId();
+            if (cid) setLastRoomForCharacter(cid, roomSlug);
+            leaveRoom().finally(() => window.location.href = '/rooms');
+        });
+
+        window.addEventListener('beforeunload', () => leaveRoom());
+
+        /* send */
+        function syncContentMirror() {
+            if (contentMirror && textarea) contentMirror.value = textarea.value;
+        }
+        textarea?.addEventListener('input', syncContentMirror);
+
+        textarea?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                syncContentMirror();
+                form?.requestSubmit();
+            }
+        });
+
+        form?.addEventListener('submit', function() {
+            syncContentMirror();
+            const id = getTabCharacterId();
+            if (hiddenChar) hiddenChar.value = String(id);
+        });
+
+        /* edit/delete */
+        function canEditMessageRow(row) {
+            if (!row) return false;
+            if (row.dataset.canEdit === '1') return true;
+            const uid = parseInt(row.dataset.userId || '0', 10);
+            return (uid && uid === currentUserId) || !!isAdmin;
+        }
+
+        function attachMessageActions(root) {
+            (root || document).querySelectorAll('.msg-row').forEach(row => {
+                if (row.dataset.bound === '1') return;
+                row.dataset.bound = '1';
+
+                const editBtn = row.querySelector('.msg-edit-btn');
+                const delBtn  = row.querySelector('.msg-del-btn');
+                const bodyEl  = row.querySelector('.msg-body');
+                const editBox = row.querySelector('.msg-editbox');
+                const ta      = row.querySelector('.msg-edit-textarea');
+                const saveBtn = row.querySelector('.msg-save-btn');
+                const cancelBtn = row.querySelector('.msg-cancel-btn');
+                const editedTag = row.querySelector('.msg-edited');
+                const deletedTag = row.querySelector('.msg-deleted');
+
+                const id = row.dataset.messageId;
+                const isDeleted = row.dataset.deleted === '1';
+
+                if (!canEditMessageRow(row)) return;
+
+                if (isDeleted) {
+                    if (editBtn) editBtn.disabled = true;
+                    if (delBtn) delBtn.disabled = true;
+                    return;
+                }
+
+                editBtn?.addEventListener('click', () => {
+                    if (!bodyEl || !editBox || !ta) return;
+                    ta.value = (bodyEl.textContent || '').trim();
+                    editBox.classList.remove('hidden');
+                    editBtn.disabled = true;
+                    if (delBtn) delBtn.disabled = true;
+                });
+
+                cancelBtn?.addEventListener('click', () => {
+                    if (!editBox) return;
+                    editBox.classList.add('hidden');
+                    if (editBtn) editBtn.disabled = false;
+                    if (delBtn) delBtn.disabled = false;
+                });
+
+                saveBtn?.addEventListener('click', () => {
+                    if (!ta || !bodyEl) return;
+                    const newBody = ta.value;
+
+                    fetch(`/messages/${id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ body: newBody, content: newBody }),
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data || !data.ok) return;
+
+                        bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
+                        editedTag?.classList.remove('hidden');
+
+                        editBox?.classList.add('hidden');
+                        if (editBtn) editBtn.disabled = false;
+                        if (delBtn) delBtn.disabled = false;
+                    })
+                    .catch(() => {});
+                });
+
+                delBtn?.addEventListener('click', () => {
+                    if (!confirm('Delete this message?')) return;
+
+                    fetch(`/messages/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data || !data.ok) return;
+
+                        row.dataset.deleted = '1';
+                        if (bodyEl) bodyEl.textContent = '[deleted]';
+                        deletedTag?.classList.remove('hidden');
+
+                        if (editBtn) editBtn.disabled = true;
+                        if (delBtn) delBtn.disabled = true;
+                        editBox?.classList.add('hidden');
+                    })
+                    .catch(() => {});
+                });
+            });
+        }
+        attachMessageActions(document);
+
+        /* fetch new messages */
+        function fetchNewMessages() {
+            fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) return;
+                if (!container) return;
+
+                const wasNearBottom =
+                    container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+
+                data.forEach(msg => {
+                    const name = (msg.character && msg.character.name)
+                        ? msg.character.name
+                        : (msg.user?.name ?? 'Unknown');
+
+                    let s = msg.character?.settings || {};
+                    if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
+
+                    const c1 = s.text_color_1 || '#D8F3FF';
+                    const c2 = s.text_color_2 || null;
+                    const c3 = s.text_color_3 || null;
+                    const c4 = s.text_color_4 || null;
+
+                    const fadeMsg = !!s.fade_message;
+                    const fadeName = !!s.fade_name;
+
+                    const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
+                    const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
+
+                    const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
+
+                    const div = document.createElement('div');
+                    div.className = "border-b border-gray-800 py-1.5 msg-row";
+                    div.dataset.messageId = String(msg.id);
+                    div.dataset.userId = String(msg.user_id ?? 0);
+                    div.dataset.canEdit = canEdit ? '1' : '0';
+                    div.dataset.deleted = isDeleted ? '1' : '0';
+
+                    const safeNameAttr = escAttr(name);
+
+                    div.innerHTML = `
+                        <div class="flex items-start justify-between gap-2 leading-tight mb-0">
+                            <div class="flex items-start gap-2">
+                                <button type="button"
+                                    class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
+                                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'
+                                    data-character-id="${msg.character?.id ?? ''}"
+                                    data-user-id="${msg.user_id ?? ''}"
+                                    data-character-name="${safeNameAttr}">
+                                    ${name}
+                                </button>
+
+                                <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
+                                <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
+                                <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                            </div>
+
+                            ${canEdit ? `
+                                <div class="flex items-center gap-2 text-[10px]">
+                                    <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
+                                    <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+                            <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</span>
+
+                            ${canEdit ? `
+                                <div class="msg-editbox hidden mt-2">
+                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2" rows="3"></textarea>
+                                    <div class="mt-2 flex gap-2 justify-end">
+                                        <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Cancel</button>
+                                        <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Save</button>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+
+                    container.appendChild(div);
+                    applyStylesIn(div);
+                    attachMessageActions(div);
+
+                    lastMessageId = msg.id;
+                });
+
+                if (wasNearBottom) container.scrollTop = container.scrollHeight;
+            })
+            .catch(() => {});
+        }
+        setInterval(fetchNewMessages, 2500);
+
+        /* roster */
+        function refreshUserList() {
+            if (!userListEl) return;
+
+            fetch(`/rooms/${roomSlug}/roster`, {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            })
+            .then(r => r.json())
+            .then(data => {
+                const roster = Array.isArray(data.roster) ? data.roster : [];
+                userListEl.innerHTML = '';
+
+                if (!roster.length) {
+                    userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                    return;
+                }
+
+                roster.forEach(p => {
+                    let s = p.settings || {};
+                    if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
+
+                    const c1 = s.text_color_1 || '#D8F3FF';
+                    const c2 = s.text_color_2 || null;
+                    const c3 = s.text_color_3 || null;
+                    const c4 = s.text_color_4 || null;
+                    const fadeName = !!s.fade_name;
+
+                    const charId = parseInt(p.character_id, 10) || 0;
+                    const sigil = shortSigil(charId);
+                    const displayName = (p.character_name ?? ('#' + charId));
+
+                    const row = document.createElement('div');
+                    row.className = 'char-row border-b border-gray-800 pb-2';
+
+                    const safeNameAttr = escAttr(displayName);
+
+                    row.innerHTML = `
+                        <button type="button"
+                            class="char-trigger msg-name text-sm font-medium hover:underline text-left cursor-pointer"
+                            data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'
+                            data-character-id="${p.character_id ?? ''}"
+                            data-user-id="${p.user_id ?? ''}"
+                            data-character-name="${safeNameAttr}">
+                            ${displayName}
+                        </button>
+
+                        <div class="text-[10px] text-gray-500">${displayName} ⟡${sigil}</div>
+                    `;
+
+                    userListEl.appendChild(row);
+                });
+
+                applyStylesIn(userListEl);
+            })
+            .catch((err) => {
+                console.error('Roster error:', err);
+                userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
+            });
+        }
+
+        /* tabs */
+        function showRoomsTab() {
+            tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
+            tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
+            tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+
+            panelRooms.classList.remove('hidden');
+            panelUsers.classList.add('hidden');
+            panelDms.classList.add('hidden');
+
+            if (tabMeta) tabMeta.textContent = '# active / name';
+        }
+
+        function showUsersTab() {
+            tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
+            tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
+            tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+
+            panelRooms.classList.add('hidden');
+            panelUsers.classList.remove('hidden');
+            panelDms.classList.add('hidden');
+
+            if (tabMeta) tabMeta.textContent = 'character / user';
+            refreshUserList();
+        }
+
+        function showDmsTab() {
+            tabDms.className   = 'px-2 py-1 rounded bg-gray-800';
+            tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
+            tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
+
+            panelRooms.classList.add('hidden');
+            panelUsers.classList.add('hidden');
+            panelDms.classList.remove('hidden');
+
+            if (tabMeta) tabMeta.textContent = 'direct messages';
+        }
+
+        tabRooms?.addEventListener('click', showRoomsTab);
+        tabUsers?.addEventListener('click', showUsersTab);
+        tabDms?.addEventListener('click', showDmsTab);
+        showRoomsTab();
+
+        setInterval(() => {
+            if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
+        }, 5000);
+
+        if (container) container.scrollTop = container.scrollHeight;
+    </script>
 </x-app-layout>

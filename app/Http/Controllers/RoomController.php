@@ -296,8 +296,8 @@ class RoomController extends Controller
                 'characters.id as character_id',
                 'characters.name as character_name',
                 'characters.settings as settings',
+                'users.id as user_id',
                 'users.name as user_name',
-                'users.id as user_id', // IMPORTANT FOR DM BUTTON
             ])
             ->get();
 
