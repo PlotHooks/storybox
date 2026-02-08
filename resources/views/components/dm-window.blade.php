@@ -29,7 +29,7 @@
             </button>
 
             <button
-                onclick="document.getElementById('dm-window').classList.add('hidden')"
+                id="dm-close-btn"
                 class="text-gray-400 hover:text-white text-sm"
                 type="button"
                 title="Close"
@@ -53,19 +53,38 @@
             </div>
         </div>
 
-        <!-- RIGHT: message area placeholder -->
-        <div class="flex-1 flex flex-col">
-            <div id="dm-convo-empty" class="flex-1 p-3 text-sm text-gray-400 overflow-y-auto">
+        <!-- RIGHT: message area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div id="dm-thread-header" class="px-3 py-2 border-b border-gray-800 text-xs text-gray-300">
                 Select a conversation.
             </div>
 
+            <div id="dm-thread" class="flex-1 p-3 text-sm text-gray-100 overflow-y-auto space-y-2">
+                <div class="text-gray-500">No conversation selected.</div>
+            </div>
+
             <div class="border-t border-gray-800 p-2">
-                <textarea
-                    class="w-full resize-none rounded bg-gray-950 border-gray-700 text-gray-200 text-sm"
-                    rows="2"
-                    placeholder="Message... (not wired yet)"
-                    disabled
-                ></textarea>
+                <div class="flex gap-2">
+                    <textarea
+                        id="dm-input"
+                        class="flex-1 resize-none rounded bg-gray-950 border-gray-700 text-gray-200 text-sm"
+                        rows="2"
+                        placeholder="Message..."
+                        disabled
+                    ></textarea>
+
+                    <button
+                        id="dm-send-btn"
+                        type="button"
+                        class="rounded border border-gray-700 bg-gray-800 px-3 py-2 text-xs text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled
+                    >
+                        Send
+                    </button>
+                </div>
+                <div class="text-[10px] text-gray-500 mt-1">
+                    Enter sends. Shift+Enter newline.
+                </div>
             </div>
         </div>
 
@@ -86,13 +105,56 @@
     const dmWindow = document.getElementById('dm-window');
     if (!dmWindow) return;
 
+    const csrf = @json(csrf_token());
+
     const listEl = document.getElementById('dm-convo-list');
     const refreshBtn = document.getElementById('dm-refresh-btn');
+    const closeBtn = document.getElementById('dm-close-btn');
 
-    let refreshTimer = null;
+    const threadHeader = document.getElementById('dm-thread-header');
+    const threadEl = document.getElementById('dm-thread');
+    const inputEl = document.getElementById('dm-input');
+    const sendBtn = document.getElementById('dm-send-btn');
+
+    let refreshListTimer = null;
+    let pollDmTimer = null;
+
+    let activeDm = {
+        slug: null,
+        lastId: 0,
+    };
 
     function isOpen() {
         return !dmWindow.classList.contains('hidden');
+    }
+
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function getActiveCharacterId() {
+        const v = sessionStorage.getItem('active_character_id');
+        return v ? parseInt(v, 10) : 0;
+    }
+
+    function setThreadEnabled(enabled) {
+        if (inputEl) inputEl.disabled = !enabled;
+        if (sendBtn) sendBtn.disabled = !enabled;
+    }
+
+    function clearThread() {
+        activeDm.slug = null;
+        activeDm.lastId = 0;
+
+        if (threadHeader) threadHeader.textContent = 'Select a conversation.';
+        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">No conversation selected.</div>`;
+        if (inputEl) inputEl.value = '';
+        setThreadEnabled(false);
     }
 
     function renderRooms(rooms) {
@@ -108,11 +170,18 @@
         rooms.forEach(r => {
             const slug = r.slug || '';
             const name = r.name || 'DM';
-            const updated = r.updated_at || '';
 
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'w-full text-left rounded border border-gray-800 bg-gray-950 hover:bg-gray-800 px-2 py-2';
+
+            const isActive = activeDm.slug && slug === activeDm.slug;
+
+            btn.className =
+                'w-full text-left rounded border px-2 py-2 ' +
+                (isActive
+                    ? 'border-gray-600 bg-gray-800'
+                    : 'border-gray-800 bg-gray-950 hover:bg-gray-800');
+
             btn.innerHTML = `
                 <div class="text-xs text-gray-100 truncate">${escapeHtml(name)}</div>
                 <div class="text-[10px] text-gray-500 truncate">${escapeHtml(slug)}</div>
@@ -120,7 +189,7 @@
 
             btn.addEventListener('click', () => {
                 if (!slug) return;
-                window.location.href = `/rooms/${slug}`;
+                openConversation(slug, name);
             });
 
             listEl.appendChild(btn);
@@ -148,27 +217,174 @@
         });
     }
 
-    function escapeHtml(s) {
-        return String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+    function appendMessages(msgs, initialLoad) {
+        if (!threadEl) return;
+
+        if (initialLoad) {
+            threadEl.innerHTML = '';
+        }
+
+        if (!Array.isArray(msgs) || msgs.length === 0) {
+            if (initialLoad) {
+                threadEl.innerHTML = `<div class="text-gray-500">No messages yet.</div>`;
+            }
+            return;
+        }
+
+        const wasNearBottom =
+            threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight < 80;
+
+        msgs.forEach(m => {
+            const body = (m.content ?? m.body ?? '').toString();
+            const isDeleted = !!m.deleted_at || body === '[deleted]';
+
+            const who =
+                (m.character && m.character.name)
+                    ? m.character.name
+                    : (m.user && m.user.name ? m.user.name : 'Unknown');
+
+            const bubble = document.createElement('div');
+            bubble.className = 'rounded border border-gray-800 bg-gray-950 px-2 py-1';
+
+            bubble.innerHTML = `
+                <div class="text-[10px] text-gray-400">
+                    ${escapeHtml(who)}
+                </div>
+                <div class="text-sm text-gray-100 whitespace-pre-line">
+                    ${escapeHtml(isDeleted ? '[deleted]' : body)}
+                </div>
+            `;
+
+            threadEl.appendChild(bubble);
+
+            const mid = parseInt(m.id || 0, 10);
+            if (mid > activeDm.lastId) activeDm.lastId = mid;
+        });
+
+        if (wasNearBottom || initialLoad) {
+            threadEl.scrollTop = threadEl.scrollHeight;
+        }
     }
 
-    function startAutoRefresh() {
-        stopAutoRefresh();
-        refreshTimer = setInterval(() => {
-            if (isOpen()) fetchDmRooms();
+    function fetchConversationInitial(slug) {
+        if (!slug) return;
+
+        // Load from zero: we can just use latest?after=0 and take whatever server returns
+        fetch(`/rooms/${slug}/messages/latest?after=0`, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!Array.isArray(data)) {
+                appendMessages([], true);
+                return;
+            }
+            appendMessages(data, true);
+        })
+        .catch(err => {
+            console.error('DM thread load error:', err);
+            if (threadEl) threadEl.innerHTML = `<div class="text-red-400">Could not load messages.</div>`;
+        });
+    }
+
+    function pollConversation(slug) {
+        if (!slug) return;
+
+        fetch(`/rooms/${slug}/messages/latest?after=${activeDm.lastId || 0}`, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) return;
+            appendMessages(data, false);
+        })
+        .catch(() => {});
+    }
+
+    function startDmPolling() {
+        stopDmPolling();
+        pollDmTimer = setInterval(() => {
+            if (!isOpen()) return;
+            if (!activeDm.slug) return;
+            pollConversation(activeDm.slug);
+        }, 2500);
+    }
+
+    function stopDmPolling() {
+        if (pollDmTimer) {
+            clearInterval(pollDmTimer);
+            pollDmTimer = null;
+        }
+    }
+
+    function startListRefresh() {
+        stopListRefresh();
+        refreshListTimer = setInterval(() => {
+            if (!isOpen()) return;
+            fetchDmRooms();
         }, 10000);
     }
 
-    function stopAutoRefresh() {
-        if (refreshTimer) {
-            clearInterval(refreshTimer);
-            refreshTimer = null;
+    function stopListRefresh() {
+        if (refreshListTimer) {
+            clearInterval(refreshListTimer);
+            refreshListTimer = null;
         }
+    }
+
+    function openConversation(slug, displayName) {
+        activeDm.slug = slug;
+        activeDm.lastId = 0;
+
+        if (threadHeader) threadHeader.textContent = `DM: ${displayName || slug}`;
+        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+
+        // enable input only if we have an active character id
+        const cid = getActiveCharacterId();
+        setThreadEnabled(!!cid);
+
+        fetchConversationInitial(slug);
+        fetchDmRooms(); // re-render highlighting
+        startDmPolling();
+    }
+
+    function sendDmMessage() {
+        if (!activeDm.slug) return;
+
+        const cid = getActiveCharacterId();
+        if (!cid) return;
+
+        const text = (inputEl?.value ?? '').trim();
+        if (!text) return;
+
+        // Optimistic clear
+        inputEl.value = '';
+
+        fetch(`/rooms/${activeDm.slug}/messages`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                body: text,
+                content: text,
+                character_id: cid,
+            })
+        })
+        .then(r => r.json())
+        .then(() => {
+            // After sending, poll immediately
+            pollConversation(activeDm.slug);
+            fetchDmRooms();
+        })
+        .catch(err => {
+            console.error('DM send error:', err);
+        });
     }
 
     /*
@@ -177,11 +393,29 @@
     window.addEventListener('open-dm-window', () => {
         dmWindow.classList.remove('hidden');
         fetchDmRooms();
-        startAutoRefresh();
+        startListRefresh();
+        if (activeDm.slug) startDmPolling();
     });
 
     refreshBtn?.addEventListener('click', () => {
         fetchDmRooms();
+        if (activeDm.slug) pollConversation(activeDm.slug);
+    });
+
+    closeBtn?.addEventListener('click', () => {
+        dmWindow.classList.add('hidden');
+    });
+
+    /*
+    | Send behavior
+    */
+    sendBtn?.addEventListener('click', () => sendDmMessage());
+
+    inputEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendDmMessage();
+        }
     });
 
     /*
@@ -194,8 +428,10 @@
 
     dragHandle?.addEventListener('mousedown', (e) => {
         isDragging = true;
+
         offsetX = e.clientX - dmWindow.offsetLeft;
         offsetY = e.clientY - dmWindow.offsetTop;
+
         document.body.style.userSelect = 'none';
     });
 
@@ -209,6 +445,7 @@
 
         dmWindow.style.left = (e.clientX - offsetX) + 'px';
         dmWindow.style.top = (e.clientY - offsetY) + 'px';
+
         dmWindow.style.right = 'auto';
     });
 
@@ -236,10 +473,13 @@
     });
 
     /*
-    | Optional: if the user closes the window, stop polling
+    | Stop timers when hidden
     */
     const observer = new MutationObserver(() => {
-        if (!isOpen()) stopAutoRefresh();
+        if (!isOpen()) {
+            stopListRefresh();
+            stopDmPolling();
+        }
     });
     observer.observe(dmWindow, { attributes: true, attributeFilter: ['class'] });
 
