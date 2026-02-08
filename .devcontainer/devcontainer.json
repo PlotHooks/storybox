@@ -6,6 +6,6 @@
       "version": "20"
     }
   },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y sqlite3 && touch database/database.sqlite && composer install",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y git-lfs sqlite3 && git lfs install && touch database/database.sqlite && composer install"
   "forwardPorts": [8000]
 }
