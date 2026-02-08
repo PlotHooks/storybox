@@ -71,15 +71,7 @@ class RoomController extends Controller
         // public rooms
         // OR rooms user belongs to (DM)
         $sidebarRooms = Room::query()
-            ->where(function ($q) {
-                $q->where('rooms.type', 'public')
-                    ->orWhereExists(function ($sub) {
-                        $sub->select(DB::raw(1))
-                            ->from('room_user_presence')
-                            ->whereColumn('room_user_presence.room_id', 'rooms.id')
-                            ->where('room_user_presence.user_id', Auth::id());
-                    });
-            })
+            ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
                 $join->on('rooms.id', '=', 'character_presences.room_id')
                     ->where('character_presences.last_seen_at', '>=', $cutoff);
@@ -93,6 +85,7 @@ class RoomController extends Controller
             ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
             ->orderBy('rooms.created_at', 'desc')
             ->get();
+
 
         $activeCharacterId = null;
 
