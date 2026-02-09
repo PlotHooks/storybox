@@ -171,7 +171,7 @@
 
         rooms.forEach(r => {
             const slug = r.slug || '';
-            const name = r.name || 'DM';
+            const name = r.other_character_name || 'DM';
 
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -191,8 +191,8 @@
 
             btn.addEventListener('click', () => {
                 if (!slug) return;
-                openConversation(slug, name);
-            });
+                openConversation(slug, name, r.my_character_id);
+                });
 
             listEl.appendChild(btn);
         });
@@ -219,7 +219,53 @@
         });
     }
 
-    function appendMessages(msgs, initialLoad) {
+// ----- Style helpers (same behavior as rooms) -----
+function buildStops(s) {
+    const stops = [];
+    if (s.c1) stops.push(s.c1);
+    if (s.c2) stops.push(s.c2);
+    if (s.c3) stops.push(s.c3);
+    if (s.c4) stops.push(s.c4);
+    return stops.filter(Boolean);
+}
+
+function applyGradientText(el, stops) {
+    el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
+    el.style.webkitBackgroundClip = 'text';
+    el.style.backgroundClip = 'text';
+    el.style.color = 'transparent';
+    el.style.display = 'inline-block';
+}
+
+function applySolidText(el, color) {
+    el.style.backgroundImage = '';
+    el.style.webkitBackgroundClip = '';
+    el.style.backgroundClip = '';
+    el.style.color = color || '#D8F3FF';
+}
+
+function applyStyleFromDataset(el) {
+    if (!el) return;
+
+    let s = {};
+    try { s = JSON.parse(el.dataset.style || '{}'); }
+    catch (e) { s = {}; }
+
+    const stops = buildStops(s);
+    const shouldFade = !!s.fade && stops.length >= 2;
+
+    if (shouldFade) applyGradientText(el, stops);
+    else applySolidText(el, s.c1);
+}
+
+function applyStylesIn(root) {
+    (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
+}
+
+
+
+
+        function appendMessages(msgs, initialLoad) {
         if (!threadEl) return;
 
         if (initialLoad) {
@@ -237,23 +283,49 @@
             threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight < 80;
 
         msgs.forEach(m => {
-            const body = (m.content ?? m.body ?? '').toString();
-            const isDeleted = !!m.deleted_at || body === '[deleted]';
+            const bodyRaw = (m.content ?? m.body ?? '').toString();
+            const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
 
             const who =
                 (m.character && m.character.name)
                     ? m.character.name
                     : (m.user && m.user.name ? m.user.name : 'Unknown');
 
+            // Character settings (for fades/colors)
+            let settings = (m.character && m.character.settings) ? m.character.settings : {};
+            if (typeof settings === 'string') {
+                try { settings = JSON.parse(settings); } catch (e) { settings = {}; }
+            }
+
+            const c1 = settings.text_color_1 || '#D8F3FF';
+            const c2 = settings.text_color_2 || null;
+            const c3 = settings.text_color_3 || null;
+            const c4 = settings.text_color_4 || null;
+
+            const fadeName = !!settings.fade_name;
+            const fadeMsg  = !!settings.fade_message;
+
+            const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
+            const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
+
             const bubble = document.createElement('div');
             bubble.className = 'rounded border border-gray-800 bg-gray-950 px-2 py-1';
 
+            // NOTE: data-style is JSON; we must escape it for HTML attribute safety
             bubble.innerHTML = `
-                <div class="text-[10px] text-gray-400">${escapeHtml(who)}</div>
-                <div class="text-sm text-gray-100 whitespace-pre-line">${escapeHtml(isDeleted ? '[deleted]' : body)}</div>
+                <div class="text-[10px] text-gray-400">
+                    <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                </div>
+                <div class="text-sm text-gray-100 whitespace-pre-line">
+                    <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
+                </div>
             `;
 
             threadEl.appendChild(bubble);
+
+            // Apply your existing fade/gradient logic (must exist in this blade)
+            // If you named it applyStylesIn, this will work.
+            if (typeof applyStylesIn === 'function') applyStylesIn(bubble);
 
             const mid = parseInt(m.id || 0, 10);
             if (mid > activeDm.lastId) activeDm.lastId = mid;
@@ -263,6 +335,7 @@
             threadEl.scrollTop = threadEl.scrollHeight;
         }
     }
+
 
     function fetchConversationInitial(slug) {
         if (!slug) return;
@@ -329,27 +402,28 @@
         }
     }
 
-    function openConversation(slug, displayName) {
-        activeDm.slug = slug;
-        activeDm.lastId = 0;
-        activeDm.displayName = displayName || slug;
+function openConversation(slug, displayName, lockedMyCharacterId) {
+    activeDm.slug = slug;
+    activeDm.lastId = 0;
+    activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
 
-        if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
-        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+    if (threadHeader) threadHeader.textContent = `DM: ${displayName || slug}`;
+    if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
 
-        const cid = getActiveCharacterId();
-        setThreadEnabled(!!cid);
+    setThreadEnabled(!!activeDm.myCharacterId);
 
-        fetchConversationInitial(slug);
-        fetchDmRooms();
-        startDmPolling();
-    }
+    fetchConversationInitial(slug);
+    fetchDmRooms();
+    startDmPolling();
+}
+
 
     function sendDmMessage() {
         if (!activeDm.slug) return;
 
-        const cid = getActiveCharacterId();
+        const cid = activeDm.myCharacterId || 0;
         if (!cid) return;
+
 
         const text = (inputEl?.value ?? '').trim();
         if (!text) return;

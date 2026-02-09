@@ -410,7 +410,11 @@
                     'Content-Type': 'application/json',
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ other_user_id: popState.userId })
+                body: JSON.stringify({
+                    other_character_id: parseInt(popState.characterId, 10),
+                    my_character_id: getTabCharacterId()
+                })
+
             })
             .then(r => r.json())
             .then(data => {

@@ -181,7 +181,13 @@ class RoomController extends Controller
             'body' => 'required|string|max:2000',
         ]);
 
-        $characterId = $this->getCharacterIdFromRequest($request);
+        // If this is a DM, ignore the client character_id and use the locked one
+        if ($room->type === 'dm') {
+            $this->assertDmMember($room);
+            $characterId = $this->getLockedDmCharacterId($room);
+        } else {
+            $characterId = $this->getCharacterIdFromRequest($request);
+        }
 
         $message = $room->messages()->create([
             'user_id'      => Auth::id(),
@@ -198,6 +204,7 @@ class RoomController extends Controller
 
     public function latest(Room $room, Request $request)
     {
+        $this->assertDmMember($room);
         $lastId = (int) $request->query('after', 0);
         $since  = $request->query('since');
 
@@ -298,33 +305,62 @@ class RoomController extends Controller
 
     public function dmIndex()
     {
-        $rooms = DB::table('room_users')
-            ->join('rooms', 'rooms.id', '=', 'room_users.room_id')
-            ->where('room_users.user_id', Auth::id())
+        $me = Auth::id();
+
+        $rooms = DB::table('dm_participants as mine')
+            ->join('rooms', 'rooms.id', '=', 'mine.room_id')
+            ->join('dm_participants as other', function ($join) use ($me) {
+                $join->on('other.room_id', '=', 'mine.room_id')
+                    ->whereColumn('other.user_id', '!=', 'mine.user_id');
+            })
+            ->join('characters as other_char', 'other_char.id', '=', 'other.character_id')
+            ->where('mine.user_id', $me)
             ->where('rooms.type', 'dm')
             ->orderByDesc('rooms.updated_at')
-            ->select('rooms.id', 'rooms.slug', 'rooms.name', 'rooms.updated_at')
+            ->select([
+                'rooms.slug',
+                'rooms.updated_at',
+                'other_char.id as other_character_id',
+                'other_char.name as other_character_name',
+                'mine.character_id as my_character_id',
+            ])
             ->get();
 
         return response()->json(['rooms' => $rooms]);
     }
 
+
     public function dmStart(Request $request)
     {
         $request->validate([
-            'other_user_id' => ['required', 'integer'],
+            'other_character_id' => ['required', 'integer'],
+            'my_character_id'    => ['required', 'integer'],
         ]);
 
         $me = Auth::id();
-        $other = (int) $request->other_user_id;
+        $myCharacterId = (int) $request->my_character_id;
+        $otherCharacterId = (int) $request->other_character_id;
 
-        abort_if($other <= 0 || $other === $me, 422);
+        abort_if($myCharacterId <= 0 || $otherCharacterId <= 0, 422);
 
-        $existingRoomId = DB::table('room_users as a')
-            ->join('room_users as b', function ($join) use ($me, $other) {
+        // my character must belong to me
+        $owns = DB::table('characters')
+            ->where('id', $myCharacterId)
+            ->where('user_id', $me)
+            ->exists();
+        abort_unless($owns, 403);
+
+        // other character must exist and not be mine
+        $otherChar = DB::table('characters')->where('id', $otherCharacterId)->first();
+        abort_unless($otherChar, 404);
+        abort_if((int)$otherChar->user_id === (int)$me, 422);
+
+        // Do we already have a DM room between these two characters?
+        $existingRoomId = DB::table('dm_participants as a')
+            ->join('dm_participants as b', function ($join) use ($myCharacterId, $otherCharacterId) {
                 $join->on('a.room_id', '=', 'b.room_id')
-                    ->where('a.user_id', '=', $me)
-                    ->where('b.user_id', '=', $other);
+                    ->where('a.character_id', '=', $myCharacterId)
+                    ->where('b.character_id', '=', $otherCharacterId);
             })
             ->join('rooms', 'rooms.id', '=', 'a.room_id')
             ->where('rooms.type', 'dm')
@@ -335,33 +371,35 @@ class RoomController extends Controller
             return response()->json(['slug' => $room->slug]);
         }
 
+        // Create DM room
         $room = Room::create([
-            'name'        => 'DM',
-            'slug'        => 'dm-' . Str::random(20),
-            'user_id'     => $me,
-            'created_by'  => $me,
-            'type'        => 'dm',
+            'name'       => 'DM',
+            'slug'       => 'dm-' . Str::random(20),
+            'user_id'    => $me,
+            'created_by' => $me,
+            'type'       => 'dm',
         ]);
 
-        DB::table('room_users')->insert([
-            ['room_id' => $room->id, 'user_id' => $me, 'created_at' => now(), 'updated_at' => now()],
-            ['room_id' => $room->id, 'user_id' => $other, 'created_at' => now(), 'updated_at' => now()],
+        DB::table('dm_participants')->insert([
+            [
+                'room_id' => $room->id,
+                'user_id' => $me,
+                'character_id' => $myCharacterId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'room_id' => $room->id,
+                'user_id' => (int)$otherChar->user_id,
+                'character_id' => $otherCharacterId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
 
         return response()->json(['slug' => $room->slug]);
     }
 
-        private function assertDmMember(Room $room): void
-    {
-        abort_unless($room->type === 'dm', 404);
-
-        $isMember = DB::table('room_users')
-            ->where('room_id', $room->id)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        abort_unless($isMember, 403);
-    }
 
     public function dmMessages(Room $room, Request $request)
     {
@@ -410,5 +448,31 @@ class RoomController extends Controller
             'message' => $message->load(['user', 'character']),
         ]);
     }
+
+        private function assertDmMember(Room $room): void
+        {
+            if ($room->type !== 'dm') return;
+
+            $ok = DB::table('dm_participants')
+                ->where('room_id', $room->id)
+                ->where('user_id', Auth::id())
+                ->exists();
+
+            abort_unless($ok, 403);
+        }
+
+        private function getLockedDmCharacterId(Room $room): int
+        {
+            $cid = (int) DB::table('dm_participants')
+                ->where('room_id', $room->id)
+                ->where('user_id', Auth::id())
+                ->value('character_id');
+
+            abort_if($cid <= 0, 403);
+            return $cid;
+        }
+
+
+
 
 }
