@@ -231,10 +231,6 @@
                         </div>
                     </div>
 
-                    <div id="panel-dms" class="hidden px-3 py-2">
-                        <div class="text-gray-500">DM list not wired yet.</div>
-                    </div>
-
                 </div>
             </div>
 
@@ -288,11 +284,9 @@
 
         const tabRooms   = document.getElementById('tab-rooms');
         const tabUsers   = document.getElementById('tab-users');
-        const tabDms     = document.getElementById('tab-dms');
 
         const panelRooms = document.getElementById('panel-rooms');
         const panelUsers = document.getElementById('panel-users');
-        const panelDms   = document.getElementById('panel-dms');
 
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
@@ -852,34 +846,6 @@
         /* Refresh DMs */
         const dmListEl = document.getElementById('panel-dms');
 
-        function refreshDmList() {
-        if (!dmListEl) return;
-
-        dmListEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
-
-        fetch('/dms', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
-            .then(r => r.json())
-            .then(data => {
-            const rooms = Array.isArray(data.rooms) ? data.rooms : [];
-            if (!rooms.length) {
-                dmListEl.innerHTML = `<div class="text-gray-500">No DMs yet.</div>`;
-                return;
-            }
-
-            dmListEl.innerHTML = rooms.map(r => `
-                <button type="button"
-                class="w-full text-left px-3 py-1.5 hover:bg-gray-800"
-                onclick="window.location.href='/rooms/${r.slug}'">
-                DM <span class="text-[10px] text-gray-500">(${new Date(r.updated_at).toLocaleString()})</span>
-                </button>
-            `).join('');
-            })
-            .catch(() => {
-            dmListEl.innerHTML = `<div class="text-red-400">DM list error</div>`;
-            });
-        }
-
-
         /* tabs */
         function showRoomsTab() {
             tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
@@ -888,7 +854,7 @@
 
             panelRooms.classList.remove('hidden');
             panelUsers.classList.add('hidden');
-            panelDms.classList.add('hidden');
+
 
             if (tabMeta) tabMeta.textContent = '# active / name';
         }
@@ -900,35 +866,19 @@
 
             panelRooms.classList.add('hidden');
             panelUsers.classList.remove('hidden');
-            panelDms.classList.add('hidden');
+
 
             if (tabMeta) tabMeta.textContent = 'character / user';
             refreshUserList();
         }
 
-        function showDmsTab() {
-            tabDms.className   = 'px-2 py-1 rounded bg-gray-800';
-            tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
-            tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
-
-            panelRooms.classList.add('hidden');
-            panelUsers.classList.add('hidden');
-            panelDms.classList.remove('hidden');
-
-            if (tabMeta) tabMeta.textContent = 'direct messages';
-
-            refreshDmList();
-        }   
-
-        setInterval(() => {
-            if (panelDms && !panelDms.classList.contains('hidden')) refreshDmList();
-            }, 5000);
-
-
-
         tabRooms?.addEventListener('click', showRoomsTab);
         tabUsers?.addEventListener('click', showUsersTab);
-        tabDms?.addEventListener('click', showDmsTab);
+
+        document.getElementById('tab-dms')?.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('open-dm-window'));
+        });
+
         showRoomsTab();
 
         setInterval(() => {
