@@ -99,7 +99,6 @@
 
 </div>
 
-
 <script>
 (function () {
     const dmWindow = document.getElementById('dm-window');
@@ -119,10 +118,17 @@
     let refreshListTimer = null;
     let pollDmTimer = null;
 
+    // Prevent overlapping polls (race condition -> duplicates)
+    let pollInFlight = false;
+
+    // De-dupe rendered messages per conversation
+    const seenMessageIds = new Set();
+
     let activeDm = {
         slug: null,
         lastId: 0,
         displayName: null,
+        myCharacterId: 0,
     };
 
     function isOpen() {
@@ -138,11 +144,6 @@
             .replace(/'/g, '&#039;');
     }
 
-    function getActiveCharacterId() {
-        const v = sessionStorage.getItem('active_character_id');
-        return v ? parseInt(v, 10) : 0;
-    }
-
     function setThreadEnabled(enabled) {
         if (inputEl) inputEl.disabled = !enabled;
         if (sendBtn) sendBtn.disabled = !enabled;
@@ -152,6 +153,9 @@
         activeDm.slug = null;
         activeDm.lastId = 0;
         activeDm.displayName = null;
+        activeDm.myCharacterId = 0;
+        pollInFlight = false;
+        seenMessageIds.clear();
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
         if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">No conversation selected.</div>`;
@@ -192,7 +196,7 @@
             btn.addEventListener('click', () => {
                 if (!slug) return;
                 openConversation(slug, name, r.my_character_id);
-                });
+            });
 
             listEl.appendChild(btn);
         });
@@ -219,53 +223,50 @@
         });
     }
 
-// ----- Style helpers (same behavior as rooms) -----
-function buildStops(s) {
-    const stops = [];
-    if (s.c1) stops.push(s.c1);
-    if (s.c2) stops.push(s.c2);
-    if (s.c3) stops.push(s.c3);
-    if (s.c4) stops.push(s.c4);
-    return stops.filter(Boolean);
-}
+    // ----- Style helpers (same behavior as rooms) -----
+    function buildStops(s) {
+        const stops = [];
+        if (s.c1) stops.push(s.c1);
+        if (s.c2) stops.push(s.c2);
+        if (s.c3) stops.push(s.c3);
+        if (s.c4) stops.push(s.c4);
+        return stops.filter(Boolean);
+    }
 
-function applyGradientText(el, stops) {
-    el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
-    el.style.webkitBackgroundClip = 'text';
-    el.style.backgroundClip = 'text';
-    el.style.color = 'transparent';
-    el.style.display = 'inline-block';
-}
+    function applyGradientText(el, stops) {
+        el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(',')})`;
+        el.style.webkitBackgroundClip = 'text';
+        el.style.backgroundClip = 'text';
+        el.style.color = 'transparent';
+        el.style.display = 'inline-block';
+    }
 
-function applySolidText(el, color) {
-    el.style.backgroundImage = '';
-    el.style.webkitBackgroundClip = '';
-    el.style.backgroundClip = '';
-    el.style.color = color || '#D8F3FF';
-}
+    function applySolidText(el, color) {
+        el.style.backgroundImage = '';
+        el.style.webkitBackgroundClip = '';
+        el.style.backgroundClip = '';
+        el.style.color = color || '#D8F3FF';
+    }
 
-function applyStyleFromDataset(el) {
-    if (!el) return;
+    function applyStyleFromDataset(el) {
+        if (!el) return;
 
-    let s = {};
-    try { s = JSON.parse(el.dataset.style || '{}'); }
-    catch (e) { s = {}; }
+        let s = {};
+        try { s = JSON.parse(el.dataset.style || '{}'); }
+        catch (e) { s = {}; }
 
-    const stops = buildStops(s);
-    const shouldFade = !!s.fade && stops.length >= 2;
+        const stops = buildStops(s);
+        const shouldFade = !!s.fade && stops.length >= 2;
 
-    if (shouldFade) applyGradientText(el, stops);
-    else applySolidText(el, s.c1);
-}
+        if (shouldFade) applyGradientText(el, stops);
+        else applySolidText(el, s.c1);
+    }
 
-function applyStylesIn(root) {
-    (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
-}
+    function applyStylesIn(root) {
+        (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
+    }
 
-
-
-
-        function appendMessages(msgs, initialLoad) {
+    function appendMessages(msgs, initialLoad) {
         if (!threadEl) return;
 
         if (initialLoad) {
@@ -283,6 +284,13 @@ function applyStylesIn(root) {
             threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight < 80;
 
         msgs.forEach(m => {
+            const mid = parseInt(m.id || 0, 10);
+            if (!mid) return;
+
+            // De-dupe: prevents "first send shows twice"
+            if (seenMessageIds.has(mid)) return;
+            seenMessageIds.add(mid);
+
             const bodyRaw = (m.content ?? m.body ?? '').toString();
             const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
 
@@ -311,7 +319,6 @@ function applyStylesIn(root) {
             const bubble = document.createElement('div');
             bubble.className = 'rounded border border-gray-800 bg-gray-950 px-2 py-1';
 
-            // NOTE: data-style is JSON; we must escape it for HTML attribute safety
             bubble.innerHTML = `
                 <div class="text-[10px] text-gray-400">
                     <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
@@ -323,11 +330,8 @@ function applyStylesIn(root) {
 
             threadEl.appendChild(bubble);
 
-            // Apply your existing fade/gradient logic (must exist in this blade)
-            // If you named it applyStylesIn, this will work.
-            if (typeof applyStylesIn === 'function') applyStylesIn(bubble);
+            applyStylesIn(bubble);
 
-            const mid = parseInt(m.id || 0, 10);
             if (mid > activeDm.lastId) activeDm.lastId = mid;
         });
 
@@ -336,9 +340,12 @@ function applyStylesIn(root) {
         }
     }
 
-
     function fetchConversationInitial(slug) {
         if (!slug) return;
+
+        pollInFlight = false;
+        seenMessageIds.clear();
+        activeDm.lastId = 0;
 
         fetch(`/dms/${encodeURIComponent(slug)}/messages?after=0`, {
             headers: { 'Accept': 'application/json' },
@@ -357,8 +364,13 @@ function applyStylesIn(root) {
 
     function pollConversation() {
         if (!activeDm.slug) return;
+        if (pollInFlight) return;
 
-        fetch(`/dms/${encodeURIComponent(activeDm.slug)}/messages?after=${activeDm.lastId || 0}`, {
+        pollInFlight = true;
+
+        const after = activeDm.lastId || 0;
+
+        fetch(`/dms/${encodeURIComponent(activeDm.slug)}/messages?after=${after}`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
@@ -368,7 +380,10 @@ function applyStylesIn(root) {
             if (!msgs.length) return;
             appendMessages(msgs, false);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+            pollInFlight = false;
+        });
     }
 
     function startDmPolling() {
@@ -385,6 +400,7 @@ function applyStylesIn(root) {
             clearInterval(pollDmTimer);
             pollDmTimer = null;
         }
+        pollInFlight = false;
     }
 
     function startListRefresh() {
@@ -402,28 +418,26 @@ function applyStylesIn(root) {
         }
     }
 
-function openConversation(slug, displayName, lockedMyCharacterId) {
-    activeDm.slug = slug;
-    activeDm.lastId = 0;
-    activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
+    function openConversation(slug, displayName, lockedMyCharacterId) {
+        activeDm.slug = slug;
+        activeDm.displayName = displayName || slug;
+        activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
 
-    if (threadHeader) threadHeader.textContent = `DM: ${displayName || slug}`;
-    if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+        if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
+        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
 
-    setThreadEnabled(!!activeDm.myCharacterId);
+        setThreadEnabled(!!activeDm.myCharacterId);
 
-    fetchConversationInitial(slug);
-    fetchDmRooms();
-    startDmPolling();
-}
-
+        fetchConversationInitial(slug);
+        fetchDmRooms();
+        startDmPolling();
+    }
 
     function sendDmMessage() {
         if (!activeDm.slug) return;
 
         const cid = activeDm.myCharacterId || 0;
         if (!cid) return;
-
 
         const text = (inputEl?.value ?? '').trim();
         if (!text) return;
@@ -445,8 +459,9 @@ function openConversation(slug, displayName, lockedMyCharacterId) {
         })
         .then(r => r.json())
         .then(() => {
-            pollConversation();
             fetchDmRooms();
+            // Let the DB commit settle; then pull once (de-dupe prevents doubles anyway)
+            setTimeout(() => pollConversation(), 150);
         })
         .catch(err => {
             console.error('DM send error:', err);
@@ -466,7 +481,7 @@ function openConversation(slug, displayName, lockedMyCharacterId) {
         const name = e?.detail?.name;
 
         if (slug) {
-            openConversation(slug, name || slug);
+            openConversation(slug, name || slug, e?.detail?.my_character_id);
         } else {
             clearThread();
         }
@@ -554,4 +569,3 @@ function openConversation(slug, displayName, lockedMyCharacterId) {
 
 })();
 </script>
-
