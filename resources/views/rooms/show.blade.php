@@ -209,7 +209,6 @@
                 <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex items-center gap-2">
                     <button id="tab-rooms" type="button" class="px-2 py-1 rounded bg-gray-800">Rooms</button>
                     <button id="tab-users" type="button" class="px-2 py-1 rounded hover:bg-gray-800">Users</button>
-                    <button id="tab-dms" type="button" class="px-2 py-1 rounded hover:bg-gray-800">DMs</button>
                     <span id="tab-meta" class="text-[10px] text-gray-500 ml-auto"># active / name</span>
                 </div>
 
@@ -847,43 +846,35 @@
         const dmListEl = document.getElementById('panel-dms');
 
         /* tabs */
-        function showRoomsTab() {
-            tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
-            tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
-            tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+function showRoomsTab() {
+    tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
+    tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
 
-            panelRooms.classList.remove('hidden');
-            panelUsers.classList.add('hidden');
+    panelRooms.classList.remove('hidden');
+    panelUsers.classList.add('hidden');
 
+    if (tabMeta) tabMeta.textContent = '# active / name';
+}
 
-            if (tabMeta) tabMeta.textContent = '# active / name';
-        }
+function showUsersTab() {
+    tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
+    tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
 
-        function showUsersTab() {
-            tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
-            tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
-            tabDms.className   = 'px-2 py-1 rounded hover:bg-gray-800';
+    panelRooms.classList.add('hidden');
+    panelUsers.classList.remove('hidden');
 
-            panelRooms.classList.add('hidden');
-            panelUsers.classList.remove('hidden');
+    if (tabMeta) tabMeta.textContent = 'character / user';
+    refreshUserList();
+}
 
+tabRooms?.addEventListener('click', showRoomsTab);
+tabUsers?.addEventListener('click', showUsersTab);
+showRoomsTab();
 
-            if (tabMeta) tabMeta.textContent = 'character / user';
-            refreshUserList();
-        }
+setInterval(() => {
+    if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
+}, 5000);
 
-        tabRooms?.addEventListener('click', showRoomsTab);
-        tabUsers?.addEventListener('click', showUsersTab);
-
-        document.getElementById('tab-dms')?.addEventListener('click', () => {
-            window.dispatchEvent(new CustomEvent('open-dm-window'));
-        });
-
-        showRoomsTab();
-
-        setInterval(() => {
-            if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
-        }, 5000);
 
         if (container) container.scrollTop = container.scrollHeight;
     </script>
