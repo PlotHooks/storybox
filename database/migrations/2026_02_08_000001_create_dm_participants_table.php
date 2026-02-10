@@ -9,17 +9,15 @@ return new class extends Migration {
     {
         Schema::create('dm_participants', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('room_id');
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('character_id');
+
+            $table->foreignId('room_id')->constrained('rooms')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('character_id')->constrained('characters')->cascadeOnDelete();
+
             $table->timestamps();
 
             $table->unique(['room_id', 'user_id']);
             $table->unique(['room_id', 'character_id']);
-
-            $table->index(['user_id']);
-            $table->index(['character_id']);
-            $table->index(['room_id']);
         });
     }
 

@@ -28,12 +28,14 @@ return new class extends Migration
             $table->foreignId('character_id')
                 ->nullable()
                 ->constrained()
-                ->nullOnDelete();
+                ->cascadeOnDelete();
 
             // The actual chat text
             $table->text('body');
 
             $table->timestamps();
+
+            $table->index(['room_id', 'id']);
         });
     }
 
