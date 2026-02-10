@@ -21,7 +21,6 @@ class RoomController extends Controller
         return view('rooms.index', compact('rooms'));
     }
 
-
     public function create()
     {
         return view('rooms.create');
@@ -278,9 +277,6 @@ class RoomController extends Controller
         return response()->json(['rooms' => $rooms]);
     }
 
-
-
-
     public function roster(Room $room)
     {
         $cutoff = now()->subMinutes(5);
@@ -329,7 +325,6 @@ class RoomController extends Controller
         return response()->json(['rooms' => $rooms]);
     }
 
-
     public function dmStart(Request $request)
     {
         $request->validate([
@@ -353,7 +348,7 @@ class RoomController extends Controller
         // other character must exist and not be mine
         $otherChar = DB::table('characters')->where('id', $otherCharacterId)->first();
         abort_unless($otherChar, 404);
-        abort_if((int)$otherChar->user_id === (int)$me, 422);
+        abort_if((int) $otherChar->user_id === (int) $me, 422);
 
         // Do we already have a DM room between these two characters?
         $existingRoomId = DB::table('dm_participants as a')
@@ -390,7 +385,7 @@ class RoomController extends Controller
             ],
             [
                 'room_id' => $room->id,
-                'user_id' => (int)$otherChar->user_id,
+                'user_id' => (int) $otherChar->user_id,
                 'character_id' => $otherCharacterId,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -399,7 +394,6 @@ class RoomController extends Controller
 
         return response()->json(['slug' => $room->slug]);
     }
-
 
     public function dmMessages(Room $room, Request $request)
     {
@@ -427,15 +421,16 @@ class RoomController extends Controller
 
     public function dmSend(Room $room, Request $request)
     {
+        // Must be a DM and user must be a participant
+        abort_unless($room->type === 'dm', 404);
         $this->assertDmMember($room);
 
         $request->validate([
             'body' => 'required|string|max:2000',
-            'character_id' => 'required|integer',
         ]);
 
-        $characterId = (int) $request->character_id;
-        $this->assertCharacterOwnedByUser($characterId);
+        // Lock the speaking character to the DM participant row for this user
+        $characterId = $this->getLockedDmCharacterId($room);
 
         $message = $room->messages()->create([
             'user_id'      => Auth::id(),
@@ -449,30 +444,28 @@ class RoomController extends Controller
         ]);
     }
 
-        private function assertDmMember(Room $room): void
-        {
-            if ($room->type !== 'dm') return;
-
-            $ok = DB::table('dm_participants')
-                ->where('room_id', $room->id)
-                ->where('user_id', Auth::id())
-                ->exists();
-
-            abort_unless($ok, 403);
+    private function assertDmMember(Room $room): void
+    {
+        if ($room->type !== 'dm') {
+            return;
         }
 
-        private function getLockedDmCharacterId(Room $room): int
-        {
-            $cid = (int) DB::table('dm_participants')
-                ->where('room_id', $room->id)
-                ->where('user_id', Auth::id())
-                ->value('character_id');
+        $ok = DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->where('user_id', Auth::id())
+            ->exists();
 
-            abort_if($cid <= 0, 403);
-            return $cid;
-        }
+        abort_unless($ok, 403);
+    }
 
+    private function getLockedDmCharacterId(Room $room): int
+    {
+        $cid = (int) DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->where('user_id', Auth::id())
+            ->value('character_id');
 
-
-
+        abort_if($cid <= 0, 403);
+        return $cid;
+    }
 }
