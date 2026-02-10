@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\RoomPresence;
 use App\Models\User;
 
 class Room extends Model
@@ -17,7 +16,7 @@ class Room extends Model
         'description',
         'created_by',
         'user_id',
-        'type', // IMPORTANT
+        'type',
     ];
 
     /*
@@ -47,9 +46,10 @@ class Room extends Model
         return $this->hasMany(Message::class);
     }
 
-    public function presences()
+    // Matches your migration: character_presences.room_id -> rooms.id
+    public function characterPresences()
     {
-        return $this->hasMany(RoomPresence::class);
+        return $this->hasMany(CharacterPresence::class);
     }
 
     /*
@@ -58,23 +58,13 @@ class Room extends Model
     |--------------------------------------------------------------------------
     */
 
+    // True "active" count based on presence table, not recent posters
     public function getActiveUsersAttribute(): int
     {
         $cutoff = now()->subMinutes(5);
 
-        return $this->messages()
-            ->where('created_at', '>=', $cutoff)
-            ->distinct('user_id')
-            ->count('user_id');
+        return $this->characterPresences()
+            ->where('last_seen_at', '>=', $cutoff)
+            ->count();
     }
-    /*
-    |--------------------------------------------------------------------------
-    | DMs
-    |--------------------------------------------------------------------------
-    */
-    public function rooms()
-{
-    return $this->belongsToMany(Room::class, 'room_members');
-}
-
 }

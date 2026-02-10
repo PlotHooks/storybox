@@ -53,12 +53,7 @@ class RoomController extends Controller
     {
         // Block access to DMs you are not part of
         if ($room->type === 'dm') {
-            $isMember = DB::table('room_users')
-                ->where('room_id', $room->id)
-                ->where('user_id', Auth::id())
-                ->exists();
-
-            abort_unless($isMember, 403);
+            $this->assertDmMember($room);
         }
 
         $messages = $room->messages()
@@ -71,8 +66,6 @@ class RoomController extends Controller
 
         $cutoff = now()->subMinutes(5);
 
-        // Right sidebar Rooms list inside a room view:
-        // show public rooms only (keeps DMs out of the Rooms tab in the sidebar)
         $sidebarRooms = Room::query()
             ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
@@ -128,6 +121,23 @@ class RoomController extends Controller
     {
         $isOwner = $message->user_id === Auth::id();
         abort_unless($isOwner || $this->canModerate(), 403);
+    }
+
+    private function assertRoomAccess(Room $room, int $characterId): void
+    {
+        // Today: all non-DM rooms are public
+        if ($room->type === 'public') {
+            return;
+        }
+
+        // DMs: must be a participant
+        if ($room->type === 'dm') {
+            $this->assertDmMember($room);
+            return;
+        }
+
+        // Future: whitelist/blacklist membership checks go here
+        abort(403);
     }
 
     public function updateMessage(Request $request, Message $message)
@@ -203,7 +213,11 @@ class RoomController extends Controller
 
     public function latest(Room $room, Request $request)
     {
-        $this->assertDmMember($room);
+        // DMs require membership, public rooms do not
+        if ($room->type === 'dm') {
+            $this->assertDmMember($room);
+        }
+
         $lastId = (int) $request->query('after', 0);
         $since  = $request->query('since');
 
@@ -228,6 +242,7 @@ class RoomController extends Controller
     public function ping(Room $room, Request $request)
     {
         $characterId = $this->getCharacterIdFromRequest($request);
+        $this->assertRoomAccess($room, $characterId);
 
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
@@ -245,6 +260,7 @@ class RoomController extends Controller
     public function leave(Room $room, Request $request)
     {
         $characterId = $this->getCharacterIdFromRequest($request);
+        $this->assertRoomAccess($room, $characterId);
 
         DB::table('character_presences')
             ->where('character_id', $characterId)
@@ -257,7 +273,6 @@ class RoomController extends Controller
     {
         $cutoff = now()->subMinutes(5);
 
-        // Sidebar should ONLY show public rooms (DMs live only in the floating DM window)
         $rooms = Room::query()
             ->where('rooms.type', 'public')
             ->leftJoin('character_presences', function ($join) use ($cutoff) {
@@ -338,19 +353,16 @@ class RoomController extends Controller
 
         abort_if($myCharacterId <= 0 || $otherCharacterId <= 0, 422);
 
-        // my character must belong to me
         $owns = DB::table('characters')
             ->where('id', $myCharacterId)
             ->where('user_id', $me)
             ->exists();
         abort_unless($owns, 403);
 
-        // other character must exist and not be mine
         $otherChar = DB::table('characters')->where('id', $otherCharacterId)->first();
         abort_unless($otherChar, 404);
         abort_if((int) $otherChar->user_id === (int) $me, 422);
 
-        // Do we already have a DM room between these two characters?
         $existingRoomId = DB::table('dm_participants as a')
             ->join('dm_participants as b', function ($join) use ($myCharacterId, $otherCharacterId) {
                 $join->on('a.room_id', '=', 'b.room_id')
@@ -366,7 +378,6 @@ class RoomController extends Controller
             return response()->json(['slug' => $room->slug]);
         }
 
-        // Create DM room
         $room = Room::create([
             'name'       => 'DM',
             'slug'       => 'dm-' . Str::random(20),
@@ -421,7 +432,6 @@ class RoomController extends Controller
 
     public function dmSend(Room $room, Request $request)
     {
-        // Must be a DM and user must be a participant
         abort_unless($room->type === 'dm', 404);
         $this->assertDmMember($room);
 
@@ -429,7 +439,6 @@ class RoomController extends Controller
             'body' => 'required|string|max:2000',
         ]);
 
-        // Lock the speaking character to the DM participant row for this user
         $characterId = $this->getLockedDmCharacterId($room);
 
         $message = $room->messages()->create([

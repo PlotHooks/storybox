@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -17,10 +18,6 @@ class Message extends Model
         'character_id',
         'body',
         'deleted_by',
-    ];
-
-    protected $casts = [
-        'deleted_at' => 'datetime',
     ];
 
     /*
@@ -46,7 +43,7 @@ class Message extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Helpers (optional but useful)
+    | Helpers
     |--------------------------------------------------------------------------
     */
 
@@ -57,6 +54,6 @@ class Message extends Model
 
     public function canBeEditedBy(User $user): bool
     {
-        return $this->user_id === $user->id || ($user->is_admin ?? false);
+        return $this->user_id === $user->id || (bool) ($user->is_admin ?? false);
     }
 }

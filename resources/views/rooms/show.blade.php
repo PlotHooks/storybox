@@ -359,7 +359,12 @@
             const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
 
             if (popTitle) popTitle.textContent = `${characterName} ⟡${sigil}`;
-            if (popProfile) popProfile.href = characterId ? `/characters/${characterId}` : '#';
+          
+            const isMine = (userId && userId === currentUserId);
+            if (popProfile) {
+                popProfile.href = (isMine && characterId) ? `/characters/${characterId}` : '#';
+                popProfile.classList.toggle('hidden', !isMine);
+            }
 
             // DM button only if it is not me and we have a user id
             if (popDm) {
