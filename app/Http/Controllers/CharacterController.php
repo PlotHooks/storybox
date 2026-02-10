@@ -49,6 +49,9 @@ class CharacterController extends Controller
 
     public function show(Character $character)
     {
+        // Prevent IDOR
+        abort_if($character->user_id !== auth()->id(), 403);
+
         return view('characters.show', compact('character'));
     }
 
