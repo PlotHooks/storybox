@@ -1,11 +1,13 @@
 {
   "name": "Storybox Laravel",
-  "image": "mcr.microsoft.com/devcontainers/php:1-8.3",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "20"
     }
   },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y git-lfs sqlite3 && git lfs install && touch database/database.sqlite && composer install"
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y git-lfs sqlite3 && git lfs install && touch database/database.sqlite && composer install",
   "forwardPorts": [8000]
 }
