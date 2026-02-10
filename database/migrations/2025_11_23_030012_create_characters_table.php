@@ -4,6 +4,14 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+// ⚠️ TODO (SECURITY):
+// profile_html MUST be sanitized before rendering.
+// Do NOT render raw HTML from this column without a whitelist sanitizer
+// (e.g. HTMLPurifier / Laravel Purifier).
+// This feature is intentionally disabled until sanitization is enforced.
+$table->longText('profile_html')->nullable();
+
+
 return new class extends Migration
 {
     /**
