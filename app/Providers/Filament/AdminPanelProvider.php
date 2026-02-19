@@ -1,13 +1,17 @@
-public function panel(Panel $panel): Panel
+<?php
+
+namespace App\Providers\Filament;
+
+use Filament\Panel;
+use Filament\PanelProvider;
+
+class AdminPanelProvider extends PanelProvider
 {
-    return $panel
-        ->default()              // 👈 THIS LINE
-        ->id('admin')
-        ->path('panopticon')     // 👈 THIS LINE
-        ->resources([
-            // …
-        ])
-        ->widgets([
-            // …
-        ]);
+    public function panel(Panel $panel): Panel
+    {
+        return $panel
+            ->default()
+            ->id('admin')
+            ->path('panopticon');
+    }
 }
