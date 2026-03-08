@@ -25,6 +25,10 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('panopticon')
             ->login()
+            ->discoverResources(
+                in: app_path('Filament/Resources'),
+                for: 'App\\Filament\\Resources',
+            )
             ->pages([
                 Pages\Dashboard::class,
             ])
