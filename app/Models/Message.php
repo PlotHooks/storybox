@@ -56,4 +56,14 @@ class Message extends Model
     {
         return $this->user_id === $user->id || (bool) ($user->is_admin ?? false);
     }
+    public function reports()
+    {
+        return $this->hasMany(MessageReport::class);
+    }
+
+    public function deletedBy()
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
+    }
 }
+
