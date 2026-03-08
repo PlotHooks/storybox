@@ -24,16 +24,10 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('panopticon')
-
-            // This is what makes /panopticon/login exist:
             ->login()
-
-            // This is what prevents the "redirect to nowhere" loop:
             ->pages([
                 Pages\Dashboard::class,
             ])
-
-            // Typical panel middleware:
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -45,7 +39,6 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-
             ->authMiddleware([
                 Authenticate::class,
             ]);
