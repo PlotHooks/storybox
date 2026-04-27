@@ -78,7 +78,7 @@
                     @foreach ($messages as $message)
                         @php
                             $c = $message->character;
-                            $name = optional($c)->name ?? $message->user->name;
+                            $name = optional($c)->name ?? optional($message->user)->name ?? 'Unknown';
 
                             $s = $c->settings ?? [];
                             if (is_string($s)) { $s = json_decode($s, true) ?: []; }
@@ -297,8 +297,18 @@
             return String(s)
                 .replace(/&/g, '&amp;')
                 .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
+        }
+
+        function escHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         function shortSigil(id) {
@@ -358,7 +368,7 @@
 
             const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
 
-            if (popTitle) popTitle.textContent = `${characterName} ⟡${sigil}`;
+            if (popTitle) popTitle.textContent = `${characterName} #${sigil}`;
           
             const isMine = (userId && userId === currentUserId);
             if (popProfile) {
@@ -737,20 +747,25 @@
                     div.dataset.deleted = isDeleted ? '1' : '0';
 
                     const safeNameAttr = escAttr(name);
+                    const safeNameHtml = escHtml(name);
+                    const safeTextHtml = escHtml(text);
+                    const safeCreatedAt = escHtml(msg.created_at_human ?? '');
+                    const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
+                    const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
 
                     div.innerHTML = `
                         <div class="flex items-start justify-between gap-2 leading-tight mb-0">
                             <div class="flex items-start gap-2">
                                 <button type="button"
                                     class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
-                                    data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'
+                                    data-style='${nameStyle}'
                                     data-character-id="${msg.character?.id ?? ''}"
                                     data-user-id="${msg.user_id ?? ''}"
                                     data-character-name="${safeNameAttr}">
-                                    ${name}
+                                    ${safeNameHtml}
                                 </button>
 
-                                <span class="text-[10px] text-gray-500 opacity-70">${msg.created_at_human ?? ''}</span>
+                                <span class="text-[10px] text-gray-500 opacity-70">${safeCreatedAt}</span>
                                 <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
                                 <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
                             </div>
@@ -764,7 +779,7 @@
                         </div>
 
                         <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
-                            <span class="msg-body" data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeMsg})}'>${text}</span>
+                            <span class="msg-body" data-style='${bodyStyle}'>${safeTextHtml}</span>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">
@@ -827,18 +842,20 @@
                     row.className = 'char-row border-b border-gray-800 pb-2';
 
                     const safeNameAttr = escAttr(displayName);
+                    const safeDisplayName = escHtml(displayName);
+                    const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
 
                     row.innerHTML = `
                         <button type="button"
                             class="char-trigger msg-name text-sm font-medium hover:underline text-left cursor-pointer"
-                            data-style='${JSON.stringify({c1,c2,c3,c4,fade:fadeName})}'
+                            data-style='${nameStyle}'
                             data-character-id="${p.character_id ?? ''}"
                             data-user-id="${p.user_id ?? ''}"
                             data-character-name="${safeNameAttr}">
-                            ${displayName}
+                            ${safeDisplayName}
                         </button>
 
-                        <div class="text-[10px] text-gray-500">${displayName} ⟡${sigil}</div>
+                        <div class="text-[10px] text-gray-500">${safeDisplayName} #${sigil}</div>
                     `;
 
                     userListEl.appendChild(row);
