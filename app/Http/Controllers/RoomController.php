@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class RoomController extends Controller
 {
@@ -189,16 +190,24 @@ class RoomController extends Controller
     {
         abort_if($message->deleted_at, 410);
 
+        $message->loadMissing('room');
+
+        Gate::authorize('access-room', $message->room);
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
-        $report = MessageReport::create([
-            'message_id' => $message->id,
-            'reporter_user_id' => Auth::id(),
-            'reason' => $validated['reason'],
-            'status' => 'pending',
-        ]);
+        $report = MessageReport::firstOrCreate(
+            [
+                'message_id' => $message->id,
+                'reporter_user_id' => Auth::id(),
+            ],
+            [
+                'reason' => $validated['reason'],
+                'status' => 'pending',
+            ],
+        );
 
         return response()->json([
             'ok' => true,
