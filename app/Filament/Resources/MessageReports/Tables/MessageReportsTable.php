@@ -30,8 +30,21 @@ class MessageReportsTable
                 TextColumn::make('message.body')
                     ->label('Message')
                     ->limit(60)
+                    ->wrap()
                     ->searchable()
                     ->tooltip(fn ($record): ?string => $record->message?->body),
+
+                TextColumn::make('message.room.name')
+                    ->label('Room')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('message.character.name')
+                    ->label('Character')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(),
 
                 TextColumn::make('message.user.name')
                     ->label('Accused User')
@@ -73,7 +86,7 @@ class MessageReportsTable
             ->filters([
                 SelectFilter::make('status')
                     ->options([
-                        'open' => 'Open',
+                        'pending' => 'Pending',
                         'dismissed' => 'Dismissed',
                         'actioned' => 'Actioned',
                     ]),
@@ -85,7 +98,7 @@ class MessageReportsTable
                     ->label('Dismiss')
                     ->color('gray')
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->status === 'open')
+                    ->visible(fn ($record): bool => $record->status === 'pending')
                     ->action(function ($record): void {
                         $record->forceFill([
                             'status' => 'dismissed',
@@ -100,7 +113,7 @@ class MessageReportsTable
                     ->color('danger')
                     ->requiresConfirmation()
                     ->visible(fn ($record): bool =>
-                        $record->status === 'open'
+                        $record->status === 'pending'
                         && $record->message
                         && ! $record->message->trashed()
                     )
@@ -119,7 +132,7 @@ class MessageReportsTable
                     ->icon('heroicon-o-no-symbol')
                     ->color('danger')
                     ->visible(fn ($record): bool =>
-                        $record->status === 'open'
+                        $record->status === 'pending'
                         && $record->message
                         && $record->message->user
                         && ! $record->message->user->is_banned
@@ -174,7 +187,7 @@ class MessageReportsTable
                     ->icon('heroicon-o-shield-exclamation')
                     ->color('danger')
                     ->visible(fn ($record): bool =>
-                        $record->status === 'open'
+                        $record->status === 'pending'
                         && $record->message
                         && $record->message->user
                         && ! $record->message->trashed()
