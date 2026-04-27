@@ -26,6 +26,27 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        $user = $request->user();
+
+        if ($user->is_banned) {
+            if ($user->banned_until && $user->banned_until->isPast()) {
+                $user->update([
+                    'is_banned' => false,
+                    'banned_until' => null,
+                    'banned_reason' => null,
+                ]);
+            } else {
+                Auth::guard('web')->logout();
+
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'This account has been banned.',
+                ]);
+            }
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard', absolute: false));

@@ -4,6 +4,9 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\RoomController;
 use Illuminate\Support\Facades\Route;
+use App\Models\Message;
+use App\Models\MessageReport;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -48,6 +51,19 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::patch('/messages/{message}', [RoomController::class, 'updateMessage'])->name('messages.update');
     Route::delete('/messages/{message}', [RoomController::class, 'deleteMessage'])->name('messages.delete');
+    Route::post('/messages/{message}/report', function (Message $message) {
+        MessageReport::create([
+            'message_id' => $message->id,
+            'reporter_user_id' => auth()->id(),
+            'reason' => 'user_report',
+            'notes' => null,
+            'status' => 'open',
+        ]);
+
+        return response()->json(['ok' => true]);
+    })->middleware('auth')->name('messages.report');
+
+
 
     // DMs
     Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');

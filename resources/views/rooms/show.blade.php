@@ -134,21 +134,27 @@
                                     <span class="msg-deleted text-[10px] text-gray-500 opacity-70 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
                                 </div>
 
-                                @if ($canEdit)
-                                    <div class="flex items-center gap-2 text-[10px]">
+                                <div class="flex items-center gap-2 text-[10px]">
+                                    <button type="button"
+                                        class="msg-report-btn rounded border border-yellow-700 bg-gray-800 px-2 py-1 text-yellow-300 hover:bg-gray-700"
+                                        {{ $isDeleted ? 'disabled' : '' }}>
+                                        Report
+                                    </button>
+
+                                    @if ($canEdit)
                                         <button type="button"
                                             class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
                                             {{ $isDeleted ? 'disabled' : '' }}>
                                             Edit
                                         </button>
+
                                         <button type="button"
                                             class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
                                             {{ $isDeleted ? 'disabled' : '' }}>
                                             Delete
                                         </button>
-                                    </div>
-                                @endif
-                            </div>
+                                    @endif
+                                </div>
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>
@@ -606,103 +612,134 @@
         }
 
         function attachMessageActions(root) {
-            (root || document).querySelectorAll('.msg-row').forEach(row => {
-                if (row.dataset.bound === '1') return;
-                row.dataset.bound = '1';
+    (root || document).querySelectorAll('.msg-row').forEach(row => {
+        if (row.dataset.bound === '1') return;
+        row.dataset.bound = '1';
 
-                const editBtn = row.querySelector('.msg-edit-btn');
-                const delBtn  = row.querySelector('.msg-del-btn');
-                const bodyEl  = row.querySelector('.msg-body');
-                const editBox = row.querySelector('.msg-editbox');
-                const ta      = row.querySelector('.msg-edit-textarea');
-                const saveBtn = row.querySelector('.msg-save-btn');
-                const cancelBtn = row.querySelector('.msg-cancel-btn');
-                const editedTag = row.querySelector('.msg-edited');
-                const deletedTag = row.querySelector('.msg-deleted');
+        const editBtn = row.querySelector('.msg-edit-btn');
+        const delBtn  = row.querySelector('.msg-del-btn');
+        const reportBtn = row.querySelector('.msg-report-btn');
 
-                const id = row.dataset.messageId;
-                const isDeleted = row.dataset.deleted === '1';
+        const bodyEl  = row.querySelector('.msg-body');
+        const editBox = row.querySelector('.msg-editbox');
+        const ta      = row.querySelector('.msg-edit-textarea');
+        const saveBtn = row.querySelector('.msg-save-btn');
+        const cancelBtn = row.querySelector('.msg-cancel-btn');
+        const editedTag = row.querySelector('.msg-edited');
+        const deletedTag = row.querySelector('.msg-deleted');
 
-                if (!canEditMessageRow(row)) return;
+        const id = row.dataset.messageId;
+        const isDeleted = row.dataset.deleted === '1';
 
-                if (isDeleted) {
-                    if (editBtn) editBtn.disabled = true;
-                    if (delBtn) delBtn.disabled = true;
-                    return;
-                }
+        // -----------------------------
+        // REPORT (always allowed)
+        // -----------------------------
+        if (reportBtn && !isDeleted) {
+            reportBtn.addEventListener('click', () => {
+                if (!confirm('Report this message?')) return;
 
-                editBtn?.addEventListener('click', () => {
-                    if (!bodyEl || !editBox || !ta) return;
-                    ta.value = (bodyEl.textContent || '').trim();
-                    editBox.classList.remove('hidden');
-                    editBtn.disabled = true;
-                    if (delBtn) delBtn.disabled = true;
-                });
+                fetch(`/messages/${id}/report`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data || !data.ok) return;
 
-                cancelBtn?.addEventListener('click', () => {
-                    if (!editBox) return;
-                    editBox.classList.add('hidden');
-                    if (editBtn) editBtn.disabled = false;
-                    if (delBtn) delBtn.disabled = false;
-                });
-
-                saveBtn?.addEventListener('click', () => {
-                    if (!ta || !bodyEl) return;
-                    const newBody = ta.value;
-
-                    fetch(`/messages/${id}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ body: newBody, content: newBody }),
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (!data || !data.ok) return;
-
-                        bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
-                        editedTag?.classList.remove('hidden');
-
-                        editBox?.classList.add('hidden');
-                        if (editBtn) editBtn.disabled = false;
-                        if (delBtn) delBtn.disabled = false;
-                    })
-                    .catch(() => {});
-                });
-
-                delBtn?.addEventListener('click', () => {
-                    if (!confirm('Delete this message?')) return;
-
-                    fetch(`/messages/${id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': csrf,
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'same-origin',
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (!data || !data.ok) return;
-
-                        row.dataset.deleted = '1';
-                        if (bodyEl) bodyEl.textContent = '[deleted]';
-                        deletedTag?.classList.remove('hidden');
-
-                        if (editBtn) editBtn.disabled = true;
-                        if (delBtn) delBtn.disabled = true;
-                        editBox?.classList.add('hidden');
-                    })
-                    .catch(() => {});
-                });
+                    reportBtn.textContent = 'Reported';
+                    reportBtn.disabled = true;
+                })
+                .catch(() => {});
             });
         }
-        attachMessageActions(document);
+
+        // -----------------------------
+        // EDIT / DELETE (restricted)
+        // -----------------------------
+        if (!canEditMessageRow(row)) return;
+
+        if (isDeleted) {
+            if (editBtn) editBtn.disabled = true;
+            if (delBtn) delBtn.disabled = true;
+            return;
+        }
+
+        editBtn?.addEventListener('click', () => {
+            if (!bodyEl || !editBox || !ta) return;
+            ta.value = (bodyEl.textContent || '').trim();
+            editBox.classList.remove('hidden');
+            editBtn.disabled = true;
+            if (delBtn) delBtn.disabled = true;
+        });
+
+        cancelBtn?.addEventListener('click', () => {
+            if (!editBox) return;
+            editBox.classList.add('hidden');
+            if (editBtn) editBtn.disabled = false;
+            if (delBtn) delBtn.disabled = false;
+        });
+
+        saveBtn?.addEventListener('click', () => {
+            if (!ta || !bodyEl) return;
+            const newBody = ta.value;
+
+            fetch(`/messages/${id}`, {
+                method: 'PATCH',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ body: newBody, content: newBody }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.ok) return;
+
+                bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
+                editedTag?.classList.remove('hidden');
+
+                editBox?.classList.add('hidden');
+                if (editBtn) editBtn.disabled = false;
+                if (delBtn) delBtn.disabled = false;
+            })
+            .catch(() => {});
+        });
+
+        delBtn?.addEventListener('click', () => {
+            if (!confirm('Delete this message?')) return;
+
+            fetch(`/messages/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.ok) return;
+
+                row.dataset.deleted = '1';
+                if (bodyEl) bodyEl.textContent = '[deleted]';
+                deletedTag?.classList.remove('hidden');
+
+                if (editBtn) editBtn.disabled = true;
+                if (delBtn) delBtn.disabled = true;
+                editBox?.classList.add('hidden');
+            })
+            .catch(() => {});
+        });
+    });
+});
 
         /* fetch new messages */
         function fetchNewMessages() {
