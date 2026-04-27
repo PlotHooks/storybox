@@ -48,6 +48,7 @@ Route::middleware('auth')->group(function () {
     // Messages
     Route::patch('/messages/{message}', [RoomController::class, 'updateMessage'])->name('messages.update');
     Route::delete('/messages/{message}', [RoomController::class, 'deleteMessage'])->name('messages.delete');
+    Route::post('/messages/{message}/reports', [RoomController::class, 'reportMessage'])->name('messages.report');
 
     // DMs
     Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');
