@@ -136,7 +136,7 @@
 
                                 <div class="flex items-center gap-2 text-[10px]">
                                     <button type="button"
-                                        class="msg-report-btn rounded border border-yellow-700 bg-gray-800 px-2 py-1 text-yellow-300 hover:bg-gray-700"
+                                        class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
                                         {{ $isDeleted ? 'disabled' : '' }}>
                                         Report
                                     </button>
@@ -147,7 +147,6 @@
                                             {{ $isDeleted ? 'disabled' : '' }}>
                                             Edit
                                         </button>
-
                                         <button type="button"
                                             class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
                                             {{ $isDeleted ? 'disabled' : '' }}>
@@ -155,6 +154,7 @@
                                         </button>
                                     @endif
                                 </div>
+                            </div>
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>
@@ -265,6 +265,32 @@
         </div>
     </div>
 
+    <div id="message-report-modal"
+         class="hidden fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center px-4">
+        <form id="message-report-form"
+              class="w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl">
+            <h3 class="text-sm font-semibold text-gray-100">Report message</h3>
+            <textarea id="message-report-reason"
+                      class="mt-3 w-full rounded border border-gray-700 bg-gray-950 p-2 text-sm text-gray-100"
+                      rows="4"
+                      maxlength="1000"
+                      required
+                      placeholder="What should moderators review?"></textarea>
+            <div class="mt-3 flex justify-end gap-2">
+                <button type="button"
+                        id="message-report-cancel"
+                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        id="message-report-submit"
+                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                    Submit
+                </button>
+            </div>
+        </form>
+    </div>
+
     <style>
         .char-row { position: relative; }
     </style>
@@ -295,6 +321,18 @@
 
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
+
+        const reportModal = document.getElementById('message-report-modal');
+        const reportForm = document.getElementById('message-report-form');
+        const reportReason = document.getElementById('message-report-reason');
+        const reportSubmit = document.getElementById('message-report-submit');
+        const reportCancel = document.getElementById('message-report-cancel');
+        let reportMessageId = null;
+
+        if (!window.__roomMessageActionsBound) {
+            window.__roomMessageActionsBound = true;
+            document.addEventListener('click', handleMessageActionClick, true);
+        }
 
         document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
         document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
@@ -402,8 +440,9 @@
         }
 
         document.addEventListener('click', function(e) {
-            const trigger = e.target.closest('.char-trigger');
-            const clickedInsidePopover = pop && pop.contains(e.target);
+            const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+            const trigger = target?.closest('.char-trigger');
+            const clickedInsidePopover = pop && e.target instanceof Node && pop.contains(e.target);
 
             if (trigger) {
                 e.preventDefault();
@@ -603,42 +642,71 @@
             if (hiddenChar) hiddenChar.value = String(id);
         });
 
-        /* edit/delete */
-        function canEditMessageRow(row) {
-            if (!row) return false;
-            if (row.dataset.canEdit === '1') return true;
-            const uid = parseInt(row.dataset.userId || '0', 10);
-            return (uid && uid === currentUserId) || !!isAdmin;
+        async function fetchJson(url, options, label) {
+            const response = await fetch(url, options);
+            const text = await response.text();
+            let data = null;
+
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch (error) {
+                    console.error(`${label} returned invalid JSON`, {
+                        status: response.status,
+                        body: text,
+                        error,
+                    });
+                    throw error;
+                }
+            }
+
+            if (!response.ok) {
+                console.error(`${label} failed`, {
+                    status: response.status,
+                    data,
+                });
+                throw new Error(`${label} failed with status ${response.status}`);
+            }
+
+            return data;
         }
 
-        function attachMessageActions(root) {
-    (root || document).querySelectorAll('.msg-row').forEach(row => {
-        if (row.dataset.bound === '1') return;
-        row.dataset.bound = '1';
+        function openReportModal(row) {
+            if (!row || row.dataset.deleted === '1') return;
+            reportMessageId = row.dataset.messageId || null;
+            if (!reportMessageId || !reportModal || !reportReason) return;
 
-        const editBtn = row.querySelector('.msg-edit-btn');
-        const delBtn  = row.querySelector('.msg-del-btn');
-        const reportBtn = row.querySelector('.msg-report-btn');
+            reportReason.value = '';
+            reportModal.classList.remove('hidden');
+            reportReason.focus();
+        }
 
-        const bodyEl  = row.querySelector('.msg-body');
-        const editBox = row.querySelector('.msg-editbox');
-        const ta      = row.querySelector('.msg-edit-textarea');
-        const saveBtn = row.querySelector('.msg-save-btn');
-        const cancelBtn = row.querySelector('.msg-cancel-btn');
-        const editedTag = row.querySelector('.msg-edited');
-        const deletedTag = row.querySelector('.msg-deleted');
+        function closeReportModal() {
+            reportMessageId = null;
+            reportModal?.classList.add('hidden');
+            if (reportReason) reportReason.value = '';
+            if (reportSubmit) reportSubmit.disabled = false;
+        }
 
-        const id = row.dataset.messageId;
-        const isDeleted = row.dataset.deleted === '1';
+        reportCancel?.addEventListener('click', closeReportModal);
+        reportModal?.addEventListener('click', (e) => {
+            if (e.target === reportModal) closeReportModal();
+        });
 
-        // -----------------------------
-        // REPORT (always allowed)
-        // -----------------------------
-        if (reportBtn && !isDeleted) {
-            reportBtn.addEventListener('click', () => {
-                if (!confirm('Report this message?')) return;
+        reportForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!reportMessageId || !reportReason) return;
 
-                fetch(`/messages/${id}/report`, {
+            const reason = reportReason.value.trim();
+            if (!reason) {
+                reportReason.focus();
+                return;
+            }
+
+            if (reportSubmit) reportSubmit.disabled = true;
+
+            try {
+                const data = await fetchJson(`/messages/${reportMessageId}/reports`, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': csrf,
@@ -646,100 +714,156 @@
                         'Content-Type': 'application/json',
                     },
                     credentials: 'same-origin',
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (!data || !data.ok) return;
+                    body: JSON.stringify({ reason }),
+                }, 'Report message');
 
+                if (!data || !data.ok) {
+                    console.error('Report message returned an unexpected response', data);
+                    if (reportSubmit) reportSubmit.disabled = false;
+                    return;
+                }
+
+                const row = Array.from(container?.querySelectorAll('.msg-row') || [])
+                    .find((candidate) => candidate.dataset.messageId === reportMessageId);
+                const reportBtn = row?.querySelector('.msg-report-btn');
+                if (reportBtn) {
                     reportBtn.textContent = 'Reported';
                     reportBtn.disabled = true;
-                })
-                .catch(() => {});
-            });
+                }
+
+                closeReportModal();
+            } catch (error) {
+                console.error('Report message error:', error);
+                if (reportSubmit) reportSubmit.disabled = false;
+            }
+        });
+
+        /* report/edit/delete */
+        function canEditMessageRow(row) {
+            if (!row) return false;
+            if (row.dataset.canEdit === '1') return true;
+            const uid = parseInt(row.dataset.userId || '0', 10);
+            return (uid && uid === currentUserId) || !!isAdmin;
         }
 
-        // -----------------------------
-        // EDIT / DELETE (restricted)
-        // -----------------------------
-        if (!canEditMessageRow(row)) return;
+        async function handleMessageActionClick(e) {
+            const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+            const actionBtn = target?.closest('.msg-report-btn, .msg-edit-btn, .msg-del-btn, .msg-save-btn, .msg-cancel-btn');
+            if (!actionBtn || !container || !container.contains(actionBtn)) return;
 
-        if (isDeleted) {
-            if (editBtn) editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-            return;
-        }
+            const row = actionBtn.closest('.msg-row');
+            if (!row) return;
 
-        editBtn?.addEventListener('click', () => {
-            if (!bodyEl || !editBox || !ta) return;
-            ta.value = (bodyEl.textContent || '').trim();
-            editBox.classList.remove('hidden');
-            editBtn.disabled = true;
-            if (delBtn) delBtn.disabled = true;
-        });
+            const editBtn = row.querySelector('.msg-edit-btn');
+            const delBtn  = row.querySelector('.msg-del-btn');
+            const reportBtn = row.querySelector('.msg-report-btn');
+            const bodyEl  = row.querySelector('.msg-body');
+            const editBox = row.querySelector('.msg-editbox');
+            const ta      = row.querySelector('.msg-edit-textarea');
+            const editedTag = row.querySelector('.msg-edited');
+            const deletedTag = row.querySelector('.msg-deleted');
 
-        cancelBtn?.addEventListener('click', () => {
-            if (!editBox) return;
-            editBox.classList.add('hidden');
-            if (editBtn) editBtn.disabled = false;
-            if (delBtn) delBtn.disabled = false;
-        });
+            const id = row.dataset.messageId;
+            const isDeleted = row.dataset.deleted === '1';
 
-        saveBtn?.addEventListener('click', () => {
-            if (!ta || !bodyEl) return;
-            const newBody = ta.value;
+            if (actionBtn.classList.contains('msg-report-btn')) {
+                openReportModal(row);
+                return;
+            }
 
-            fetch(`/messages/${id}`, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({ body: newBody, content: newBody }),
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
+            if (!canEditMessageRow(row)) return;
 
-                bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
-                editedTag?.classList.remove('hidden');
-
-                editBox?.classList.add('hidden');
-                if (editBtn) editBtn.disabled = false;
-                if (delBtn) delBtn.disabled = false;
-            })
-            .catch(() => {});
-        });
-
-        delBtn?.addEventListener('click', () => {
-            if (!confirm('Delete this message?')) return;
-
-            fetch(`/messages/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.ok) return;
-
-                row.dataset.deleted = '1';
-                if (bodyEl) bodyEl.textContent = '[deleted]';
-                deletedTag?.classList.remove('hidden');
-
+            if (isDeleted) {
                 if (editBtn) editBtn.disabled = true;
                 if (delBtn) delBtn.disabled = true;
-                editBox?.classList.add('hidden');
-            })
-            .catch(() => {});
-        });
-    });
-});
+                if (reportBtn) reportBtn.disabled = true;
+                return;
+            }
+
+            if (actionBtn.classList.contains('msg-edit-btn')) {
+                if (!bodyEl || !editBox || !ta) return;
+                ta.value = (bodyEl.textContent || '').trim();
+                editBox.classList.remove('hidden');
+                if (editBtn) editBtn.disabled = true;
+                if (delBtn) delBtn.disabled = true;
+                return;
+            }
+
+            if (actionBtn.classList.contains('msg-cancel-btn')) {
+                if (!editBox) return;
+                editBox.classList.add('hidden');
+                if (editBtn) editBtn.disabled = false;
+                if (delBtn) delBtn.disabled = false;
+                return;
+            }
+
+            if (actionBtn.classList.contains('msg-save-btn')) {
+                if (!ta || !bodyEl || !id) return;
+                const newBody = ta.value;
+
+                try {
+                    const data = await fetchJson(`/messages/${id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ body: newBody }),
+                    }, 'Edit message');
+
+                    if (!data || !data.ok) {
+                        console.error('Edit message returned an unexpected response', data);
+                        return;
+                    }
+
+                    bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
+                    editedTag?.classList.remove('hidden');
+
+                    editBox?.classList.add('hidden');
+                    if (editBtn) editBtn.disabled = false;
+                    if (delBtn) delBtn.disabled = false;
+                } catch (error) {
+                    console.error('Edit message error:', error);
+                    if (editBtn) editBtn.disabled = false;
+                    if (delBtn) delBtn.disabled = false;
+                }
+                return;
+            }
+
+            if (actionBtn.classList.contains('msg-del-btn')) {
+                if (!id || !confirm('Delete this message?')) return;
+
+                try {
+                    const data = await fetchJson(`/messages/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                    }, 'Delete message');
+
+                    if (!data || !data.ok) {
+                        console.error('Delete message returned an unexpected response', data);
+                        return;
+                    }
+
+                    row.dataset.deleted = '1';
+                    if (bodyEl) bodyEl.textContent = '[deleted]';
+                    deletedTag?.classList.remove('hidden');
+
+                    if (editBtn) editBtn.disabled = true;
+                    if (delBtn) delBtn.disabled = true;
+                    if (reportBtn) reportBtn.disabled = true;
+                    editBox?.classList.add('hidden');
+                } catch (error) {
+                    console.error('Delete message error:', error);
+                }
+            }
+        }
 
         /* fetch new messages */
         function fetchNewMessages() {
@@ -809,10 +933,15 @@
 
                             ${canEdit ? `
                                 <div class="flex items-center gap-2 text-[10px]">
+                                    <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
                                     <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
                                     <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
                                 </div>
-                            ` : ''}
+                            ` : `
+                                <div class="flex items-center gap-2 text-[10px]">
+                                    <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                </div>
+                            `}
                         </div>
 
                         <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
@@ -832,7 +961,6 @@
 
                     container.appendChild(div);
                     applyStylesIn(div);
-                    attachMessageActions(div);
 
                     lastMessageId = msg.id;
                 });

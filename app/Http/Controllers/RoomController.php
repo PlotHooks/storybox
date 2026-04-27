@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Models\Message;
+use App\Models\MessageReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -182,6 +183,27 @@ class RoomController extends Controller
             'ok' => true,
             'id' => $message->id,
         ]);
+    }
+
+    public function reportMessage(Request $request, Message $message)
+    {
+        abort_if($message->deleted_at, 410);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $report = MessageReport::create([
+            'message_id' => $message->id,
+            'reporter_user_id' => Auth::id(),
+            'reason' => $validated['reason'],
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'report_id' => $report->id,
+        ], 201);
     }
 
     public function storeMessage(Request $request, Room $room)
