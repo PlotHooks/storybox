@@ -329,6 +329,11 @@
         const reportCancel = document.getElementById('message-report-cancel');
         let reportMessageId = null;
 
+        if (!window.__roomMessageActionsBound) {
+            window.__roomMessageActionsBound = true;
+            document.addEventListener('click', handleMessageActionClick, true);
+        }
+
         document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
         document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
 
@@ -435,8 +440,9 @@
         }
 
         document.addEventListener('click', function(e) {
-            const trigger = e.target.closest('.char-trigger');
-            const clickedInsidePopover = pop && pop.contains(e.target);
+            const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+            const trigger = target?.closest('.char-trigger');
+            const clickedInsidePopover = pop && e.target instanceof Node && pop.contains(e.target);
 
             if (trigger) {
                 e.preventDefault();
@@ -740,10 +746,10 @@
             return (uid && uid === currentUserId) || !!isAdmin;
         }
 
-        container?.addEventListener('click', async (e) => {
+        async function handleMessageActionClick(e) {
             const target = e.target instanceof Element ? e.target : e.target?.parentElement;
             const actionBtn = target?.closest('.msg-report-btn, .msg-edit-btn, .msg-del-btn, .msg-save-btn, .msg-cancel-btn');
-            if (!actionBtn || !container.contains(actionBtn)) return;
+            if (!actionBtn || !container || !container.contains(actionBtn)) return;
 
             const row = actionBtn.closest('.msg-row');
             if (!row) return;
@@ -857,7 +863,7 @@
                     console.error('Delete message error:', error);
                 }
             }
-        });
+        }
 
         /* fetch new messages */
         function fetchNewMessages() {
