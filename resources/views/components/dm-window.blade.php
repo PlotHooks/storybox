@@ -126,10 +126,16 @@
 
     let activeDm = {
         slug: null,
+        conversationId: 0,
         lastId: 0,
         displayName: null,
         myCharacterId: 0,
     };
+
+    let activeRealtimeConversationId = 0;
+    let dmReconnectHandlerBound = false;
+
+    window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
 
     function isOpen() {
         return !dmWindow.classList.contains('hidden');
@@ -150,7 +156,9 @@
     }
 
     function clearThread() {
+        stopDmRealtime();
         activeDm.slug = null;
+        activeDm.conversationId = 0;
         activeDm.lastId = 0;
         activeDm.displayName = null;
         activeDm.myCharacterId = 0;
@@ -346,6 +354,8 @@
         pollInFlight = false;
         seenMessageIds.clear();
         activeDm.lastId = 0;
+        activeDm.conversationId = 0;
+        stopDmRealtime();
 
         fetch(`/dms/${encodeURIComponent(slug)}/messages?after=0`, {
             headers: { 'Accept': 'application/json' },
@@ -353,8 +363,10 @@
         })
         .then(r => r.json())
         .then(data => {
+            activeDm.conversationId = parseInt(data?.room?.id, 10) || 0;
             const msgs = data && Array.isArray(data.messages) ? data.messages : [];
             appendMessages(msgs, true);
+            startDmRealtime();
         })
         .catch(err => {
             console.error('DM thread load error:', err);
@@ -403,6 +415,45 @@
         pollInFlight = false;
     }
 
+    function bindDmReconnectHandlerOnce() {
+        if (dmReconnectHandlerBound) return;
+        dmReconnectHandlerBound = true;
+
+        window.Echo?.connector?.pusher?.connection?.bind('connected', () => {
+            if (isOpen() && activeDm.slug) pollConversation();
+        });
+    }
+
+    function startDmRealtime() {
+        if (!window.Echo || !activeDm.conversationId || !activeDm.myCharacterId) return;
+
+        bindDmReconnectHandlerOnce();
+
+        if (activeRealtimeConversationId === activeDm.conversationId) return;
+
+        stopDmRealtime();
+
+        activeRealtimeConversationId = activeDm.conversationId;
+
+        const channelName = `private-conversation.${activeRealtimeConversationId}`;
+        window.StoryboxChannelCharacters[channelName] = activeDm.myCharacterId;
+
+        window.Echo.private(`conversation.${activeRealtimeConversationId}`)
+            .listen('.message.created', (event) => {
+                const eventId = parseInt(event.id, 10);
+                if (!eventId || seenMessageIds.has(eventId)) return;
+                pollConversation();
+            });
+    }
+
+    function stopDmRealtime() {
+        if (!window.Echo || !activeRealtimeConversationId) return;
+
+        delete window.StoryboxChannelCharacters[`private-conversation.${activeRealtimeConversationId}`];
+        window.Echo.leave(`conversation.${activeRealtimeConversationId}`);
+        activeRealtimeConversationId = 0;
+    }
+
     function startListRefresh() {
         stopListRefresh();
         refreshListTimer = setInterval(() => {
@@ -419,7 +470,9 @@
     }
 
     function openConversation(slug, displayName, lockedMyCharacterId) {
+        stopDmRealtime();
         activeDm.slug = slug;
+        activeDm.conversationId = 0;
         activeDm.displayName = displayName || slug;
         activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
 
@@ -494,6 +547,7 @@
 
     closeBtn?.addEventListener('click', () => {
         dmWindow.classList.add('hidden');
+        stopDmRealtime();
     });
 
     sendBtn?.addEventListener('click', () => sendDmMessage());
@@ -503,6 +557,10 @@
             e.preventDefault();
             sendDmMessage();
         }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && isOpen() && activeDm.slug) pollConversation();
     });
 
     /*

@@ -297,10 +297,13 @@
 
     <script>
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
+        const conversationId = {{ (int) $room->id }};
+        const conversationChannelName = `private-conversation.${conversationId}`;
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
         const currentUserId = {{ (int) Auth::id() }};
         const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
+        const seenMessageIds = new Set();
 
         const container  = document.getElementById('message-container');
         const form       = document.getElementById('message-form');
@@ -328,6 +331,11 @@
         const reportSubmit = document.getElementById('message-report-submit');
         const reportCancel = document.getElementById('message-report-cancel');
         let reportMessageId = null;
+
+        document.querySelectorAll('[data-message-id]').forEach((row) => {
+            const id = parseInt(row.dataset.messageId, 10);
+            if (id) seenMessageIds.add(id);
+        });
 
         if (!window.__roomMessageActionsBound) {
             window.__roomMessageActionsBound = true;
@@ -536,6 +544,10 @@
             if (hiddenChar) hiddenChar.value = String(id);
         }
 
+        window.Storybox = window.Storybox || {};
+        window.Storybox.activeCharacterId = () => getTabCharacterId();
+        window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
+
         /* room per character (client-side snapping) */
         function setLastRoomForCharacter(characterId, slug) {
             if (!characterId || !slug) return;
@@ -580,9 +592,9 @@
         /* presence */
         function sendPresencePing() {
             const characterId = getTabCharacterId();
-            if (!characterId) return;
+            if (!characterId) return Promise.resolve();
 
-            fetch(`/rooms/${roomSlug}/presence`, {
+            return fetch(`/rooms/${roomSlug}/presence`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrf,
@@ -593,7 +605,7 @@
                 body: JSON.stringify({ character_id: characterId }),
             }).catch(() => {});
         }
-        sendPresencePing();
+        sendPresencePing().finally(() => startRoomRealtime());
         setInterval(sendPresencePing, 30000);
 
         /* leave room */
@@ -867,7 +879,7 @@
 
         /* fetch new messages */
         function fetchNewMessages() {
-            fetch(`/rooms/${roomSlug}/messages/latest?after=` + lastMessageId, {
+            fetch(`/rooms/${roomSlug}/messages?after=` + lastMessageId, {
                 headers: { 'Accept': 'application/json' },
                 credentials: 'same-origin'
             })
@@ -880,6 +892,10 @@
                     container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
                 data.forEach(msg => {
+                    const mid = parseInt(msg.id, 10);
+                    if (!mid || seenMessageIds.has(mid)) return;
+                    seenMessageIds.add(mid);
+
                     const name = (msg.character && msg.character.name)
                         ? msg.character.name
                         : (msg.user?.name ?? 'Unknown');
@@ -962,13 +978,32 @@
                     container.appendChild(div);
                     applyStylesIn(div);
 
-                    lastMessageId = msg.id;
+                    if (mid > lastMessageId) lastMessageId = mid;
                 });
 
                 if (wasNearBottom) container.scrollTop = container.scrollHeight;
             })
             .catch(() => {});
         }
+
+        function startRoomRealtime() {
+            if (!window.Echo || !conversationId) return;
+
+            window.StoryboxChannelCharacters[conversationChannelName] = getTabCharacterId();
+
+            window.Echo.private(`conversation.${conversationId}`)
+                .listen('.message.created', (event) => {
+                    if (seenMessageIds.has(parseInt(event.id, 10))) return;
+                    fetchNewMessages();
+                });
+
+            window.Echo.connector?.pusher?.connection?.bind('connected', () => fetchNewMessages());
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) fetchNewMessages();
+        });
+
         setInterval(fetchNewMessages, 2500);
 
         /* roster */

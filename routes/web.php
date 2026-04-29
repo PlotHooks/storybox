@@ -37,6 +37,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
 
     Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
+    Route::get('/rooms/{room:slug}/messages', [RoomController::class, 'latest'])->name('rooms.messages.index');
     Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
 
     // NOTE: your current RoomController@latest enforces DM membership only.

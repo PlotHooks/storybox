@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageCreated;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
@@ -234,6 +235,8 @@ class RoomController extends Controller
             'character_id' => $characterId,
             'body'         => $request->body,
         ]);
+
+        broadcast(new MessageCreated($message))->toOthers();
 
         if ($request->wantsJson()) {
             return response()->json($message->load('user', 'character'));
@@ -477,6 +480,8 @@ class RoomController extends Controller
             'character_id' => $characterId,
             'body'         => $request->body,
         ]);
+
+        broadcast(new MessageCreated($message))->toOthers();
 
         return response()->json([
             'ok' => true,
