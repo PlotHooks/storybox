@@ -120,7 +120,7 @@
                                 : 'text-red-400 hover:text-red-300';
                         @endphp
 
-                        <div class="border-b border-gray-800 py-1.5 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
+                        <div class="border-b border-gray-800 py-0.5 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
                              data-user-id="{{ $message->user_id }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
@@ -180,9 +180,7 @@
                             @endif
 
                             <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
-                                <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>
-                                    {{ $isDeleted ? '[deleted]' : $text }}
-                                </span>
+                                <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $text }}</span>
 
                                 @if ($canEdit)
                                     <div class="msg-editbox hidden mt-2">
@@ -1021,7 +1019,7 @@
                         : '';
 
                     const div = document.createElement('div');
-                    div.className = "border-b border-gray-800 py-1.5 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
+                    div.className = "border-b border-gray-800 py-0.5 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
                     div.dataset.userId = String(msg.user_id ?? 0);
                     div.dataset.canEdit = canEdit ? '1' : '0';

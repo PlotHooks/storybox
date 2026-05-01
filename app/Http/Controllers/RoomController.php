@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
 {
@@ -248,6 +249,41 @@ class RoomController extends Controller
         });
     }
 
+    private function messageSeekOptions(Request $request): array
+    {
+        $request->validate([
+            'before_id' => ['nullable', 'integer', 'min:0'],
+            'before' => ['nullable', 'integer', 'min:0'],
+            'after_id' => ['nullable', 'integer', 'min:0'],
+            'after' => ['nullable', 'integer', 'min:0'],
+            'limit' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $beforeId = $request->query('before_id', $request->query('before'));
+        $afterId = $request->query('after_id', $request->query('after'));
+
+        $beforeId = $beforeId === null || $beforeId === '' ? null : (int) $beforeId;
+        $afterId = $afterId === null || $afterId === '' ? null : (int) $afterId;
+
+        $hasBefore = $beforeId !== null && $beforeId > 0;
+        $hasAfter = $afterId !== null && $afterId > 0;
+
+        if ($hasBefore && $hasAfter) {
+            throw ValidationException::withMessages([
+                'cursor' => ['Use either before_id or after_id, not both.'],
+            ]);
+        }
+
+        $limit = (int) $request->query('limit', 50);
+
+        return [
+            'mode' => $hasBefore ? 'before' : ($hasAfter ? 'after' : 'initial'),
+            'before_id' => $hasBefore ? $beforeId : null,
+            'after_id' => $hasAfter ? $afterId : null,
+            'limit' => max(1, min($limit, 100)),
+        ];
+    }
+
     private function assertCanEditOrDelete(Message $message): void
     {
         $isOwner = $message->user_id === Auth::id();
@@ -392,25 +428,46 @@ class RoomController extends Controller
             }
         }
 
-        $lastId = (int) $request->query('after', 0);
+        $seek = $this->messageSeekOptions($request);
         $since  = $request->query('since');
 
         $q = $room->messages()
             ->withTrashed()
-            ->with(['user', 'character'])
-            ->orderBy('id');
+            ->with(['user', 'character']);
 
-        if ($since) {
-            $q->where(function ($sub) use ($lastId, $since) {
-                $sub->where('id', '>', $lastId)
-                    ->orWhere('updated_at', '>', $since)
-                    ->orWhere('deleted_at', '>', $since);
-            });
+        if ($seek['mode'] === 'before') {
+            $messages = $q->where('id', '<', $seek['before_id'])
+                ->orderByDesc('id')
+                ->limit($seek['limit'])
+                ->get()
+                ->reverse()
+                ->values();
+        } elseif ($seek['mode'] === 'after' || $since) {
+            $afterId = $seek['after_id'] ?? 0;
+
+            if ($since) {
+                $q->where(function ($outer) use ($afterId, $since) {
+                    $outer->where('id', '>', $afterId)
+                        ->orWhere(function ($sub) use ($since) {
+                            $sub->where('updated_at', '>', $since)
+                                ->orWhere('deleted_at', '>', $since);
+                        });
+                });
+            } else {
+                $q->where('id', '>', $afterId);
+            }
+
+            $messages = $q->orderBy('id')
+                ->limit($seek['limit'])
+                ->get();
         } else {
-            $q->where('id', '>', $lastId);
+            $messages = $q->orderByDesc('id')
+                ->limit($seek['limit'])
+                ->get()
+                ->reverse()
+                ->values();
         }
 
-        $messages = $q->get();
         $this->applyBlockedMessageFlags($messages, $viewerCharacterId);
 
         return response()->json($messages);
@@ -692,17 +749,31 @@ class RoomController extends Controller
             $room->id
         );
 
-        $after = (int) $request->query('after', 0);
+        $seek = $this->messageSeekOptions($request);
 
         $q = $room->messages()
-            ->with(['character', 'user'])
-            ->orderBy('id');
+            ->with(['character', 'user']);
 
-        if ($after > 0) {
-            $q->where('id', '>', $after);
+        if ($seek['mode'] === 'before') {
+            $messages = $q->where('id', '<', $seek['before_id'])
+                ->orderByDesc('id')
+                ->limit($seek['limit'])
+                ->get()
+                ->reverse()
+                ->values();
+        } elseif ($seek['mode'] === 'after') {
+            $messages = $q->where('id', '>', $seek['after_id'])
+                ->orderBy('id')
+                ->limit($seek['limit'])
+                ->get();
+        } else {
+            $messages = $q->orderByDesc('id')
+                ->limit($seek['limit'])
+                ->get()
+                ->reverse()
+                ->values();
         }
 
-        $messages = $q->take(100)->get();
         $this->applyBlockedMessageFlags($messages, $characterId);
 
         return response()->json([
