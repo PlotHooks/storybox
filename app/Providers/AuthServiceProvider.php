@@ -22,13 +22,14 @@ class AuthServiceProvider extends ServiceProvider
             return $message->user_id === $user->id || ($user->is_admin ?? false);
         });
 
-        // Room access (future-proof)
-        Gate::define('access-room', function ($user, Room $room) {
-            if ($room->type === 'public') return true;
+        // rooms table is the conversation model. This Gate is a legacy user-level fallback;
+        // controller message access uses character-level participant helpers.
+        Gate::define('access-room', function ($user, Room $conversation) {
+            if ($conversation->type === 'public') return true;
 
-            if ($room->type === 'dm') {
+            if ($conversation->type === 'dm') {
                 return \DB::table('dm_participants')
-                    ->where('room_id', $room->id)
+                    ->where('room_id', $conversation->id)
                     ->where('user_id', $user->id)
                     ->exists();
             }

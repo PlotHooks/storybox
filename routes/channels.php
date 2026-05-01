@@ -19,25 +19,26 @@ Broadcast::channel('conversation.{conversationId}', function ($user, int $conver
         return false;
     }
 
-    $room = DB::table('rooms')
+    // rooms table is the conversation model.
+    $conversation = DB::table('rooms')
         ->where('id', $conversationId)
         ->first(['id', 'type']);
 
-    if (! $room) {
+    if (! $conversation) {
         return false;
     }
 
-    if ($room->type === 'dm') {
+    if ($conversation->type === 'dm') {
         return DB::table('dm_participants')
-            ->where('room_id', $room->id)
+            ->where('room_id', $conversation->id)
             ->where('user_id', $user->id)
             ->where('character_id', $characterId)
             ->exists();
     }
 
-    if ($room->type === 'public') {
+    if ($conversation->type === 'public') {
         return DB::table('character_presences')
-            ->where('room_id', $room->id)
+            ->where('room_id', $conversation->id)
             ->where('character_id', $characterId)
             ->exists();
     }

@@ -10,6 +10,7 @@ class Room extends Model
 {
     use HasFactory;
 
+    // rooms table is the conversation model.
     protected $fillable = [
         'name',
         'slug',

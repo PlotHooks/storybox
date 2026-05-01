@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Validation\ValidationException;
 
@@ -57,15 +56,11 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        // Block access to DMs you are not part of
-        if ($room->type === 'dm') {
-            $this->assertDmMember($room);
-        }
-
-        $activeCharacterId = $this->activeCharacterIdForRoom($room);
+        // rooms table is the conversation model.
+        $activeCharacterId = $this->activeCharacterIdForConversation($room);
 
         if ($activeCharacterId) {
-            $this->assertRoomAccess($room, $activeCharacterId);
+            $this->assertConversationParticipant($room, $activeCharacterId);
 
             app(\App\Services\MarkConversationRead::class)(
                 $activeCharacterId,
@@ -156,13 +151,22 @@ class RoomController extends Controller
         return $characterId;
     }
 
-    private function activeCharacterIdForRoom(Room $room): ?int
+    private function activeCharacterIdForConversation(Room $conversation): ?int
     {
-        if ($room->type === 'dm') {
-            return $this->getLockedDmCharacterId($room);
+        if ($conversation->type === 'dm') {
+            return $this->getLockedDmCharacterId($conversation);
         }
 
         return $this->activeOwnedCharacterId();
+    }
+
+    private function messageCharacterIdForConversation(Room $conversation, Request $request): int
+    {
+        if ($conversation->type === 'dm') {
+            return $this->getLockedDmCharacterId($conversation);
+        }
+
+        return $this->getCharacterIdFromRequest($request);
     }
 
     private function activeOwnedCharacterId(): ?int
@@ -212,6 +216,41 @@ class RoomController extends Controller
             ->pluck('character_id')
             ->map(fn ($characterId) => (int) $characterId)
             ->all();
+    }
+
+    private function conversationHasParticipant(Room $conversation, int $characterId): bool
+    {
+        if ($characterId <= 0) {
+            return false;
+        }
+
+        $ownsCharacter = DB::table('characters')
+            ->where('id', $characterId)
+            ->where('user_id', Auth::id())
+            ->exists();
+
+        if (! $ownsCharacter) {
+            return false;
+        }
+
+        if ($conversation->type === 'dm') {
+            return DB::table('dm_participants')
+                ->where('room_id', $conversation->id)
+                ->where('user_id', Auth::id())
+                ->where('character_id', $characterId)
+                ->exists();
+        }
+
+        if ($conversation->type === 'public') {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function assertConversationParticipant(Room $conversation, int $characterId): void
+    {
+        abort_unless($this->conversationHasParticipant($conversation, $characterId), 403);
     }
 
     private function assertDmMessageAllowed(Room $room): void
@@ -284,27 +323,71 @@ class RoomController extends Controller
         ];
     }
 
+    private function conversationMessages(Room $conversation, Request $request, bool $withTrashed = true)
+    {
+        $seek = $this->messageSeekOptions($request);
+        $since = $request->query('since');
+
+        $query = $conversation->messages()
+            ->with(['user', 'character']);
+
+        if ($withTrashed) {
+            $query->withTrashed();
+        }
+
+        if ($seek['mode'] === 'before') {
+            return $query->where('id', '<', $seek['before_id'])
+                ->orderByDesc('id')
+                ->limit($seek['limit'])
+                ->get()
+                ->reverse()
+                ->values();
+        }
+
+        if ($seek['mode'] === 'after' || $since) {
+            $afterId = $seek['after_id'] ?? 0;
+
+            if ($since) {
+                $query->where(function ($outer) use ($afterId, $since) {
+                    $outer->where('id', '>', $afterId)
+                        ->orWhere(function ($sub) use ($since) {
+                            $sub->where('updated_at', '>', $since)
+                                ->orWhere('deleted_at', '>', $since);
+                        });
+                });
+            } else {
+                $query->where('id', '>', $afterId);
+            }
+
+            return $query->orderBy('id')
+                ->limit($seek['limit'])
+                ->get();
+        }
+
+        return $query->orderByDesc('id')
+            ->limit($seek['limit'])
+            ->get()
+            ->reverse()
+            ->values();
+    }
+
+    private function createConversationMessage(Room $conversation, int $characterId, string $body): Message
+    {
+        $message = $conversation->messages()->create([
+            'user_id'      => Auth::id(),
+            'character_id' => $characterId,
+            'body'         => $body,
+        ]);
+
+        broadcast(new MessageCreated($message))->toOthers();
+
+        return $message;
+    }
+
     private function assertCanEditOrDelete(Message $message): void
     {
         $isOwner = $message->user_id === Auth::id();
         abort_unless($isOwner || $this->canModerate(), 403);
-    }
-
-    private function assertRoomAccess(Room $room, int $characterId): void
-    {
-        // Today: all non-DM rooms are public
-        if ($room->type === 'public') {
-            return;
-        }
-
-        // DMs: must be a participant
-        if ($room->type === 'dm') {
-            $this->assertDmMember($room);
-            return;
-        }
-
-        // Future: whitelist/blacklist membership checks go here
-        abort(403);
     }
 
     public function updateMessage(Request $request, Message $message)
@@ -357,7 +440,9 @@ class RoomController extends Controller
 
         $message->loadMissing('room');
 
-        Gate::authorize('access-room', $message->room);
+        $characterId = $this->activeCharacterIdForConversation($message->room);
+        abort_if(! $characterId, 403);
+        $this->assertConversationParticipant($message->room, $characterId);
 
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
@@ -386,22 +471,14 @@ class RoomController extends Controller
             'body' => 'required|string|max:2000',
         ]);
 
-        // If this is a DM, ignore the client character_id and use the locked one
+        $characterId = $this->messageCharacterIdForConversation($room, $request);
+        $this->assertConversationParticipant($room, $characterId);
+
         if ($room->type === 'dm') {
-            $this->assertDmMember($room);
             $this->assertDmMessageAllowed($room);
-            $characterId = $this->getLockedDmCharacterId($room);
-        } else {
-            $characterId = $this->getCharacterIdFromRequest($request);
         }
 
-        $message = $room->messages()->create([
-            'user_id'      => Auth::id(),
-            'character_id' => $characterId,
-            'body'         => $request->body,
-        ]);
-
-        broadcast(new MessageCreated($message))->toOthers();
+        $message = $this->createConversationMessage($room, $characterId, $request->body);
 
         if ($request->wantsJson()) {
             return response()->json($message->load('user', 'character'));
@@ -412,13 +489,9 @@ class RoomController extends Controller
 
     public function latest(Room $room, Request $request)
     {
-        // DMs require membership, public rooms do not
         if ($room->type === 'dm') {
-            $this->assertDmMember($room);
-        }
-
-        $viewerCharacterId = null;
-        if ($room->type === 'public') {
+            $viewerCharacterId = $this->getLockedDmCharacterId($room);
+        } else {
             $requestedCharacterId = (int) $request->query('character_id', 0);
             if ($requestedCharacterId > 0) {
                 $this->assertCharacterOwnedByUser($requestedCharacterId);
@@ -428,46 +501,11 @@ class RoomController extends Controller
             }
         }
 
-        $seek = $this->messageSeekOptions($request);
-        $since  = $request->query('since');
-
-        $q = $room->messages()
-            ->withTrashed()
-            ->with(['user', 'character']);
-
-        if ($seek['mode'] === 'before') {
-            $messages = $q->where('id', '<', $seek['before_id'])
-                ->orderByDesc('id')
-                ->limit($seek['limit'])
-                ->get()
-                ->reverse()
-                ->values();
-        } elseif ($seek['mode'] === 'after' || $since) {
-            $afterId = $seek['after_id'] ?? 0;
-
-            if ($since) {
-                $q->where(function ($outer) use ($afterId, $since) {
-                    $outer->where('id', '>', $afterId)
-                        ->orWhere(function ($sub) use ($since) {
-                            $sub->where('updated_at', '>', $since)
-                                ->orWhere('deleted_at', '>', $since);
-                        });
-                });
-            } else {
-                $q->where('id', '>', $afterId);
-            }
-
-            $messages = $q->orderBy('id')
-                ->limit($seek['limit'])
-                ->get();
-        } else {
-            $messages = $q->orderByDesc('id')
-                ->limit($seek['limit'])
-                ->get()
-                ->reverse()
-                ->values();
+        if ($viewerCharacterId) {
+            $this->assertConversationParticipant($room, $viewerCharacterId);
         }
 
+        $messages = $this->conversationMessages($room, $request);
         $this->applyBlockedMessageFlags($messages, $viewerCharacterId);
 
         return response()->json($messages);
@@ -476,7 +514,7 @@ class RoomController extends Controller
     public function ping(Room $room, Request $request)
     {
         $characterId = $this->getCharacterIdFromRequest($request);
-        $this->assertRoomAccess($room, $characterId);
+        $this->assertConversationParticipant($room, $characterId);
 
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
@@ -499,7 +537,7 @@ class RoomController extends Controller
     public function leave(Room $room, Request $request)
     {
         $characterId = $this->getCharacterIdFromRequest($request);
-        $this->assertRoomAccess($room, $characterId);
+        $this->assertConversationParticipant($room, $characterId);
 
         DB::table('character_presences')
             ->where('character_id', $characterId)
@@ -741,39 +779,15 @@ class RoomController extends Controller
 
     public function dmMessages(Room $room, Request $request)
     {
-        $this->assertDmMember($room);
         $characterId = $this->getLockedDmCharacterId($room);
+        $this->assertConversationParticipant($room, $characterId);
 
         app(\App\Services\MarkConversationRead::class)(
             $characterId,
             $room->id
         );
 
-        $seek = $this->messageSeekOptions($request);
-
-        $q = $room->messages()
-            ->with(['character', 'user']);
-
-        if ($seek['mode'] === 'before') {
-            $messages = $q->where('id', '<', $seek['before_id'])
-                ->orderByDesc('id')
-                ->limit($seek['limit'])
-                ->get()
-                ->reverse()
-                ->values();
-        } elseif ($seek['mode'] === 'after') {
-            $messages = $q->where('id', '>', $seek['after_id'])
-                ->orderBy('id')
-                ->limit($seek['limit'])
-                ->get();
-        } else {
-            $messages = $q->orderByDesc('id')
-                ->limit($seek['limit'])
-                ->get()
-                ->reverse()
-                ->values();
-        }
-
+        $messages = $this->conversationMessages($room, $request, false);
         $this->applyBlockedMessageFlags($messages, $characterId);
 
         return response()->json([
@@ -789,41 +803,21 @@ class RoomController extends Controller
     public function dmSend(Room $room, Request $request)
     {
         abort_unless($room->type === 'dm', 404);
-        $this->assertDmMember($room);
-        $this->assertDmMessageAllowed($room);
 
         $request->validate([
             'body' => 'required|string|max:2000',
         ]);
 
         $characterId = $this->getLockedDmCharacterId($room);
+        $this->assertConversationParticipant($room, $characterId);
+        $this->assertDmMessageAllowed($room);
 
-        $message = $room->messages()->create([
-            'user_id'      => Auth::id(),
-            'character_id' => $characterId,
-            'body'         => $request->body,
-        ]);
-
-        broadcast(new MessageCreated($message))->toOthers();
+        $message = $this->createConversationMessage($room, $characterId, $request->body);
 
         return response()->json([
             'ok' => true,
             'message' => $message->load(['user', 'character']),
         ]);
-    }
-
-    private function assertDmMember(Room $room): void
-    {
-        if ($room->type !== 'dm') {
-            return;
-        }
-
-        $ok = DB::table('dm_participants')
-            ->where('room_id', $room->id)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        abort_unless($ok, 403);
     }
 
     private function getLockedDmCharacterId(Room $room): int
