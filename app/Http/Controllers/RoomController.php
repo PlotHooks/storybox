@@ -558,6 +558,14 @@ class RoomController extends Controller
                 'mine.character_id as my_character_id',
             ])
             ->selectRaw('
+                EXISTS (
+                    SELECT 1
+                    FROM character_blocks cb
+                    WHERE cb.blocker_character_id = mine.character_id
+                    AND cb.blocked_character_id = other.character_id
+                ) as is_blocked_by_viewer
+            ')
+            ->selectRaw('
                 (
                     SELECT COUNT(*)
                     FROM messages m
@@ -694,13 +702,16 @@ class RoomController extends Controller
             $q->where('id', '>', $after);
         }
 
+        $messages = $q->take(100)->get();
+        $this->applyBlockedMessageFlags($messages, $characterId);
+
         return response()->json([
             'room' => [
                 'id' => $room->id,
                 'slug' => $room->slug,
                 'name' => $room->name,
             ],
-            'messages' => $q->take(100)->get(),
+            'messages' => $messages,
         ]);
     }
 

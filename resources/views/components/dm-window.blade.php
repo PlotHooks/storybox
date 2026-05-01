@@ -55,8 +55,18 @@
 
         <!-- RIGHT: message area -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <div id="dm-thread-header" class="px-3 py-2 border-b border-gray-800 text-xs text-gray-300">
-                Select a conversation.
+            <div class="px-3 py-2 border-b border-gray-800 text-xs text-gray-300 flex items-center justify-between gap-2">
+                <div id="dm-thread-header" class="min-w-0 truncate">
+                    Select a conversation.
+                </div>
+
+                <button
+                    id="dm-block-toggle"
+                    type="button"
+                    class="hidden shrink-0 text-xs text-red-400 hover:text-red-300"
+                >
+                    Block
+                </button>
             </div>
 
             <div id="dm-thread" class="flex-1 p-3 text-sm text-gray-100 overflow-y-auto space-y-2">
@@ -112,6 +122,7 @@
     const closeBtn = document.getElementById('dm-close-btn');
 
     const threadHeader = document.getElementById('dm-thread-header');
+    const blockToggleBtn = document.getElementById('dm-block-toggle');
     const threadEl = document.getElementById('dm-thread');
     const inputEl = document.getElementById('dm-input');
     const sendBtn = document.getElementById('dm-send-btn');
@@ -131,6 +142,8 @@
         lastId: 0,
         displayName: null,
         myCharacterId: 0,
+        otherCharacterId: 0,
+        isBlockedByViewer: false,
     };
 
     let activeRealtimeConversationId = 0;
@@ -157,9 +170,49 @@
         if (sendBtn) sendBtn.disabled = !enabled;
     }
 
+    window.setCharacterBlock = window.setCharacterBlock || function setCharacterBlock(blockerId, blockedId, shouldBlock) {
+        const action = shouldBlock ? "Block this character?" : "Unblock this character?";
+        if (!confirm(action)) return;
+
+        const token = document.querySelector('meta[name="csrf-token"]').content;
+
+        fetch(`/characters/${blockerId}/blocks/${blockedId}`, {
+            method: shouldBlock ? 'POST' : 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': token,
+                'Accept': 'application/json'
+            }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error();
+            return res.json();
+        })
+        .then(() => location.reload())
+        .catch(() => alert(shouldBlock ? "Failed to block character." : "Failed to unblock character."));
+    };
+
+    function syncDmBlockToggle() {
+        if (!blockToggleBtn) return;
+
+        const canToggle = !!activeDm.myCharacterId && !!activeDm.otherCharacterId;
+        blockToggleBtn.classList.toggle('hidden', !canToggle);
+        if (!canToggle) return;
+
+        blockToggleBtn.textContent = activeDm.isBlockedByViewer ? 'Blocked' : 'Block';
+        blockToggleBtn.className = 'shrink-0 text-xs ' + (
+            activeDm.isBlockedByViewer
+                ? 'text-gray-400 hover:text-gray-300'
+                : 'text-red-400 hover:text-red-300'
+        );
+    }
+
     function parseUnreadCount(value) {
         const n = parseInt(value || '0', 10);
         return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    function parseBool(value) {
+        return value === true || value === 1 || value === '1';
     }
 
     function formatUnreadCount(count) {
@@ -230,10 +283,13 @@
         activeDm.lastId = 0;
         activeDm.displayName = null;
         activeDm.myCharacterId = 0;
+        activeDm.otherCharacterId = 0;
+        activeDm.isBlockedByViewer = false;
         pollInFlight = false;
         seenMessageIds.clear();
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
+        syncDmBlockToggle();
         if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">No conversation selected.</div>`;
         if (inputEl) inputEl.value = '';
         setThreadEnabled(false);
@@ -284,7 +340,7 @@
 
             btn.addEventListener('click', () => {
                 if (!slug) return;
-                openConversation(slug, name, r.my_character_id);
+                openConversation(slug, name, r.my_character_id, r.other_character_id, parseBool(r.is_blocked_by_viewer));
             });
 
             listEl.appendChild(btn);
@@ -584,14 +640,17 @@
         }
     }
 
-    function openConversation(slug, displayName, lockedMyCharacterId) {
+    function openConversation(slug, displayName, lockedMyCharacterId, otherCharacterId, isBlockedByViewer) {
         stopDmRealtime();
         activeDm.slug = slug;
         activeDm.conversationId = 0;
         activeDm.displayName = displayName || slug;
         activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
+        activeDm.otherCharacterId = parseInt(otherCharacterId || 0, 10) || 0;
+        activeDm.isBlockedByViewer = parseBool(isBlockedByViewer);
 
         if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
+        syncDmBlockToggle();
         if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
 
         setThreadEnabled(!!activeDm.myCharacterId);
@@ -600,6 +659,11 @@
         fetchDmRooms();
         startDmPolling();
     }
+
+    blockToggleBtn?.addEventListener('click', () => {
+        if (!activeDm.myCharacterId || !activeDm.otherCharacterId) return;
+        window.setCharacterBlock(activeDm.myCharacterId, activeDm.otherCharacterId, !activeDm.isBlockedByViewer);
+    });
 
     function sendDmMessage() {
         if (!activeDm.slug) return;
@@ -649,7 +713,13 @@
         const name = e?.detail?.name;
 
         if (slug) {
-            openConversation(slug, name || slug, e?.detail?.my_character_id);
+            openConversation(
+                slug,
+                name || slug,
+                e?.detail?.my_character_id,
+                e?.detail?.other_character_id,
+                e?.detail?.is_blocked_by_viewer
+            );
         } else {
             clearThread();
         }

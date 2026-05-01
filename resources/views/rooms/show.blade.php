@@ -114,6 +114,10 @@
 
                             $text = $message->content ?? $message->body ?? '';
                             $isBlockedByViewer = (bool) ($message->is_blocked_by_viewer ?? false);
+                            $blockLabel = $isBlockedByViewer ? 'Blocked' : 'Block';
+                            $blockClass = $isBlockedByViewer
+                                ? 'text-gray-400 hover:text-gray-300'
+                                : 'text-red-400 hover:text-red-300';
                         @endphp
 
                         <div class="border-b border-gray-800 py-1.5 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
@@ -148,9 +152,9 @@
 
                                     @if (! $isAdminBlade && $viewerCharacterId && $message->character_id && (int) $message->character_id !== $viewerCharacterId)
                                         <button type="button"
-                                            class="text-xs text-red-400 hover:text-red-300 ml-2"
-                                            onclick="blockCharacter({{ $viewerCharacterId }}, {{ (int) $message->character_id }})">
-                                            Block
+                                            class="text-xs {{ $blockClass }} ml-2"
+                                            onclick="setCharacterBlock({{ $viewerCharacterId }}, {{ (int) $message->character_id }}, {{ $isBlockedByViewer ? 'false' : 'true' }})">
+                                            {{ $blockLabel }}
                                         </button>
                                     @endif
 
@@ -368,6 +372,10 @@
             return Number.isFinite(n) && n > 0 ? n : 0;
         }
 
+        function parseBool(value) {
+            return value === true || value === 1 || value === '1';
+        }
+
         function formatUnreadCount(count) {
             return count > 99 ? '99+' : String(count);
         }
@@ -416,13 +424,14 @@
                 .replace(/'/g, '&#039;');
         }
 
-        function blockCharacter(blockerId, blockedId) {
-            if (!confirm("Block this character?")) return;
+        function setCharacterBlock(blockerId, blockedId, shouldBlock) {
+            const action = shouldBlock ? "Block this character?" : "Unblock this character?";
+            if (!confirm(action)) return;
 
             const token = document.querySelector('meta[name="csrf-token"]').content;
 
             fetch(`/characters/${blockerId}/blocks/${blockedId}`, {
-                method: 'POST',
+                method: shouldBlock ? 'POST' : 'DELETE',
                 headers: {
                     'X-CSRF-TOKEN': token,
                     'Accept': 'application/json'
@@ -432,12 +441,8 @@
                 if (!res.ok) throw new Error();
                 return res.json();
             })
-            .then(() => {
-                location.reload();
-            })
-            .catch(() => {
-                alert("Failed to block character.");
-            });
+            .then(() => location.reload())
+            .catch(() => alert(shouldBlock ? "Failed to block character." : "Failed to unblock character."));
         }
 
         function shortSigil(id) {
@@ -566,7 +571,12 @@
                 if (!data || !data.slug) return;
 
                 window.dispatchEvent(new CustomEvent('open-dm-window', {
-                    detail: { slug: data.slug }
+                    detail: {
+                        slug: data.slug,
+                        my_character_id: getTabCharacterId(),
+                        other_character_id: parseInt(popState.characterId, 10),
+                        is_blocked_by_viewer: false
+                    }
                 }));
             })
             .catch(() => {});
@@ -999,13 +1009,15 @@
 
                     const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
                     const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
-                    const isBlockedByViewer = !isAdmin && !!msg.is_blocked_by_viewer;
+                    const isBlockedByViewer = !isAdmin && parseBool(msg.is_blocked_by_viewer);
 
                     const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
                     const viewerCharacterId = getViewerCharacterId();
                     const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
+                    const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
+                    const blockClass = isBlockedByViewer ? 'text-gray-400 hover:text-gray-300' : 'text-red-400 hover:text-red-300';
                     const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
-                        ? `<button type="button" class="text-xs text-red-400 hover:text-red-300 ml-2" onclick="blockCharacter(${viewerCharacterId}, ${messageCharacterId})">Block</button>`
+                        ? `<button type="button" class="text-xs ${blockClass} ml-2" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
                         : '';
 
                     const div = document.createElement('div');
