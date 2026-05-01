@@ -34,6 +34,9 @@
                     @php
                         $characters = Auth::user()->characters;
                         $isAdminBlade = (bool) (Auth::user()->is_admin ?? false);
+                        $viewerCharacterId = $characters->contains('id', (int) $activeCharacterId)
+                            ? (int) $activeCharacterId
+                            : null;
                     @endphp
 
                     @if ($characters->count() > 0)
@@ -110,13 +113,15 @@
                             }
 
                             $text = $message->content ?? $message->body ?? '';
+                            $isBlockedByViewer = (bool) ($message->is_blocked_by_viewer ?? false);
                         @endphp
 
-                        <div class="border-b border-gray-800 py-1.5 msg-row"
+                        <div class="border-b border-gray-800 py-1.5 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
                              data-user-id="{{ $message->user_id }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
-                             data-deleted="{{ $isDeleted ? '1' : '0' }}">
+                             data-deleted="{{ $isDeleted ? '1' : '0' }}"
+                             data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
                             <div class="flex items-start justify-between gap-2 leading-tight mb-0">
                                 <div class="flex items-start gap-2">
@@ -141,6 +146,14 @@
                                         Report
                                     </button>
 
+                                    @if (! $isAdminBlade && $viewerCharacterId && $message->character_id && (int) $message->character_id !== $viewerCharacterId)
+                                        <button type="button"
+                                            class="text-xs text-red-400 hover:text-red-300 ml-2"
+                                            onclick="blockCharacter({{ $viewerCharacterId }}, {{ (int) $message->character_id }})">
+                                            Block
+                                        </button>
+                                    @endif
+
                                     @if ($canEdit)
                                         <button type="button"
                                             class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
@@ -156,7 +169,13 @@
                                 </div>
                             </div>
 
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+                            @if ($isBlockedByViewer && ! $isAdminBlade)
+                                <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                    Message hidden from a blocked character.
+                                </div>
+                            @endif
+
+                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>
                                     {{ $isDeleted ? '[deleted]' : $text }}
                                 </span>
@@ -222,10 +241,21 @@
 
                     <div id="panel-rooms">
                         @foreach ($sidebarRooms as $r)
+                            @php
+                                $unreadCount = (int) ($r->unread_count ?? 0);
+                                $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
+                            @endphp
                             <button type="button"
+                                data-room-id="{{ $r->id }}"
                                 onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                                class="w-full text-left px-3 py-1.5 hover:bg-gray-800">
-                                {{ $r->name }}
+                                class="w-full text-left px-3 py-1.5 hover:bg-gray-800 flex items-center gap-2">
+                                <span class="min-w-0 flex-1 truncate">{{ $r->name }}</span>
+                                <span
+                                    data-room-unread-badge="{{ $r->id }}"
+                                    data-unread-count="{{ $unreadCount }}"
+                                    class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                    {{ $unreadLabel }}
+                                </span>
                             </button>
                         @endforeach
                     </div>
@@ -303,6 +333,7 @@
         const csrf = @json(csrf_token());
         const currentUserId = {{ (int) Auth::id() }};
         const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
+        const ownedCharacterIds = @json($characters->pluck('id')->map(fn ($id) => (int) $id)->values());
         const seenMessageIds = new Set();
 
         const container  = document.getElementById('message-container');
@@ -331,6 +362,28 @@
         const reportSubmit = document.getElementById('message-report-submit');
         const reportCancel = document.getElementById('message-report-cancel');
         let reportMessageId = null;
+
+        function parseUnreadCount(value) {
+            const n = parseInt(value || '0', 10);
+            return Number.isFinite(n) && n > 0 ? n : 0;
+        }
+
+        function formatUnreadCount(count) {
+            return count > 99 ? '99+' : String(count);
+        }
+
+        function setUnreadBadge(badge, count) {
+            if (!badge) return;
+            const normalized = parseUnreadCount(count);
+            badge.dataset.unreadCount = String(normalized);
+            badge.textContent = formatUnreadCount(normalized);
+            badge.classList.toggle('hidden', normalized <= 0);
+        }
+
+        function clearRoomUnreadBadge(roomId) {
+            const badge = document.querySelector(`[data-room-unread-badge="${roomId}"]`);
+            setUnreadBadge(badge, 0);
+        }
 
         document.querySelectorAll('[data-message-id]').forEach((row) => {
             const id = parseInt(row.dataset.messageId, 10);
@@ -361,6 +414,30 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function blockCharacter(blockerId, blockedId) {
+            if (!confirm("Block this character?")) return;
+
+            const token = document.querySelector('meta[name="csrf-token"]').content;
+
+            fetch(`/characters/${blockerId}/blocks/${blockedId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': token,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error();
+                return res.json();
+            })
+            .then(() => {
+                location.reload();
+            })
+            .catch(() => {
+                alert("Failed to block character.");
+            });
         }
 
         function shortSigil(id) {
@@ -539,6 +616,10 @@
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
         }
+        function getViewerCharacterId() {
+            const id = getTabCharacterId();
+            return ownedCharacterIds.includes(id) ? id : 0;
+        }
         function setTabCharacterId(id) {
             sessionStorage.setItem('active_character_id', String(id));
             if (hiddenChar) hiddenChar.value = String(id);
@@ -603,7 +684,12 @@
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({ character_id: characterId }),
-            }).catch(() => {});
+            })
+            .then((response) => {
+                if (response.ok) clearRoomUnreadBadge(conversationId);
+                return response;
+            })
+            .catch(() => {});
         }
         sendPresencePing().finally(() => startRoomRealtime());
         setInterval(sendPresencePing, 30000);
@@ -879,7 +965,7 @@
 
         /* fetch new messages */
         function fetchNewMessages() {
-            fetch(`/rooms/${roomSlug}/messages?after=` + lastMessageId, {
+            fetch(`/rooms/${roomSlug}/messages?after=${lastMessageId}&character_id=${getTabCharacterId()}`, {
                 headers: { 'Accept': 'application/json' },
                 credentials: 'same-origin'
             })
@@ -913,15 +999,22 @@
 
                     const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
                     const text = isDeleted ? '[deleted]' : (msg.content ?? msg.body ?? '');
+                    const isBlockedByViewer = !isAdmin && !!msg.is_blocked_by_viewer;
 
                     const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
+                    const viewerCharacterId = getViewerCharacterId();
+                    const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
+                    const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
+                        ? `<button type="button" class="text-xs text-red-400 hover:text-red-300 ml-2" onclick="blockCharacter(${viewerCharacterId}, ${messageCharacterId})">Block</button>`
+                        : '';
 
                     const div = document.createElement('div');
-                    div.className = "border-b border-gray-800 py-1.5 msg-row";
+                    div.className = "border-b border-gray-800 py-1.5 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
                     div.dataset.userId = String(msg.user_id ?? 0);
                     div.dataset.canEdit = canEdit ? '1' : '0';
                     div.dataset.deleted = isDeleted ? '1' : '0';
+                    div.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
 
                     const safeNameAttr = escAttr(name);
                     const safeNameHtml = escHtml(name);
@@ -936,7 +1029,7 @@
                                 <button type="button"
                                     class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
                                     data-style='${nameStyle}'
-                                    data-character-id="${msg.character?.id ?? ''}"
+                                    data-character-id="${messageCharacterId || ''}"
                                     data-user-id="${msg.user_id ?? ''}"
                                     data-character-name="${safeNameAttr}">
                                     ${safeNameHtml}
@@ -950,17 +1043,25 @@
                             ${canEdit ? `
                                 <div class="flex items-center gap-2 text-[10px]">
                                     <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                    ${blockButtonHtml}
                                     <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
                                     <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
                                 </div>
                             ` : `
                                 <div class="flex items-center gap-2 text-[10px]">
                                     <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                    ${blockButtonHtml}
                                 </div>
                             `}
                         </div>
 
-                        <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug">
+                        ${isBlockedByViewer ? `
+                            <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                Message hidden from a blocked character.
+                            </div>
+                        ` : ''}
+
+                        <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">
                             <span class="msg-body" data-style='${bodyStyle}'>${safeTextHtml}</span>
 
                             ${canEdit ? `
@@ -995,6 +1096,7 @@
                 .listen('.message.created', (event) => {
                     if (seenMessageIds.has(parseInt(event.id, 10))) return;
                     fetchNewMessages();
+                    sendPresencePing();
                 });
 
             window.Echo.connector?.pusher?.connection?.bind('connected', () => fetchNewMessages());

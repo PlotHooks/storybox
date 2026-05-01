@@ -110,6 +110,46 @@ class MessageReportAuthorizationTest extends TestCase
         ]);
     }
 
+    public function test_message_reports_are_rate_limited_per_user(): void
+    {
+        config([
+            'rate_limits.message_report_max' => 1,
+            'rate_limits.message_report_decay' => 60,
+        ]);
+
+        [$room, $firstMessage, $sender, $reporter] = $this->createDmWithMessage();
+
+        $senderCharacterId = (int) DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->where('user_id', $sender->id)
+            ->value('character_id');
+
+        $secondMessage = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $sender->id,
+            'character_id' => $senderCharacterId,
+            'body' => 'Second reported DM message.',
+        ]);
+
+        $this->actingAs($reporter)->postJson(route('messages.report', $firstMessage), [
+            'reason' => 'First report.',
+        ])->assertCreated();
+
+        $this->actingAs($reporter)->postJson(route('messages.report', $secondMessage), [
+            'reason' => 'Second report.',
+        ])
+            ->assertTooManyRequests()
+            ->assertJson([
+                'message' => 'Slow down and try again in a moment.',
+            ]);
+
+        $this->assertDatabaseCount('message_reports', 1);
+        $this->assertDatabaseHas('message_reports', [
+            'message_id' => $firstMessage->id,
+            'reporter_user_id' => $reporter->id,
+        ]);
+    }
+
     private function createDmWithMessage(): array
     {
         $sender = User::factory()->create();

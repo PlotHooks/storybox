@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\CharacterBlockController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\RoomController;
 use Illuminate\Support\Facades\Route;
@@ -16,7 +17,9 @@ Route::get('/dashboard', function () {
 Route::middleware(['auth', 'not_banned'])->group(function () {
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile', [ProfileController::class, 'update'])
+        ->middleware('throttle:profile-update')
+        ->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Characters
@@ -26,6 +29,10 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
     Route::get('/characters/{character}/current-room', [CharacterController::class, 'currentRoom'])->name('characters.currentRoom');
     Route::post('/characters/{character}/style', [CharacterController::class, 'updateStyle'])->name('characters.style');
+    Route::post('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'store'])
+        ->name('characters.blocks.store');
+    Route::delete('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'destroy'])
+        ->name('characters.blocks.destroy');
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
@@ -38,7 +45,13 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
 
     Route::get('/rooms/{room:slug}', [RoomController::class, 'show'])->name('rooms.show');
     Route::get('/rooms/{room:slug}/messages', [RoomController::class, 'latest'])->name('rooms.messages.index');
-    Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])->name('rooms.messages.store');
+    Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])
+        ->middleware([
+            'resolve_chat_message_character',
+            'throttle:chat-message-character',
+            'throttle:chat-message-user',
+        ])
+        ->name('rooms.messages.store');
 
     // NOTE: your current RoomController@latest enforces DM membership only.
     // Keep this route, but you should fix latest() to support public rooms or split it into separate endpoints.
@@ -49,13 +62,23 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     // Messages
     Route::patch('/messages/{message}', [RoomController::class, 'updateMessage'])->name('messages.update');
     Route::delete('/messages/{message}', [RoomController::class, 'deleteMessage'])->name('messages.delete');
-    Route::post('/messages/{message}/reports', [RoomController::class, 'reportMessage'])->name('messages.report');
+    Route::post('/messages/{message}/reports', [RoomController::class, 'reportMessage'])
+        ->middleware('throttle:message-report')
+        ->name('messages.report');
 
     // DMs
     Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');
-    Route::post('/dms/start', [RoomController::class, 'dmStart'])->name('dms.start');
+    Route::post('/dms/start', [RoomController::class, 'dmStart'])
+        ->middleware('throttle:dm-action')
+        ->name('dms.start');
     Route::get('/dms/{room:slug}/messages', [RoomController::class, 'dmMessages'])->name('dms.messages.index');
-    Route::post('/dms/{room:slug}/messages', [RoomController::class, 'dmSend'])->name('dms.messages.store');
+    Route::post('/dms/{room:slug}/messages', [RoomController::class, 'dmSend'])
+        ->middleware([
+            'resolve_chat_message_character',
+            'throttle:chat-message-character',
+            'throttle:chat-message-user',
+        ])
+        ->name('dms.messages.store');
 });
 
 require __DIR__ . '/auth.php';

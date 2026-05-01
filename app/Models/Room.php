@@ -17,6 +17,7 @@ class Room extends Model
         'created_by',
         'user_id',
         'type',
+        'dm_key',
     ];
 
     /*
@@ -28,6 +29,23 @@ class Room extends Model
     public function isDm(): bool
     {
         return $this->type === 'dm';
+    }
+
+    public static function normalizedDmPair(int $firstCharacterId, int $secondCharacterId): array
+    {
+        if ($firstCharacterId === $secondCharacterId) {
+            throw new \InvalidArgumentException('A DM requires two different characters.');
+        }
+
+        $pair = [$firstCharacterId, $secondCharacterId];
+        sort($pair, SORT_NUMERIC);
+
+        return $pair;
+    }
+
+    public static function normalizedDmKey(int $firstCharacterId, int $secondCharacterId): string
+    {
+        return implode(':', self::normalizedDmPair($firstCharacterId, $secondCharacterId));
     }
 
     /*

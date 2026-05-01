@@ -13,5 +13,5 @@ RUN set -eux; \
         make \
         autoconf \
         pkg-config; \
-    docker-php-ext-install intl zip; \
+    docker-php-ext-install intl zip pcntl; \
     rm -rf /var/lib/apt/lists/*

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\MessageCreated;
+use App\Models\CharacterBlock;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
@@ -11,6 +12,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class RoomController extends Controller
 {
@@ -59,6 +61,17 @@ class RoomController extends Controller
             $this->assertDmMember($room);
         }
 
+        $activeCharacterId = $this->activeCharacterIdForRoom($room);
+
+        if ($activeCharacterId) {
+            $this->assertRoomAccess($room, $activeCharacterId);
+
+            app(\App\Services\MarkConversationRead::class)(
+                $activeCharacterId,
+                $room->id
+            );
+        }
+
         $messages = $room->messages()
             ->withTrashed()
             ->with(['character', 'user'])
@@ -67,25 +80,52 @@ class RoomController extends Controller
             ->get()
             ->reverse();
 
+        $this->applyBlockedMessageFlags($messages, $activeCharacterId);
+
         $cutoff = now()->subMinutes(5);
+
+        $activePresenceCounts = DB::table('character_presences')
+            ->where('last_seen_at', '>=', $cutoff)
+            ->select('room_id', DB::raw('COUNT(*) as active_users'))
+            ->groupBy('room_id');
 
         $sidebarRooms = Room::query()
             ->where('rooms.type', 'public')
-            ->leftJoin('character_presences', function ($join) use ($cutoff) {
-                $join->on('rooms.id', '=', 'character_presences.room_id')
-                    ->where('character_presences.last_seen_at', '>=', $cutoff);
+            ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
+                $join->on('active_presence_counts.room_id', '=', 'rooms.id');
+            })
+            ->leftJoin('character_conversation_reads as ccr', function ($join) use ($activeCharacterId) {
+                $join->on('ccr.conversation_id', '=', 'rooms.id')
+                    ->where('ccr.character_id', '=', $activeCharacterId ?: 0);
             })
             ->select(
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
-                DB::raw('COUNT(character_presences.id) as active_users')
+                DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
+            ->selectRaw('
+                (
+                    SELECT COUNT(*)
+                    FROM messages m
+                    WHERE m.room_id = rooms.id
+                    AND m.deleted_at IS NULL
+                    AND m.id > COALESCE(ccr.last_read_message_id, 0)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM character_blocks cb
+                        WHERE (
+                            cb.blocker_character_id = ?
+                            AND cb.blocked_character_id = m.character_id
+                        ) OR (
+                            cb.blocker_character_id = m.character_id
+                            AND cb.blocked_character_id = ?
+                        )
+                    )
+                ) as unread_count
+            ', [$activeCharacterId ?: 0, $activeCharacterId ?: 0])
             ->orderBy('rooms.created_at', 'desc')
             ->get();
-
-        $activeCharacterId = null;
 
         return view('rooms.show', compact(
             'room',
@@ -115,9 +155,97 @@ class RoomController extends Controller
         return $characterId;
     }
 
+    private function activeCharacterIdForRoom(Room $room): ?int
+    {
+        if ($room->type === 'dm') {
+            return $this->getLockedDmCharacterId($room);
+        }
+
+        return $this->activeOwnedCharacterId();
+    }
+
+    private function activeOwnedCharacterId(): ?int
+    {
+        $sessionCharacterId = (int) session('active_character_id', 0);
+
+        if ($sessionCharacterId > 0 && DB::table('characters')
+            ->where('id', $sessionCharacterId)
+            ->where('user_id', Auth::id())
+            ->exists()) {
+            return $sessionCharacterId;
+        }
+
+        $firstCharacterId = (int) DB::table('characters')
+            ->where('user_id', Auth::id())
+            ->orderBy('name')
+            ->value('id');
+
+        if ($firstCharacterId <= 0) {
+            return null;
+        }
+
+        session(['active_character_id' => $firstCharacterId]);
+
+        return $firstCharacterId;
+    }
+
     private function canModerate(): bool
     {
         return (bool) (Auth::user()->is_admin ?? false);
+    }
+
+    private function abortIfDmBlocked(int $firstCharacterId, int $secondCharacterId): void
+    {
+        abort_if(
+            CharacterBlock::existsBetween($firstCharacterId, $secondCharacterId),
+            403,
+            'You cannot send a DM to this character.'
+        );
+    }
+
+    private function dmParticipantCharacterIds(Room $room): array
+    {
+        return DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->orderBy('character_id')
+            ->pluck('character_id')
+            ->map(fn ($characterId) => (int) $characterId)
+            ->all();
+    }
+
+    private function assertDmMessageAllowed(Room $room): void
+    {
+        $characterIds = $this->dmParticipantCharacterIds($room);
+
+        abort_if(count($characterIds) !== 2, 403, 'You cannot send a DM to this character.');
+
+        [$firstCharacterId, $secondCharacterId] = $characterIds;
+
+        $this->abortIfDmBlocked($firstCharacterId, $secondCharacterId);
+    }
+
+    private function applyBlockedMessageFlags($messages, ?int $viewerCharacterId): void
+    {
+        if (! $viewerCharacterId || $this->canModerate()) {
+            $messages->each->setAttribute('is_blocked_by_viewer', false);
+            return;
+        }
+
+        // Room visibility is intentionally one-way: only characters the viewer blocked are collapsed.
+        $blockedCharacterIds = CharacterBlock::query()
+            ->where('blocker_character_id', $viewerCharacterId)
+            ->pluck('blocked_character_id')
+            ->map(fn ($characterId) => (int) $characterId)
+            ->all();
+
+        $blockedLookup = array_flip($blockedCharacterIds);
+
+        $messages->each(function (Message $message) use ($blockedLookup) {
+            $message->setAttribute(
+                'is_blocked_by_viewer',
+                $message->character_id && isset($blockedLookup[(int) $message->character_id])
+            );
+        });
     }
 
     private function assertCanEditOrDelete(Message $message): void
@@ -225,6 +353,7 @@ class RoomController extends Controller
         // If this is a DM, ignore the client character_id and use the locked one
         if ($room->type === 'dm') {
             $this->assertDmMember($room);
+            $this->assertDmMessageAllowed($room);
             $characterId = $this->getLockedDmCharacterId($room);
         } else {
             $characterId = $this->getCharacterIdFromRequest($request);
@@ -252,6 +381,17 @@ class RoomController extends Controller
             $this->assertDmMember($room);
         }
 
+        $viewerCharacterId = null;
+        if ($room->type === 'public') {
+            $requestedCharacterId = (int) $request->query('character_id', 0);
+            if ($requestedCharacterId > 0) {
+                $this->assertCharacterOwnedByUser($requestedCharacterId);
+                $viewerCharacterId = $requestedCharacterId;
+            } else {
+                $viewerCharacterId = $this->activeOwnedCharacterId();
+            }
+        }
+
         $lastId = (int) $request->query('after', 0);
         $since  = $request->query('since');
 
@@ -270,7 +410,10 @@ class RoomController extends Controller
             $q->where('id', '>', $lastId);
         }
 
-        return response()->json($q->get());
+        $messages = $q->get();
+        $this->applyBlockedMessageFlags($messages, $viewerCharacterId);
+
+        return response()->json($messages);
     }
 
     public function ping(Room $room, Request $request)
@@ -286,6 +429,11 @@ class RoomController extends Controller
                 'updated_at'   => now(),
                 'created_at'   => now(),
             ]
+        );
+
+        app(\App\Services\MarkConversationRead::class)(
+            $characterId,
+            $room->id
         );
 
         return response()->json(['ok' => true]);
@@ -305,21 +453,56 @@ class RoomController extends Controller
 
     public function sidebar()
     {
+        $characterId = (int) request()->query('character_id', 0);
+
+        if ($characterId > 0) {
+            $this->assertCharacterOwnedByUser($characterId);
+        } else {
+            $characterId = $this->activeOwnedCharacterId() ?: 0;
+        }
+
         $cutoff = now()->subMinutes(5);
+
+        $activePresenceCounts = DB::table('character_presences')
+            ->where('last_seen_at', '>=', $cutoff)
+            ->select('room_id', DB::raw('COUNT(*) as active_users'))
+            ->groupBy('room_id');
 
         $rooms = Room::query()
             ->where('rooms.type', 'public')
-            ->leftJoin('character_presences', function ($join) use ($cutoff) {
-                $join->on('rooms.id', '=', 'character_presences.room_id')
-                    ->where('character_presences.last_seen_at', '>=', $cutoff);
+            ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
+                $join->on('active_presence_counts.room_id', '=', 'rooms.id');
+            })
+            ->leftJoin('character_conversation_reads as ccr', function ($join) use ($characterId) {
+                $join->on('ccr.conversation_id', '=', 'rooms.id')
+                    ->where('ccr.character_id', '=', $characterId);
             })
             ->select(
                 'rooms.id',
                 'rooms.name',
                 'rooms.slug',
-                DB::raw('COUNT(character_presences.id) as active_users')
+                DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
             )
-            ->groupBy('rooms.id', 'rooms.name', 'rooms.slug')
+            ->selectRaw('
+                (
+                    SELECT COUNT(*)
+                    FROM messages m
+                    WHERE m.room_id = rooms.id
+                    AND m.deleted_at IS NULL
+                    AND m.id > COALESCE(ccr.last_read_message_id, 0)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM character_blocks cb
+                        WHERE (
+                            cb.blocker_character_id = ?
+                            AND cb.blocked_character_id = m.character_id
+                        ) OR (
+                            cb.blocker_character_id = m.character_id
+                            AND cb.blocked_character_id = ?
+                        )
+                    )
+                ) as unread_count
+            ', [$characterId, $characterId])
             ->orderBy('rooms.created_at', 'desc')
             ->get();
 
@@ -359,16 +542,41 @@ class RoomController extends Controller
                     ->whereColumn('other.user_id', '!=', 'mine.user_id');
             })
             ->join('characters as other_char', 'other_char.id', '=', 'other.character_id')
+            ->leftJoin('character_conversation_reads as ccr', function ($join) {
+                $join->on('ccr.conversation_id', '=', 'rooms.id')
+                    ->whereColumn('ccr.character_id', 'mine.character_id');
+            })
             ->where('mine.user_id', $me)
             ->where('rooms.type', 'dm')
             ->orderByDesc('rooms.updated_at')
             ->select([
+                'rooms.id as room_id',
                 'rooms.slug',
                 'rooms.updated_at',
                 'other_char.id as other_character_id',
                 'other_char.name as other_character_name',
                 'mine.character_id as my_character_id',
             ])
+            ->selectRaw('
+                (
+                    SELECT COUNT(*)
+                    FROM messages m
+                    WHERE m.room_id = rooms.id
+                    AND m.deleted_at IS NULL
+                    AND m.id > COALESCE(ccr.last_read_message_id, 0)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM character_blocks cb
+                        WHERE (
+                            cb.blocker_character_id = mine.character_id
+                            AND cb.blocked_character_id = m.character_id
+                        ) OR (
+                            cb.blocker_character_id = m.character_id
+                            AND cb.blocked_character_id = mine.character_id
+                        )
+                    )
+                ) as unread_count
+            ')
             ->get();
 
         return response()->json(['rooms' => $rooms]);
@@ -396,53 +604,85 @@ class RoomController extends Controller
         $otherChar = DB::table('characters')->where('id', $otherCharacterId)->first();
         abort_unless($otherChar, 404);
         abort_if((int) $otherChar->user_id === (int) $me, 422);
+        $this->abortIfDmBlocked($myCharacterId, $otherCharacterId);
 
-        $existingRoomId = DB::table('dm_participants as a')
-            ->join('dm_participants as b', function ($join) use ($myCharacterId, $otherCharacterId) {
-                $join->on('a.room_id', '=', 'b.room_id')
-                    ->where('a.character_id', '=', $myCharacterId)
-                    ->where('b.character_id', '=', $otherCharacterId);
-            })
-            ->join('rooms', 'rooms.id', '=', 'a.room_id')
-            ->where('rooms.type', 'dm')
-            ->value('rooms.id');
+        $dmKey = Room::normalizedDmKey($myCharacterId, $otherCharacterId);
 
-        if ($existingRoomId) {
-            $room = Room::find($existingRoomId);
+        if ($room = $this->findDmRoomForCharacterPair($myCharacterId, $otherCharacterId)) {
             return response()->json(['slug' => $room->slug]);
         }
 
-        $room = Room::create([
-            'name'       => 'DM',
-            'slug'       => 'dm-' . Str::random(20),
-            'user_id'    => $me,
-            'created_by' => $me,
-            'type'       => 'dm',
-        ]);
+        try {
+            $room = DB::transaction(function () use ($me, $myCharacterId, $otherCharacterId, $otherChar, $dmKey) {
+                if ($existing = $this->findDmRoomForCharacterPair($myCharacterId, $otherCharacterId)) {
+                    return $existing;
+                }
 
-        DB::table('dm_participants')->insert([
-            [
-                'room_id' => $room->id,
-                'user_id' => $me,
-                'character_id' => $myCharacterId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'room_id' => $room->id,
-                'user_id' => (int) $otherChar->user_id,
-                'character_id' => $otherCharacterId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ]);
+                $room = Room::create([
+                    'name'       => 'DM',
+                    'slug'       => 'dm-' . Str::random(20),
+                    'user_id'    => $me,
+                    'created_by' => $me,
+                    'type'       => 'dm',
+                    'dm_key'     => $dmKey,
+                ]);
+
+                DB::table('dm_participants')->insert([
+                    [
+                        'room_id' => $room->id,
+                        'user_id' => $me,
+                        'character_id' => $myCharacterId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                    [
+                        'room_id' => $room->id,
+                        'user_id' => (int) $otherChar->user_id,
+                        'character_id' => $otherCharacterId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ],
+                ]);
+
+                return $room;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            $room = Room::where('type', 'dm')->where('dm_key', $dmKey)->first();
+            throw_unless($room, $exception);
+        }
 
         return response()->json(['slug' => $room->slug]);
+    }
+
+    private function findDmRoomForCharacterPair(int $firstCharacterId, int $secondCharacterId): ?Room
+    {
+        [$lowCharacterId, $highCharacterId] = Room::normalizedDmPair($firstCharacterId, $secondCharacterId);
+
+        $roomId = DB::table('rooms')
+            ->join('dm_participants', 'dm_participants.room_id', '=', 'rooms.id')
+            ->where('rooms.type', 'dm')
+            ->groupBy('rooms.id')
+            ->havingRaw('COUNT(*) = 2')
+            ->havingRaw('COUNT(DISTINCT dm_participants.character_id) = 2')
+            ->havingRaw('SUM(CASE WHEN dm_participants.character_id IN (?, ?) THEN 1 ELSE 0 END) = 2', [
+                $lowCharacterId,
+                $highCharacterId,
+            ])
+            ->orderBy('rooms.id')
+            ->value('rooms.id');
+
+        return $roomId ? Room::find($roomId) : null;
     }
 
     public function dmMessages(Room $room, Request $request)
     {
         $this->assertDmMember($room);
+        $characterId = $this->getLockedDmCharacterId($room);
+
+        app(\App\Services\MarkConversationRead::class)(
+            $characterId,
+            $room->id
+        );
 
         $after = (int) $request->query('after', 0);
 
@@ -468,6 +708,7 @@ class RoomController extends Controller
     {
         abort_unless($room->type === 'dm', 404);
         $this->assertDmMember($room);
+        $this->assertDmMessageAllowed($room);
 
         $request->validate([
             'body' => 'required|string|max:2000',

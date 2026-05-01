@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\CharacterBlock;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -36,6 +37,47 @@ class Character extends Model
     public function messages()
     {
         return $this->hasMany(Message::class);
+    }
+
+    public function blockedCharacters()
+    {
+        return $this->belongsToMany(
+            Character::class,
+            'character_blocks',
+            'blocker_character_id',
+            'blocked_character_id'
+        )->withTimestamps();
+    }
+
+    public function blockedByCharacters()
+    {
+        return $this->belongsToMany(
+            Character::class,
+            'character_blocks',
+            'blocked_character_id',
+            'blocker_character_id'
+        )->withTimestamps();
+    }
+
+    public function hasBlocked(Character $character): bool
+    {
+        return CharacterBlock::query()
+            ->where('blocker_character_id', $this->id)
+            ->where('blocked_character_id', $character->id)
+            ->exists();
+    }
+
+    public function isBlockedBy(Character $character): bool
+    {
+        return CharacterBlock::query()
+            ->where('blocker_character_id', $character->id)
+            ->where('blocked_character_id', $this->id)
+            ->exists();
+    }
+
+    public function hasBlockRelationshipWith(Character $character): bool
+    {
+        return CharacterBlock::existsBetween($this->id, $character->id);
     }
 
     /*
