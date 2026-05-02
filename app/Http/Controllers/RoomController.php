@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\MessageCreated;
+use App\Events\ModerationMessageCreated;
 use App\Models\CharacterBlock;
 use App\Models\Room;
 use App\Models\Message;
@@ -380,6 +381,7 @@ class RoomController extends Controller
         ]);
 
         broadcast(new MessageCreated($message))->toOthers();
+        event(new ModerationMessageCreated($message));
 
         return $message;
     }

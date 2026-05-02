@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+
+Broadcast::channel('moderation.messages', function ($user) {
+    return Gate::allows('accessFilament', $user);
+});
 
 Broadcast::channel('conversation.{conversationId}', function ($user, int $conversationId) {
     $characterId = (int) request()->input('character_id', 0);
