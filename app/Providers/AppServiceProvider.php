@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -27,7 +28,19 @@ class AppServiceProvider extends ServiceProvider
         URL::forceRootUrl(config('app.url'));
         URL::forceScheme('https');
 
-        Gate::define('accessFilament', fn ($user) => (bool) $user->is_admin);
+        Gate::define('accessFilament', function ($user): bool {
+            $allowed = (bool) $user->is_admin;
+
+            if (! $allowed) {
+                Log::warning('Suspicious admin access attempt', [
+                    'user_id' => $user->id,
+                    'route' => request()->route()?->getName(),
+                    'reason' => 'non_admin_filament_access',
+                ]);
+            }
+
+            return $allowed;
+        });
 
         $this->configureRateLimiters();
     }

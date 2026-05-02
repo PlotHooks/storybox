@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Validation\ValidationException;
 
@@ -63,10 +64,12 @@ class RoomController extends Controller
         if ($activeCharacterId) {
             $this->assertConversationParticipant($room, $activeCharacterId);
 
-            app(\App\Services\MarkConversationRead::class)(
-                $activeCharacterId,
-                $room->id
-            );
+            if ($room->type === 'dm') {
+                app(\App\Services\MarkConversationRead::class)(
+                    $activeCharacterId,
+                    $room->id
+                );
+            }
         }
 
         $messages = $room->messages()
@@ -139,7 +142,25 @@ class RoomController extends Controller
             ->where('user_id', Auth::id())
             ->exists();
 
+        if (! $ok) {
+            $this->logSuspiciousAuthorizationFailure('character_not_owned', [
+                'submitted_character_id' => $characterId,
+            ]);
+        }
+
         abort_unless($ok, 403);
+    }
+
+    private function logSuspiciousAuthorizationFailure(string $reason, array $context = []): void
+    {
+        Log::warning('Suspicious chat authorization failure', array_filter([
+            'user_id' => Auth::id(),
+            'submitted_character_id' => $context['submitted_character_id'] ?? null,
+            'room_id' => $context['room_id'] ?? null,
+            'message_id' => $context['message_id'] ?? null,
+            'route' => request()->route()?->getName(),
+            'reason' => $reason,
+        ], fn ($value) => $value !== null));
     }
 
     private function getCharacterIdFromRequest(Request $request): int
@@ -249,9 +270,22 @@ class RoomController extends Controller
         return false;
     }
 
-    private function assertConversationParticipant(Room $conversation, int $characterId): void
+    private function assertConversationParticipant(Room $conversation, int $characterId, array $context = []): void
     {
-        abort_unless($this->conversationHasParticipant($conversation, $characterId), 403);
+        $ok = $this->conversationHasParticipant($conversation, $characterId);
+
+        if (! $ok && $conversation->type === 'dm') {
+            $this->logSuspiciousAuthorizationFailure(
+                $context['reason'] ?? 'dm_participant_membership_failed',
+                [
+                    'submitted_character_id' => $characterId,
+                    'room_id' => $conversation->id,
+                    'message_id' => $context['message_id'] ?? null,
+                ]
+            );
+        }
+
+        abort_unless($ok, 403);
     }
 
     private function assertDmMessageAllowed(Room $room): void
@@ -395,6 +429,14 @@ class RoomController extends Controller
     public function updateMessage(Request $request, Message $message)
     {
         $this->assertCanEditOrDelete($message);
+        $message->loadMissing('room');
+
+        if (! $this->canModerate()) {
+            $this->assertConversationParticipant($message->room, (int) $message->character_id, [
+                'message_id' => $message->id,
+                'reason' => 'message_edit_membership_failed',
+            ]);
+        }
 
         abort_if($message->deleted_at, 410);
 
@@ -423,6 +465,14 @@ class RoomController extends Controller
     public function deleteMessage(Request $request, Message $message)
     {
         $this->assertCanEditOrDelete($message);
+        $message->loadMissing('room');
+
+        if (! $this->canModerate()) {
+            $this->assertConversationParticipant($message->room, (int) $message->character_id, [
+                'message_id' => $message->id,
+                'reason' => 'message_delete_membership_failed',
+            ]);
+        }
 
         $message->deleted_by = Auth::id();
         $message->save();
@@ -704,6 +754,13 @@ class RoomController extends Controller
             ->where('id', $myCharacterId)
             ->where('user_id', $me)
             ->exists();
+
+        if (! $owns) {
+            $this->logSuspiciousAuthorizationFailure('dm_start_character_not_owned', [
+                'submitted_character_id' => $myCharacterId,
+            ]);
+        }
+
         abort_unless($owns, 403);
 
         $otherChar = DB::table('characters')->where('id', $otherCharacterId)->first();
@@ -828,6 +885,12 @@ class RoomController extends Controller
             ->where('room_id', $room->id)
             ->where('user_id', Auth::id())
             ->value('character_id');
+
+        if ($cid <= 0) {
+            $this->logSuspiciousAuthorizationFailure('locked_dm_character_missing', [
+                'room_id' => $room->id,
+            ]);
+        }
 
         abort_if($cid <= 0, 403);
         return $cid;

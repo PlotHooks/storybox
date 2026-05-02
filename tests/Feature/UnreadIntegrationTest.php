@@ -16,7 +16,7 @@ class UnreadIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_opening_a_room_marks_it_read_for_the_active_character(): void
+    public function test_presence_ping_marks_a_room_read_for_the_validated_character(): void
     {
         [$user, $character] = $this->createUserWithCharacter();
         $room = $this->createRoom($user);
@@ -24,8 +24,9 @@ class UnreadIntegrationTest extends TestCase
         $message = $this->createMessage($room, $user, $character, 'Hello.');
 
         $this->actingAs($user)
-            ->withSession(['active_character_id' => $character->id])
-            ->get(route('rooms.show', $room->slug))
+            ->postJson(route('rooms.presence', $room->slug), [
+                'character_id' => $character->id,
+            ])
             ->assertOk();
 
         $this->assertDatabaseHas('character_conversation_reads', [
