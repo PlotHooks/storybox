@@ -6,29 +6,80 @@
         </h2>
     </x-slot>
 
-    <div class="py-4">
-        <div class="max-w-none w-full mx-auto h-[calc(100vh-6rem)] flex flex-col lg:flex-row gap-4 px-2 md:px-4">
+    <div class="py-4 bg-gray-950/60">
+        <div class="max-w-none w-full mx-auto h-[calc(100vh-6rem)] flex flex-col lg:flex-row gap-3 px-2 md:px-4">
 
             {{-- LEFT COLUMN --}}
-            <div id="left-panel" class="w-full lg:w-72 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
-                <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400">
-                    Left Panel (reserved)
+            <div id="left-panel" class="w-full lg:w-72 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-800 bg-gray-900/80">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Context Dock</div>
+                            <div class="mt-1 text-sm font-semibold text-gray-100">Room tools</div>
+                        </div>
+                        <span class="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">px</span>
+                    </div>
                 </div>
-                <div class="flex-1 overflow-y-auto px-3 py-2 text-xs text-gray-300">
-                    <p class="text-gray-500">Reserved for future features.</p>
+                <div class="border-b border-gray-800 bg-gray-950/80 p-2">
+                    <div class="grid grid-cols-2 gap-1 text-[11px] font-medium text-gray-300">
+                        <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-left text-emerald-200 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.08)]">World Book</button>
+                        <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Pinned Notes</button>
+                        <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Room Rules</button>
+                        <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Character Info</button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto px-4 py-4 text-xs text-gray-300">
+                    <div data-context-panel="world" class="context-tool-panel rounded-md border border-gray-800 bg-gray-900/70 p-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-sm font-semibold text-gray-100">World Book</h3>
+                            <span class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Draft</span>
+                        </div>
+                        <p class="mt-2 leading-relaxed text-gray-400">
+                            Shared lore, locations, NPC notes, and timeline anchors will live here.
+                        </p>
+                        <div class="mt-3 space-y-2">
+                            <div class="rounded border border-gray-800 bg-gray-950/70 p-2">
+                                <div class="text-[11px] font-semibold text-emerald-300">Sample entry</div>
+                                <p class="mt-1 leading-relaxed text-gray-400">A short room-specific note can be pinned for quick reference during play.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-context-panel="notes" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                        Pinned Notes are coming soon.
+                    </div>
+                    <div data-context-panel="rules" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                        Room Rules are coming soon.
+                    </div>
+                    <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                        Character Info is coming soon.
+                    </div>
                 </div>
             </div>
 
             {{-- CENTER --}}
-            <div class="flex-1 bg-gray-900 rounded-lg shadow flex flex-col">
+            <div class="flex-1 bg-gray-950 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden ring-1 ring-emerald-500/10">
 
                 {{-- Top bar --}}
-                <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-                    <div class="text-xs text-gray-300">
-                        Room owner:
-                        <span class="font-semibold text-gray-100">
-                            {{ optional($room->owner)->name ?? 'Unknown' }}
-                        </span>
+                <div class="flex flex-col gap-3 border-b border-gray-800 bg-gray-900/90 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="h-2 w-2 rounded-sm bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.75)]"></span>
+                            <h1 class="truncate text-lg font-semibold text-gray-50 md:text-xl">{{ $room->name }}</h1>
+                        </div>
+                        @if (! empty($room->description))
+                            <p class="mt-1 max-w-3xl truncate text-sm text-gray-400">{{ $room->description }}</p>
+                        @endif
+                        <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                            <span class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
+                                Owner <span class="font-medium text-gray-300">{{ optional($room->owner)->name ?? 'Unknown' }}</span>
+                            </span>
+                            <span class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
+                                Messages <span class="font-medium text-gray-300">{{ $messages->count() }}</span>
+                            </span>
+                            <span id="room-active-count" class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
+                                Active <span class="font-medium text-gray-500">syncing</span>
+                            </span>
+                        </div>
                     </div>
 
                     @php
@@ -40,22 +91,22 @@
                     @endphp
 
                     @if ($characters->count() > 0)
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center justify-end gap-2">
 
                             <button id="toggle-left" type="button"
-                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                class="rounded border border-gray-700 bg-gray-950/80 text-xs text-gray-300 px-2 py-1 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
                                 Toggle Left
                             </button>
 
                             <button id="toggle-right" type="button"
-                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                class="rounded border border-gray-700 bg-gray-950/80 text-xs text-gray-300 px-2 py-1 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
                                 Toggle Right
                             </button>
 
-                            <span class="text-xs text-gray-300">Posting as:</span>
+                            <span class="text-xs text-gray-400">Posting as</span>
 
                             <select id="character-switcher"
-                                class="rounded border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1">
+                                class="rounded border-gray-700 bg-gray-950 text-xs text-gray-100 px-2 py-1 focus:border-emerald-500 focus:ring-emerald-500">
                                 @foreach ($characters as $char)
                                     <option value="{{ $char->id }}" {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
                                         {{ $char->name }}
@@ -64,7 +115,7 @@
                             </select>
 
                             <button id="leave-room-btn" type="button"
-                                class="rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 px-2 py-1 hover:bg-gray-700">
+                                class="rounded border border-red-500/40 bg-red-500/10 text-xs font-semibold text-red-200 px-2 py-1 hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500/50">
                                 Leave room
                             </button>
 
@@ -77,7 +128,7 @@
                 </div>
 
                 {{-- Messages --}}
-                <div id="message-container" class="flex-1 overflow-y-auto px-4 py-2">
+                <div id="message-container" class="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_32rem)] px-3 py-3 md:px-4">
                     @foreach ($messages as $message)
                         @php
                             $c = $message->character;
@@ -120,17 +171,17 @@
                                 : 'text-red-400 hover:text-red-300';
                         @endphp
 
-                        <div class="border-b border-gray-800 py-0.5 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
+                        <div class="group rounded-md border-b border-gray-900/80 px-2 py-2 transition-colors hover:bg-gray-900/70 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
                              data-user-id="{{ $message->user_id }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}"
                              data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
-                            <div class="flex items-start justify-between gap-2 leading-tight mb-0">
-                                <div class="flex items-start gap-2">
+                            <div class="flex items-start justify-between gap-3 leading-tight mb-0">
+                                <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                                     <button type="button"
-                                        class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
+                                        class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
                                         data-style='{!! $nameStyleJson !!}'
                                         data-character-id="{{ $c?->id ?? '' }}"
                                         data-user-id="{{ $message->user_id ?? '' }}"
@@ -138,21 +189,21 @@
                                         {{ $name }}
                                     </button>
 
-                                    <span class="text-[10px] text-gray-500 opacity-70">{{ $message->created_at->diffForHumans() }}</span>
-                                    <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
-                                    <span class="msg-deleted text-[10px] text-gray-500 opacity-70 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                    <span class="text-[10px] text-gray-600">{{ $message->created_at->diffForHumans() }}</span>
+                                    <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
+                                    <span class="msg-deleted text-[10px] text-gray-600 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
                                 </div>
 
-                                <div class="flex items-center gap-2 text-[10px]">
+                                <div class="flex shrink-0 items-center gap-1 text-[10px] opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                                     <button type="button"
-                                        class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
+                                        class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40"
                                         {{ $isDeleted ? 'disabled' : '' }}>
                                         Report
                                     </button>
 
                                     @if (! $isAdminBlade && $viewerCharacterId && $message->character_id && (int) $message->character_id !== $viewerCharacterId)
                                         <button type="button"
-                                            class="text-xs {{ $blockClass }} ml-2"
+                                            class="text-xs {{ $blockClass }} ml-1"
                                             onclick="setCharacterBlock({{ $viewerCharacterId }}, {{ (int) $message->character_id }}, {{ $isBlockedByViewer ? 'false' : 'true' }})">
                                             {{ $blockLabel }}
                                         </button>
@@ -160,12 +211,12 @@
 
                                     @if ($canEdit)
                                         <button type="button"
-                                            class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
+                                            class="msg-edit-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40"
                                             {{ $isDeleted ? 'disabled' : '' }}>
                                             Edit
                                         </button>
                                         <button type="button"
-                                            class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700"
+                                            class="msg-del-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
                                             {{ $isDeleted ? 'disabled' : '' }}>
                                             Delete
                                         </button>
@@ -179,20 +230,20 @@
                                 </div>
                             @endif
 
-                            <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
+                            <div class="mt-1 text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
                                 <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $text }}</span>
 
                                 @if ($canEdit)
                                     <div class="msg-editbox hidden mt-2">
-                                        <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2"
+                                        <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500"
                                                   rows="3"></textarea>
                                         <div class="mt-2 flex gap-2 justify-end">
                                             <button type="button"
-                                                class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                                class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
                                                 Cancel
                                             </button>
                                             <button type="button"
-                                                class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">
+                                                class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
                                                 Save
                                             </button>
                                         </div>
@@ -204,7 +255,7 @@
                 </div>
 
                 {{-- Send --}}
-                <div class="border-t border-gray-800 p-3">
+                <div class="border-t border-gray-800 bg-gray-900/95 p-3">
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
@@ -217,11 +268,12 @@
                             rows="3"
                             required
                             placeholder="Enter to send. Shift+Enter for newline."
-                            class="mt-1 block w-full rounded-md border-gray-700 bg-gray-950 text-gray-100"
+                            class="mt-1 block w-full resize-none rounded-md border-gray-700 bg-gray-950 text-gray-100 placeholder:text-gray-600 shadow-inner focus:border-emerald-500 focus:ring-emerald-500"
                         >{{ old('body') }}</textarea>
 
-                        <div class="mt-2 flex justify-end">
-                            <x-primary-button>
+                        <div class="mt-2 flex items-center justify-between gap-3">
+                            <div class="text-[10px] uppercase tracking-[0.18em] text-gray-600">Transmission ready</div>
+                            <x-primary-button class="bg-emerald-600 hover:bg-emerald-500 focus:bg-emerald-600 active:bg-emerald-700 focus:ring-emerald-500">
                                 Send
                             </x-primary-button>
                         </div>
@@ -231,27 +283,33 @@
             </div>
 
             {{-- RIGHT --}}
-            <div id="right-panel" class="w-full lg:w-80 bg-gray-900 text-gray-100 rounded-lg shadow flex flex-col">
+            <div id="right-panel" class="w-full lg:w-80 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
 
-                <div class="px-3 py-2 border-b border-gray-800 text-xs font-semibold text-green-400 flex items-center gap-2">
-                    <button id="tab-rooms" type="button" class="px-2 py-1 rounded bg-gray-800">Rooms</button>
-                    <button id="tab-users" type="button" class="px-2 py-1 rounded hover:bg-gray-800">Users</button>
-                    <span id="tab-meta" class="text-[10px] text-gray-500 ml-auto"># active / name</span>
+                <div class="border-b border-gray-800 bg-gray-900/80 px-3 py-3">
+                    <div class="mb-2 flex items-center justify-between gap-3">
+                        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Room Net</div>
+                        <span id="tab-meta" class="text-[10px] text-gray-500"># active / name</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 text-xs font-semibold">
+                        <button id="tab-rooms" type="button" class="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200">Rooms</button>
+                        <button id="tab-users" type="button" class="rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100">Users</button>
+                    </div>
                 </div>
 
                 <div class="flex-1 overflow-y-auto text-xs">
 
-                    <div id="panel-rooms">
+                    <div id="panel-rooms" class="p-2">
                         @foreach ($sidebarRooms as $r)
                             @php
                                 $unreadCount = (int) ($r->unread_count ?? 0);
                                 $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
+                                $isCurrentRoom = (int) $r->id === (int) $room->id;
                             @endphp
                             <button type="button"
                                 data-room-id="{{ $r->id }}"
                                 onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                                class="w-full text-left px-3 py-1.5 hover:bg-gray-800 flex items-center gap-2">
-                                <span class="min-w-0 flex-1 truncate">{{ $r->name }}</span>
+                                class="w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 {{ $isCurrentRoom ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100' : 'border-gray-800/80 bg-gray-900/50 text-gray-200 hover:border-gray-700 hover:bg-gray-900' }}">
+                                <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
                                 <span
                                     data-room-unread-badge="{{ $r->id }}"
                                     data-unread-count="{{ $unreadCount }}"
@@ -262,7 +320,7 @@
                         @endforeach
                     </div>
 
-                    <div id="panel-users" class="hidden px-3 py-2">
+                    <div id="panel-users" class="hidden px-3 py-3">
                         <div id="user-list" class="space-y-2 text-gray-200">
                             <div class="text-gray-500">Loading...</div>
                         </div>
@@ -357,6 +415,7 @@
 
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
+        const activeCountEl = document.getElementById('room-active-count');
 
         const reportModal = document.getElementById('message-report-modal');
         const reportForm = document.getElementById('message-report-form');
@@ -403,6 +462,23 @@
 
         document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
         document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
+
+        const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
+        const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));
+        function showContextTool(tool) {
+            contextToolButtons.forEach((button) => {
+                const isActiveTool = button.dataset.contextTool === tool;
+                button.className = isActiveTool
+                    ? 'context-tool-btn rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-left text-emerald-200 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.08)]'
+                    : 'context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200';
+            });
+            contextToolPanels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.contextPanel !== tool);
+            });
+        }
+        contextToolButtons.forEach((button) => {
+            button.addEventListener('click', () => showContextTool(button.dataset.contextTool));
+        });
 
         function escAttr(s) {
             return String(s)
@@ -1015,11 +1091,11 @@
                     const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
                     const blockClass = isBlockedByViewer ? 'text-gray-400 hover:text-gray-300' : 'text-red-400 hover:text-red-300';
                     const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
-                        ? `<button type="button" class="text-xs ${blockClass} ml-2" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
+                        ? `<button type="button" class="text-xs ${blockClass} ml-1" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
                         : '';
 
                     const div = document.createElement('div');
-                    div.className = "border-b border-gray-800 py-0.5 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
+                    div.className = "group rounded-md border-b border-gray-900/80 px-2 py-2 transition-colors hover:bg-gray-900/70 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
                     div.dataset.userId = String(msg.user_id ?? 0);
                     div.dataset.canEdit = canEdit ? '1' : '0';
@@ -1034,10 +1110,10 @@
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
 
                     div.innerHTML = `
-                        <div class="flex items-start justify-between gap-2 leading-tight mb-0">
-                            <div class="flex items-start gap-2">
+                        <div class="flex items-start justify-between gap-3 leading-tight mb-0">
+                            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                                 <button type="button"
-                                    class="char-trigger msg-name text-sm md:text-base font-medium text-left cursor-pointer hover:underline"
+                                    class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
                                     data-style='${nameStyle}'
                                     data-character-id="${messageCharacterId || ''}"
                                     data-user-id="${msg.user_id ?? ''}"
@@ -1045,21 +1121,21 @@
                                     ${safeNameHtml}
                                 </button>
 
-                                <span class="text-[10px] text-gray-500 opacity-70">${safeCreatedAt}</span>
-                                <span class="msg-edited text-[10px] text-gray-500 opacity-70 hidden">(edited)</span>
-                                <span class="msg-deleted text-[10px] text-gray-500 opacity-70 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                                <span class="text-[10px] text-gray-600">${safeCreatedAt}</span>
+                                <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
+                                <span class="msg-deleted text-[10px] text-gray-600 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
                             </div>
 
                             ${canEdit ? `
-                                <div class="flex items-center gap-2 text-[10px]">
-                                    <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                <div class="flex shrink-0 items-center gap-1 text-[10px] opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                                    <button type="button" class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
                                     ${blockButtonHtml}
-                                    <button type="button" class="msg-edit-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Edit</button>
-                                    <button type="button" class="msg-del-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Delete</button>
+                                    <button type="button" class="msg-edit-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Edit</button>
+                                    <button type="button" class="msg-del-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Delete</button>
                                 </div>
                             ` : `
-                                <div class="flex items-center gap-2 text-[10px]">
-                                    <button type="button" class="msg-report-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                <div class="flex shrink-0 items-center gap-1 text-[10px] opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                                    <button type="button" class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
                                     ${blockButtonHtml}
                                 </div>
                             `}
@@ -1071,15 +1147,15 @@
                             </div>
                         ` : ''}
 
-                        <div class="text-sm md:text-base text-gray-100 whitespace-pre-line leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">
+                        <div class="mt-1 text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">
                             <span class="msg-body" data-style='${bodyStyle}'>${safeTextHtml}</span>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">
-                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2" rows="3"></textarea>
+                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500" rows="3"></textarea>
                                     <div class="mt-2 flex gap-2 justify-end">
-                                        <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Cancel</button>
-                                        <button type="button" class="msg-save-btn rounded border border-gray-700 bg-gray-800 px-2 py-1 text-gray-100 hover:bg-gray-700">Save</button>
+                                        <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Cancel</button>
+                                        <button type="button" class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Save</button>
                                     </div>
                                 </div>
                             ` : ''}
@@ -1130,6 +1206,9 @@
             .then(data => {
                 const roster = Array.isArray(data.roster) ? data.roster : [];
                 userListEl.innerHTML = '';
+                if (activeCountEl) {
+                    activeCountEl.innerHTML = `Active <span class="font-medium text-gray-300">${roster.length}</span>`;
+                }
 
                 if (!roster.length) {
                     userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
@@ -1151,7 +1230,7 @@
                     const displayName = (p.character_name ?? ('#' + charId));
 
                     const row = document.createElement('div');
-                    row.className = 'char-row border-b border-gray-800 pb-2';
+                    row.className = 'char-row rounded border border-gray-800/80 bg-gray-900/50 px-3 py-2';
 
                     const safeNameAttr = escAttr(displayName);
                     const safeDisplayName = escHtml(displayName);
@@ -1159,7 +1238,7 @@
 
                     row.innerHTML = `
                         <button type="button"
-                            class="char-trigger msg-name text-sm font-medium hover:underline text-left cursor-pointer"
+                            class="char-trigger msg-name text-sm font-semibold hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
                             data-style='${nameStyle}'
                             data-character-id="${p.character_id ?? ''}"
                             data-user-id="${p.user_id ?? ''}"
@@ -1167,7 +1246,7 @@
                             ${safeDisplayName}
                         </button>
 
-                        <div class="text-[10px] text-gray-500">${safeDisplayName} #${sigil}</div>
+                        <div class="mt-1 text-[10px] text-gray-500">ID #${sigil}</div>
                     `;
 
                     userListEl.appendChild(row);
@@ -1178,6 +1257,9 @@
             .catch((err) => {
                 console.error('Roster error:', err);
                 userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
+                if (activeCountEl) {
+                    activeCountEl.innerHTML = `Active <span class="font-medium text-gray-500">unavailable</span>`;
+                }
             });
         }
         /* Refresh DMs */
@@ -1185,8 +1267,8 @@
 
         /* tabs */
 function showRoomsTab() {
-    tabRooms.className = 'px-2 py-1 rounded bg-gray-800';
-    tabUsers.className = 'px-2 py-1 rounded hover:bg-gray-800';
+    tabRooms.className = 'rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200';
+    tabUsers.className = 'rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100';
 
     panelRooms.classList.remove('hidden');
     panelUsers.classList.add('hidden');
@@ -1195,8 +1277,8 @@ function showRoomsTab() {
 }
 
 function showUsersTab() {
-    tabUsers.className = 'px-2 py-1 rounded bg-gray-800';
-    tabRooms.className = 'px-2 py-1 rounded hover:bg-gray-800';
+    tabUsers.className = 'rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200';
+    tabRooms.className = 'rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100';
 
     panelRooms.classList.add('hidden');
     panelUsers.classList.remove('hidden');
@@ -1208,6 +1290,7 @@ function showUsersTab() {
 tabRooms?.addEventListener('click', showRoomsTab);
 tabUsers?.addEventListener('click', showUsersTab);
 showRoomsTab();
+refreshUserList();
 
 setInterval(() => {
     if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();

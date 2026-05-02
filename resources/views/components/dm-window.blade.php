@@ -1,6 +1,6 @@
 <div
     id="dm-window"
-    class="hidden fixed z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl flex flex-col"
+    class="hidden fixed z-50 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl flex flex-col overflow-hidden ring-1 ring-emerald-500/10"
     style="
         width: 420px;
         height: 520px;
@@ -12,16 +12,19 @@
     <!-- HEADER (drag handle) -->
     <div
         id="dm-drag-handle"
-        class="cursor-move flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-950 rounded-t-lg"
+        class="cursor-move flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-900/95"
     >
-        <div class="text-sm text-gray-200 font-semibold">
-            Direct Messages
+        <div>
+            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Private Link</div>
+            <div class="text-sm text-gray-100 font-semibold">
+                Direct Messages
+            </div>
         </div>
 
         <div class="flex gap-2">
             <button
                 id="dm-refresh-btn"
-                class="text-gray-400 hover:text-white text-sm"
+                class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-gray-400 hover:border-gray-700 hover:text-white text-sm"
                 type="button"
                 title="Refresh"
             >
@@ -30,7 +33,7 @@
 
             <button
                 id="dm-close-btn"
-                class="text-gray-400 hover:text-white text-sm"
+                class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-gray-400 hover:border-gray-700 hover:text-white text-sm"
                 type="button"
                 title="Close"
             >
@@ -43,8 +46,8 @@
     <div class="flex-1 flex overflow-hidden">
 
         <!-- LEFT: conversation list -->
-        <div class="w-44 border-r border-gray-800 overflow-y-auto text-xs text-gray-200">
-            <div class="p-2 border-b border-gray-800 text-[11px] text-gray-400">
+        <div class="w-44 border-r border-gray-800 bg-gray-950 overflow-y-auto text-xs text-gray-200">
+            <div class="p-2 border-b border-gray-800 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                 Conversations
             </div>
 
@@ -55,7 +58,7 @@
 
         <!-- RIGHT: message area -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <div class="px-3 py-2 border-b border-gray-800 text-xs text-gray-300 flex items-center justify-between gap-2">
+            <div class="px-3 py-2 border-b border-gray-800 bg-gray-900/70 text-xs text-gray-300 flex items-center justify-between gap-2">
                 <div id="dm-thread-header" class="min-w-0 truncate">
                     Select a conversation.
                 </div>
@@ -69,15 +72,15 @@
                 </button>
             </div>
 
-            <div id="dm-thread" class="flex-1 p-3 text-sm text-gray-100 overflow-y-auto space-y-2">
+            <div id="dm-thread" class="flex-1 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_20rem)] p-3 text-sm text-gray-100 overflow-y-auto space-y-2">
                 <div class="text-gray-500">No conversation selected.</div>
             </div>
 
-            <div class="border-t border-gray-800 p-2">
+            <div class="border-t border-gray-800 bg-gray-900/95 p-2">
                 <div class="flex gap-2">
                     <textarea
                         id="dm-input"
-                        class="flex-1 resize-none rounded bg-gray-950 border-gray-700 text-gray-200 text-sm"
+                        class="flex-1 resize-none rounded bg-gray-950 border-gray-700 text-gray-200 text-sm placeholder:text-gray-600 focus:border-emerald-500 focus:ring-emerald-500"
                         rows="2"
                         placeholder="Message..."
                         disabled
@@ -86,7 +89,7 @@
                     <button
                         id="dm-send-btn"
                         type="button"
-                        class="rounded border border-gray-700 bg-gray-800 px-3 py-2 text-xs text-gray-100 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="rounded border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled
                     >
                         Send
@@ -199,7 +202,7 @@
         if (!canToggle) return;
 
         blockToggleBtn.textContent = activeDm.isBlockedByViewer ? 'Blocked' : 'Block';
-        blockToggleBtn.className = 'shrink-0 text-xs ' + (
+        blockToggleBtn.className = 'shrink-0 rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-xs ' + (
             activeDm.isBlockedByViewer
                 ? 'text-gray-400 hover:text-gray-300'
                 : 'text-red-400 hover:text-red-300'
@@ -320,10 +323,10 @@
             const isActive = activeDm.slug && slug === activeDm.slug;
 
             btn.className =
-                'w-full text-left rounded border px-2 py-2 ' +
+                'w-full text-left rounded border px-2 py-2 transition-colors ' +
                 (isActive
-                    ? 'border-gray-600 bg-gray-800'
-                    : 'border-gray-800 bg-gray-950 hover:bg-gray-800');
+                    ? 'border-emerald-500/40 bg-emerald-500/10'
+                    : 'border-gray-800 bg-gray-900/60 hover:border-gray-700 hover:bg-gray-900');
 
             btn.innerHTML = `
                 <div class="flex items-center gap-2">
@@ -464,13 +467,13 @@
             const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
 
             const bubble = document.createElement('div');
-            bubble.className = 'rounded border border-gray-800 bg-gray-950 px-2 py-1';
+            bubble.className = 'rounded border border-gray-800 bg-gray-950/80 px-2 py-1.5';
 
             bubble.innerHTML = `
-                <div class="text-[10px] text-gray-400">
+                <div class="text-[10px] font-semibold text-gray-400">
                     <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
                 </div>
-                <div class="text-sm text-gray-100 whitespace-pre-line">
+                <div class="mt-0.5 text-sm text-gray-100 whitespace-pre-line leading-relaxed">
                     <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
                 </div>
             `;
