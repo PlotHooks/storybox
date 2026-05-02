@@ -18,8 +18,15 @@ window.liveModerationFeed = function liveModerationFeed(initialMessages) {
                     if (!id || this.seen.has(id)) return;
 
                     this.seen.add(id);
+                    event._isNew = true;
                     this.messages.unshift(event);
                     this.messages = this.messages.slice(0, 100);
+
+                    window.setTimeout(() => {
+                        const message = this.messages.find((item) => Number(item.id) === id);
+
+                        if (message) message._isNew = false;
+                    }, 8000);
                 });
         },
 
