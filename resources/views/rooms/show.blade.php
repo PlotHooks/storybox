@@ -129,8 +129,19 @@
 
                 {{-- Messages --}}
                 <div id="message-container" class="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_32rem)] px-3 py-3 md:px-4">
-                    @foreach ($messages as $message)
+                    @php
+                        $messageList = $messages instanceof \Illuminate\Support\Collection
+                            ? $messages->values()
+                            : collect($messages)->values();
+                    @endphp
+
+                    @foreach ($messageList as $message)
                         @php
+                            $prev = $loop->index > 0 ? $messageList->get($loop->index - 1) : null;
+                            $messageCharacterId = (int) ($message->character_id ?? 0);
+                            $prevCharacterId = (int) ($prev?->character_id ?? 0);
+                            $isGrouped = $messageCharacterId > 0 && $prevCharacterId === $messageCharacterId;
+
                             $c = $message->character;
                             $name = optional($c)->name ?? optional($message->user)->name ?? 'Unknown';
 
@@ -173,41 +184,78 @@
                             $initial = strtoupper(substr($name, 0, 1));
                         @endphp
 
-                        <div class="group rounded-md border-b border-gray-900/80 px-2 py-2 transition-colors hover:bg-gray-900/70 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
+                        <div class="group rounded-md px-2 {{ $isGrouped ? 'py-0.5' : 'border-b border-gray-900/80 py-2' }} transition-colors hover:bg-gray-900/70 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
                              data-user-id="{{ $message->user_id }}"
+                             data-character-id="{{ $messageCharacterId ?: '' }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}"
                              data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
                             <div class="flex items-start justify-between gap-3 leading-tight mb-0">
-                                <div class="flex min-w-0 items-start gap-2">
-                                    @if ($avatar)
-                                        <img src="{{ $avatar }}"
-                                             alt="{{ $name }} avatar"
-                                             loading="lazy"
-                                             referrerpolicy="no-referrer"
-                                             class="h-9 w-9 shrink-0 rounded-full object-cover">
+                                <div class="flex min-w-0 flex-1 items-start">
+                                    @if ($isGrouped)
+                                        <div class="w-9 shrink-0"></div>
                                     @else
-                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">
-                                            {{ $initial }}
-                                        </div>
+                                        @if ($avatar)
+                                            <img src="{{ $avatar }}"
+                                                 alt="{{ $name }} avatar"
+                                                 loading="lazy"
+                                                 referrerpolicy="no-referrer"
+                                                 class="h-9 w-9 shrink-0 rounded-full object-cover">
+                                        @else
+                                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">
+                                                {{ $initial }}
+                                            </div>
+                                        @endif
+
                                     @endif
 
-                                    <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-                                        <button type="button"
-                                            class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
-                                            data-style='{!! $nameStyleJson !!}'
-                                            data-character-id="{{ $c?->id ?? '' }}"
-                                            data-user-id="{{ $message->user_id ?? '' }}"
-                                            data-character-name="{{ e($name) }}"
-                                            data-character-avatar="{{ e($avatar ?? '') }}">
-                                            {{ $name }}
-                                        </button>
+                                    <div class="ml-2 min-w-0 flex-1">
+                                        @unless ($isGrouped)
+                                            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                                                <button type="button"
+                                                    class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                                    data-style='{!! $nameStyleJson !!}'
+                                                    data-character-id="{{ $c?->id ?? '' }}"
+                                                    data-user-id="{{ $message->user_id ?? '' }}"
+                                                    data-character-name="{{ e($name) }}"
+                                                    data-character-avatar="{{ e($avatar ?? '') }}">
+                                                    {{ $name }}
+                                                </button>
 
-                                        <span class="text-[10px] text-gray-600">{{ $message->created_at->diffForHumans() }}</span>
-                                        <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
-                                        <span class="msg-deleted text-[10px] text-gray-600 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                                <span class="text-[10px] text-gray-600">{{ $message->created_at->diffForHumans() }}</span>
+                                                <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
+                                                <span class="msg-deleted text-[10px] text-gray-600 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                            </div>
+                                        @endunless
+
+                                        @if ($isBlockedByViewer && ! $isAdminBlade)
+                                            <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                                Message hidden from a blocked character.
+                                            </div>
+                                        @endif
+
+                                        <div class="{{ $isGrouped ? 'mt-0' : 'mt-1' }} text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
+                                            <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $text }}</span>
+
+                                            @if ($canEdit)
+                                                <div class="msg-editbox hidden mt-2">
+                                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500"
+                                                              rows="3"></textarea>
+                                                    <div class="mt-2 flex gap-2 justify-end">
+                                                        <button type="button"
+                                                            class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                                            Cancel
+                                                        </button>
+                                                        <button type="button"
+                                                            class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                                            Save
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
 
@@ -241,32 +289,6 @@
                                 </div>
                             </div>
 
-                            @if ($isBlockedByViewer && ! $isAdminBlade)
-                                <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
-                                    Message hidden from a blocked character.
-                                </div>
-                            @endif
-
-                            <div class="mt-1 text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
-                                <span class="msg-body" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $text }}</span>
-
-                                @if ($canEdit)
-                                    <div class="msg-editbox hidden mt-2">
-                                        <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500"
-                                                  rows="3"></textarea>
-                                        <div class="mt-2 flex gap-2 justify-end">
-                                            <button type="button"
-                                                class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
-                                                Cancel
-                                            </button>
-                                            <button type="button"
-                                                class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
-                                                Save
-                                            </button>
-                                        </div>
-                                    </div>
-                                @endif
-                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -1139,6 +1161,9 @@
                     const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
                     const viewerCharacterId = getViewerCharacterId();
                     const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
+                    const previousRow = Array.from(container.querySelectorAll('.msg-row')).pop();
+                    const previousCharacterId = parseInt(previousRow?.dataset.characterId || '0', 10) || 0;
+                    const isGrouped = messageCharacterId > 0 && previousCharacterId === messageCharacterId;
                     const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
                     const blockClass = isBlockedByViewer ? 'text-gray-400 hover:text-gray-300' : 'text-red-400 hover:text-red-300';
                     const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
@@ -1146,9 +1171,10 @@
                         : '';
 
                     const div = document.createElement('div');
-                    div.className = "group rounded-md border-b border-gray-900/80 px-2 py-2 transition-colors hover:bg-gray-900/70 msg-row" + (isBlockedByViewer ? " opacity-70" : "");
+                    div.className = `group rounded-md px-2 ${isGrouped ? 'py-0.5' : 'border-b border-gray-900/80 py-2'} transition-colors hover:bg-gray-900/70 msg-row` + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
                     div.dataset.userId = String(msg.user_id ?? 0);
+                    div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
                     div.dataset.canEdit = canEdit ? '1' : '0';
                     div.dataset.deleted = isDeleted ? '1' : '0';
                     div.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
@@ -1160,12 +1186,10 @@
                     const safeCreatedAt = escHtml(msg.created_at_human ?? '');
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
-
-                    div.innerHTML = `
-                        <div class="flex items-start justify-between gap-3 leading-tight mb-0">
-                            <div class="flex min-w-0 items-start gap-2">
-                                ${avatarHtml(avatar, name)}
-
+                    const avatarMarkup = isGrouped ? `
+                                <div class="w-9 shrink-0"></div>
+                    ` : avatarHtml(avatar, name);
+                    const nameMarkup = isGrouped ? '' : `
                                 <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                                     <button type="button"
                                         class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
@@ -1180,6 +1204,35 @@
                                     <span class="text-[10px] text-gray-600">${safeCreatedAt}</span>
                                     <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
                                     <span class="msg-deleted text-[10px] text-gray-600 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                                </div>
+                    `;
+
+                    div.innerHTML = `
+                        <div class="flex items-start justify-between gap-3 leading-tight mb-0">
+                            <div class="flex min-w-0 flex-1 items-start">
+                                ${avatarMarkup}
+                                <div class="ml-2 min-w-0 flex-1">
+                                    ${nameMarkup}
+
+                                    ${isBlockedByViewer ? `
+                                        <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                            Message hidden from a blocked character.
+                                        </div>
+                                    ` : ''}
+
+                                    <div class="${isGrouped ? 'mt-0' : 'mt-1'} text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">
+                                        <span class="msg-body" data-style='${bodyStyle}'>${safeTextHtml}</span>
+
+                                        ${canEdit ? `
+                                            <div class="msg-editbox hidden mt-2">
+                                                <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500" rows="3"></textarea>
+                                                <div class="mt-2 flex gap-2 justify-end">
+                                                    <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Cancel</button>
+                                                    <button type="button" class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Save</button>
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
                                 </div>
                             </div>
 
@@ -1198,25 +1251,6 @@
                             `}
                         </div>
 
-                        ${isBlockedByViewer ? `
-                            <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
-                                Message hidden from a blocked character.
-                            </div>
-                        ` : ''}
-
-                        <div class="mt-1 text-sm md:text-base text-gray-100 whitespace-pre-line leading-relaxed ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">
-                            <span class="msg-body" data-style='${bodyStyle}'>${safeTextHtml}</span>
-
-                            ${canEdit ? `
-                                <div class="msg-editbox hidden mt-2">
-                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500" rows="3"></textarea>
-                                    <div class="mt-2 flex gap-2 justify-end">
-                                        <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Cancel</button>
-                                        <button type="button" class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Save</button>
-                                    </div>
-                                </div>
-                            ` : ''}
-                        </div>
                     `;
 
                     container.appendChild(div);

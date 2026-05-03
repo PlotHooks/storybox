@@ -143,6 +143,7 @@
         slug: null,
         conversationId: 0,
         lastId: 0,
+        lastCharacterId: 0,
         displayName: null,
         myCharacterId: 0,
         otherCharacterId: 0,
@@ -311,6 +312,7 @@
         activeDm.slug = null;
         activeDm.conversationId = 0;
         activeDm.lastId = 0;
+        activeDm.lastCharacterId = 0;
         activeDm.displayName = null;
         activeDm.myCharacterId = 0;
         activeDm.otherCharacterId = 0;
@@ -450,6 +452,7 @@
 
         if (initialLoad) {
             threadEl.innerHTML = '';
+            activeDm.lastCharacterId = 0;
         }
 
         if (!Array.isArray(msgs) || msgs.length === 0) {
@@ -478,6 +481,8 @@
                     ? m.character.name
                     : (m.user && m.user.name ? m.user.name : 'Unknown');
             const avatar = m.character?.avatar || '';
+            const characterId = parseInt(m.character?.id ?? m.character_id ?? 0, 10) || 0;
+            const isGrouped = characterId > 0 && activeDm.lastCharacterId === characterId;
 
             // Character settings (for fades/colors)
             let settings = (m.character && m.character.settings) ? m.character.settings : {};
@@ -495,18 +500,23 @@
 
             const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
             const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
-
-            const bubble = document.createElement('div');
-            bubble.className = 'rounded border border-gray-800 bg-gray-950/80 px-2 py-1.5';
-
-            bubble.innerHTML = `
-                <div class="flex items-start gap-2">
-                    ${avatarHtml(avatar, who, 'h-8 w-8')}
-                    <div class="min-w-0 flex-1">
+            const avatarMarkup = isGrouped ? '<div class="w-8 shrink-0"></div>' : avatarHtml(avatar, who, 'h-8 w-8');
+            const nameMarkup = isGrouped ? '' : `
                         <div class="text-[10px] font-semibold text-gray-400">
                             <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
                         </div>
-                        <div class="mt-0.5 text-sm text-gray-100 whitespace-pre-line leading-relaxed">
+            `;
+
+            const bubble = document.createElement('div');
+            bubble.className = `rounded bg-gray-950/80 px-2 ${isGrouped ? 'py-0.5' : 'border border-gray-800 py-1.5'}`;
+            bubble.dataset.characterId = characterId ? String(characterId) : '';
+
+            bubble.innerHTML = `
+                <div class="flex items-start">
+                    ${avatarMarkup}
+                    <div class="ml-2 min-w-0 flex-1">
+                        ${nameMarkup}
+                        <div class="${isGrouped ? 'mt-0' : 'mt-0.5'} text-sm text-gray-100 whitespace-pre-line leading-relaxed">
                             <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
                         </div>
                     </div>
@@ -518,6 +528,7 @@
             applyStylesIn(bubble);
 
             if (mid > activeDm.lastId) activeDm.lastId = mid;
+            activeDm.lastCharacterId = characterId;
         });
 
         if (wasNearBottom || initialLoad) {
@@ -531,6 +542,7 @@
         pollInFlight = false;
         seenMessageIds.clear();
         activeDm.lastId = 0;
+        activeDm.lastCharacterId = 0;
         activeDm.conversationId = 0;
         stopDmRealtime();
 
