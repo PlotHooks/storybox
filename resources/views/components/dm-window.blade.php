@@ -475,6 +475,7 @@
 
             const bodyRaw = (m.content ?? m.body ?? '').toString();
             const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
+            const bodyDisplay = bodyRaw.trim();
 
             const who =
                 (m.character && m.character.name)
@@ -500,25 +501,23 @@
 
             const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
             const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
-            const avatarMarkup = isGrouped ? '<div class="w-8 shrink-0"></div>' : avatarHtml(avatar, who, 'h-8 w-8');
+            const avatarMarkup = isGrouped ? '<div class="w-7 shrink-0"></div>' : `<div class="w-7 shrink-0">${avatarHtml(avatar, who, 'h-7 w-7')}</div>`;
             const nameMarkup = isGrouped ? '' : `
-                        <div class="text-[10px] font-semibold text-gray-400">
-                            <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                        <div class="mb-0 flex items-baseline gap-2">
+                            <span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
                         </div>
             `;
 
             const bubble = document.createElement('div');
-            bubble.className = `rounded bg-gray-950/80 px-2 ${isGrouped ? 'py-0.5' : 'border border-gray-800 py-1.5'}`;
+            bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-gray-800/50 py-0.5'}`;
             bubble.dataset.characterId = characterId ? String(characterId) : '';
 
             bubble.innerHTML = `
-                <div class="flex items-start">
-                    ${avatarMarkup}
-                    <div class="ml-2 min-w-0 flex-1">
-                        ${nameMarkup}
-                        <div class="${isGrouped ? 'mt-0' : 'mt-0.5'} text-sm text-gray-100 whitespace-pre-line leading-relaxed">
-                            <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
-                        </div>
+                ${avatarMarkup}
+                <div class="min-w-0 flex-1">
+                    ${nameMarkup}
+                    <div class="msg-body-wrapper mt-0 text-sm leading-snug">
+                        <span class="msg-body text-sm text-gray-400 leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
                     </div>
                 </div>
             `;
