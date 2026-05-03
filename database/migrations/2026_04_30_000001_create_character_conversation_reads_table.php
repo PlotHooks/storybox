@@ -27,7 +27,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['character_id', 'conversation_id']);
-            $table->index(['conversation_id', 'last_read_message_id']);
+            $table->index(
+    ['conversation_id', 'last_read_message_id'],
+    'ccr_conv_last_msg_idx'
+);
         });
     }
 
