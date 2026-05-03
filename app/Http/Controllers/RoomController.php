@@ -669,6 +669,7 @@ class RoomController extends Controller
             ->select([
                 'characters.id as character_id',
                 'characters.name as character_name',
+                'characters.avatar as avatar',
                 'characters.settings as settings',
                 'users.id as user_id',
                 'users.name as user_name',
@@ -702,6 +703,7 @@ class RoomController extends Controller
                 'rooms.updated_at',
                 'other_char.id as other_character_id',
                 'other_char.name as other_character_name',
+                'other_char.avatar as other_character_avatar',
                 'mine.character_id as my_character_id',
             ])
             ->selectRaw('

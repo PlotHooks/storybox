@@ -18,7 +18,27 @@ class CharacterForm
                     ->numeric(),
                 TextInput::make('name')
                     ->required(),
-                TextInput::make('avatar'),
+                TextInput::make('avatar')
+                    ->label('External avatar URL')
+                    ->helperText('Use an externally hosted http or https image URL. HTTPS is preferred.')
+                    ->maxLength(2048)
+                    ->rules([
+                        'nullable',
+                        'string',
+                        'max:2048',
+                        'url',
+                        function (string $attribute, mixed $value, \Closure $fail): void {
+                            if ($value === null || $value === '') {
+                                return;
+                            }
+
+                            $scheme = parse_url($value, PHP_URL_SCHEME);
+
+                            if (! in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+                                $fail('The avatar must be an http or https URL.');
+                            }
+                        },
+                    ]),
                 TextInput::make('slug')
                     ->required(),
                 Textarea::make('profile_html')

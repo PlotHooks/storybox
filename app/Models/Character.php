@@ -102,6 +102,22 @@ class Character extends Model
         return (bool) ($this->settings['fade_name'] ?? false);
     }
 
+    public function externalAvatarUrl(): ?string
+    {
+        if (! is_string($this->avatar) || trim($this->avatar) === '') {
+            return null;
+        }
+
+        $avatar = trim($this->avatar);
+        $scheme = parse_url($avatar, PHP_URL_SCHEME);
+
+        if (! in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+            return null;
+        }
+
+        return $avatar;
+    }
+
     public function textColors(): array
     {
         return array_values(array_filter([

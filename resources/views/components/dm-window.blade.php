@@ -168,6 +168,33 @@
             .replace(/'/g, '&#039;');
     }
 
+    function escapeAttr(s) {
+        return escapeHtml(s);
+    }
+
+    function isSafeAvatarUrl(url) {
+        if (!url) return false;
+
+        try {
+            const parsed = new URL(url, window.location.origin);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function avatarInitial(name) {
+        return (String(name || '?').trim().charAt(0) || '?').toUpperCase();
+    }
+
+    function avatarHtml(url, name, sizeClass = 'h-8 w-8', shapeClass = 'rounded-full') {
+        if (isSafeAvatarUrl(url)) {
+            return `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)} avatar" loading="lazy" referrerpolicy="no-referrer" class="${sizeClass} shrink-0 ${shapeClass} object-cover">`;
+        }
+
+        return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">${escapeHtml(avatarInitial(name))}</div>`;
+    }
+
     function setThreadEnabled(enabled) {
         if (inputEl) inputEl.disabled = !enabled;
         if (sendBtn) sendBtn.disabled = !enabled;
@@ -314,6 +341,7 @@
             const conversationId = parseInt(r.room_id || 0, 10) || 0;
             const slug = r.slug || '';
             const name = r.other_character_name || 'DM';
+            const avatar = r.other_character_avatar || '';
             const unreadCount = parseUnreadCount(r.unread_count);
 
             const btn = document.createElement('button');
@@ -330,6 +358,7 @@
 
             btn.innerHTML = `
                 <div class="flex items-center gap-2">
+                    ${avatarHtml(avatar, name, 'h-7 w-7')}
                     <div class="min-w-0 flex-1 text-xs text-gray-100 truncate">${escapeHtml(name)}</div>
                     <span
                         data-dm-unread-badge="${conversationId}"
@@ -448,6 +477,7 @@
                 (m.character && m.character.name)
                     ? m.character.name
                     : (m.user && m.user.name ? m.user.name : 'Unknown');
+            const avatar = m.character?.avatar || '';
 
             // Character settings (for fades/colors)
             let settings = (m.character && m.character.settings) ? m.character.settings : {};
@@ -470,11 +500,16 @@
             bubble.className = 'rounded border border-gray-800 bg-gray-950/80 px-2 py-1.5';
 
             bubble.innerHTML = `
-                <div class="text-[10px] font-semibold text-gray-400">
-                    <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
-                </div>
-                <div class="mt-0.5 text-sm text-gray-100 whitespace-pre-line leading-relaxed">
-                    <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
+                <div class="flex items-start gap-2">
+                    ${avatarHtml(avatar, who, 'h-8 w-8')}
+                    <div class="min-w-0 flex-1">
+                        <div class="text-[10px] font-semibold text-gray-400">
+                            <span class="msg-name" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                        </div>
+                        <div class="mt-0.5 text-sm text-gray-100 whitespace-pre-line leading-relaxed">
+                            <span class="msg-body" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyRaw)}</span>
+                        </div>
+                    </div>
                 </div>
             `;
 

@@ -8,6 +8,34 @@ use Illuminate\Support\Facades\DB;
 
 class CharacterController extends Controller
 {
+    private function avatarValidationRules(): array
+    {
+        return [
+            'nullable',
+            'string',
+            'max:2048',
+            'url',
+            function (string $attribute, mixed $value, \Closure $fail): void {
+                if ($value === null || $value === '') {
+                    return;
+                }
+
+                $scheme = parse_url($value, PHP_URL_SCHEME);
+
+                if (! in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+                    $fail('The avatar must be an http or https URL.');
+                }
+            },
+        ];
+    }
+
+    private function normalizeAvatar(?string $avatar): ?string
+    {
+        $avatar = trim((string) $avatar);
+
+        return $avatar === '' ? null : $avatar;
+    }
+
     public function index()
     {
         $characters = auth()->user()
@@ -22,13 +50,15 @@ class CharacterController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:100',
+            'avatar' => $this->avatarValidationRules(),
         ]);
 
         auth()->user()->characters()->create([
-            'name' => $request->name,
-            'slug' => str()->slug($request->name) . '-' . uniqid(),
+            'name' => $validated['name'],
+            'avatar' => $this->normalizeAvatar($validated['avatar'] ?? null),
+            'slug' => str()->slug($validated['name']) . '-' . uniqid(),
         ]);
 
         return redirect()
@@ -72,6 +102,7 @@ class CharacterController extends Controller
         abort_if($character->user_id !== auth()->id(), 403);
 
         $request->validate([
+            'avatar' => $this->avatarValidationRules(),
             'text_color_1' => ['required', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'text_color_2' => ['nullable', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'text_color_3' => ['nullable', 'regex:/^#?[0-9a-fA-F]{6}$/'],
@@ -97,9 +128,15 @@ class CharacterController extends Controller
             'fade_name'    => $request->boolean('fade_name'),
         ]);
 
-        $character->update([
+        $updates = [
             'settings' => $updated,
-        ]);
+        ];
+
+        if ($request->has('avatar')) {
+            $updates['avatar'] = $this->normalizeAvatar($request->input('avatar'));
+        }
+
+        $character->update($updates);
 
         return redirect()
             ->route('characters.index')

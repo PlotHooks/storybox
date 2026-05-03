@@ -32,6 +32,19 @@
                             <div class="text-sm text-red-400 mt-2">{{ $message }}</div>
                         @enderror
 
+                        <input
+                            type="url"
+                            name="avatar"
+                            maxlength="2048"
+                            placeholder="External avatar URL (https preferred)"
+                            value="{{ old('avatar') }}"
+                            class="mt-3 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-gray-100 placeholder:text-gray-600"
+                        />
+                        <div class="mt-1 text-xs text-gray-500">Externally hosted image only. No uploads.</div>
+                        @error('avatar')
+                            <div class="text-sm text-red-400 mt-2">{{ $message }}</div>
+                        @enderror
+
                         <div class="mt-3">
                             <x-primary-button>Create</x-primary-button>
                         </div>
@@ -52,15 +65,32 @@
                                 $c4 = $s['text_color_4'] ?? '#000000';
                                 $fadeMsg = (bool) ($s['fade_message'] ?? false);
                                 $fadeName = (bool) ($s['fade_name'] ?? false);
+                                $avatar = $char->externalAvatarUrl();
                             @endphp
 
                             <div class="border border-gray-800 rounded-lg p-3">
                                 <div class="flex items-center justify-between gap-3">
-                                    <div class="text-gray-100 font-semibold">
-                                        {{ $char->name }}
-                                        @if ($activeId === $char->id)
-                                            <span class="ml-2 text-xs text-teal-300">(active)</span>
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        @if ($avatar)
+                                            <img src="{{ $avatar }}"
+                                                 alt="{{ $char->name }} avatar"
+                                                 loading="lazy"
+                                                 referrerpolicy="no-referrer"
+                                                 class="h-14 w-14 shrink-0 rounded-lg object-cover">
+                                        @else
+                                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-800 bg-gray-950 text-lg font-semibold text-gray-500">
+                                                {{ strtoupper(substr($char->name, 0, 1)) }}
+                                            </div>
                                         @endif
+
+                                        <div class="min-w-0">
+                                            <div class="truncate text-gray-100 font-semibold">
+                                                {{ $char->name }}
+                                                @if ($activeId === $char->id)
+                                                    <span class="ml-2 text-xs text-teal-300">(active)</span>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <form method="POST" action="{{ route('characters.switch', $char) }}">
@@ -76,6 +106,20 @@
                                     <div class="text-xs text-gray-400 mb-2">
                                         Style (Color 1 required. Color 2+ enable fades.)
                                     </div>
+
+                                    <label class="mb-3 block text-xs text-gray-300">
+                                        External avatar URL
+                                        <input type="url"
+                                               name="avatar"
+                                               maxlength="2048"
+                                               value="{{ old('avatar', $char->avatar) }}"
+                                               placeholder="https://example.com/avatar.png"
+                                               class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600" />
+                                        <span class="mt-1 block text-[11px] text-gray-500">Use an externally hosted image URL. HTTPS is preferred.</span>
+                                        @error('avatar')
+                                            <span class="mt-1 block text-sm text-red-400">{{ $message }}</span>
+                                        @enderror
+                                    </label>
 
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <label class="text-xs text-gray-300">

@@ -22,6 +22,7 @@ class CharactersTable
                 TextColumn::make('name')
                     ->searchable(),
                 TextColumn::make('avatar')
+                    ->label('External avatar URL')
                     ->searchable(),
                 TextColumn::make('slug')
                     ->searchable(),

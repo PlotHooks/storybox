@@ -16,6 +16,7 @@ class CharacterInfolist
                     ->numeric(),
                 TextEntry::make('name'),
                 TextEntry::make('avatar')
+                    ->label('External avatar URL')
                     ->placeholder('-'),
                 TextEntry::make('slug'),
                 TextEntry::make('profile_html')

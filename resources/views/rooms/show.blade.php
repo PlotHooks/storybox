@@ -169,6 +169,8 @@
                             $blockClass = $isBlockedByViewer
                                 ? 'text-gray-400 hover:text-gray-300'
                                 : 'text-red-400 hover:text-red-300';
+                            $avatar = $c?->externalAvatarUrl();
+                            $initial = strtoupper(substr($name, 0, 1));
                         @endphp
 
                         <div class="group rounded-md border-b border-gray-900/80 px-2 py-2 transition-colors hover:bg-gray-900/70 msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
@@ -179,19 +181,34 @@
                              data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
                             <div class="flex items-start justify-between gap-3 leading-tight mb-0">
-                                <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-                                    <button type="button"
-                                        class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
-                                        data-style='{!! $nameStyleJson !!}'
-                                        data-character-id="{{ $c?->id ?? '' }}"
-                                        data-user-id="{{ $message->user_id ?? '' }}"
-                                        data-character-name="{{ e($name) }}">
-                                        {{ $name }}
-                                    </button>
+                                <div class="flex min-w-0 items-start gap-2">
+                                    @if ($avatar)
+                                        <img src="{{ $avatar }}"
+                                             alt="{{ $name }} avatar"
+                                             loading="lazy"
+                                             referrerpolicy="no-referrer"
+                                             class="h-9 w-9 shrink-0 rounded-full object-cover">
+                                    @else
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">
+                                            {{ $initial }}
+                                        </div>
+                                    @endif
 
-                                    <span class="text-[10px] text-gray-600">{{ $message->created_at->diffForHumans() }}</span>
-                                    <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
-                                    <span class="msg-deleted text-[10px] text-gray-600 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                    <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                                        <button type="button"
+                                            class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                            data-style='{!! $nameStyleJson !!}'
+                                            data-character-id="{{ $c?->id ?? '' }}"
+                                            data-user-id="{{ $message->user_id ?? '' }}"
+                                            data-character-name="{{ e($name) }}"
+                                            data-character-avatar="{{ e($avatar ?? '') }}">
+                                            {{ $name }}
+                                        </button>
+
+                                        <span class="text-[10px] text-gray-600">{{ $message->created_at->diffForHumans() }}</span>
+                                        <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
+                                        <span class="msg-deleted text-[10px] text-gray-600 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                    </div>
                                 </div>
 
                                 <div class="flex shrink-0 items-center gap-1 text-[10px] opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -336,8 +353,13 @@
     <div id="char-popover"
          class="hidden fixed z-[9999] w-64 rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
         <div class="p-3">
-            <div id="char-popover-title" class="font-semibold text-gray-100 text-sm"></div>
-            <div id="char-popover-sub" class="text-[10px] text-gray-400 mt-1">ID verification</div>
+            <div class="flex items-start gap-3">
+                <div id="char-popover-avatar" class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-800 bg-gray-950 text-2xl font-semibold text-gray-500"></div>
+                <div class="min-w-0">
+                    <div id="char-popover-title" class="font-semibold text-gray-100 text-sm"></div>
+                    <div id="char-popover-sub" class="text-[10px] text-gray-400 mt-1">ID verification</div>
+                </div>
+            </div>
 
             <div class="mt-3 flex gap-2 justify-end">
                 <a id="char-popover-profile"
@@ -498,6 +520,29 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function isSafeAvatarUrl(url) {
+            if (!url) return false;
+
+            try {
+                const parsed = new URL(url, window.location.origin);
+                return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function avatarInitial(name) {
+            return (String(name || '?').trim().charAt(0) || '?').toUpperCase();
+        }
+
+        function avatarHtml(url, name, sizeClass = 'h-9 w-9', shapeClass = 'rounded-full') {
+            if (isSafeAvatarUrl(url)) {
+                return `<img src="${escAttr(url)}" alt="${escAttr(name)} avatar" loading="lazy" referrerpolicy="no-referrer" class="${sizeClass} shrink-0 ${shapeClass} object-cover">`;
+            }
+
+            return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">${escHtml(avatarInitial(name))}</div>`;
+        }
+
         function setCharacterBlock(blockerId, blockedId, shouldBlock) {
             const action = shouldBlock ? "Block this character?" : "Unblock this character?";
             if (!confirm(action)) return;
@@ -530,6 +575,7 @@
         /* Popover behavior */
         const pop = document.getElementById('char-popover');
         const popTitle = document.getElementById('char-popover-title');
+        const popAvatar = document.getElementById('char-popover-avatar');
         const popProfile = document.getElementById('char-popover-profile');
         const popDm = document.getElementById('char-popover-dm');
 
@@ -570,6 +616,7 @@
             const userId = userIdRaw ? parseInt(userIdRaw, 10) : null;
 
             const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
+            const avatar = (triggerEl.dataset.characterAvatar || '').trim();
 
             // Optional debug (safe: values exist now)
             // console.log('popover trigger dataset:', { characterId, userIdRaw, userId, characterName });
@@ -577,6 +624,9 @@
             const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
 
             if (popTitle) popTitle.textContent = `${characterName} #${sigil}`;
+            if (popAvatar) {
+                popAvatar.innerHTML = avatarHtml(avatar, characterName, 'h-20 w-20', 'rounded-lg');
+            }
           
             const isMine = (userId && userId === currentUserId);
             if (popProfile) {
@@ -1069,6 +1119,7 @@
                     const name = (msg.character && msg.character.name)
                         ? msg.character.name
                         : (msg.user?.name ?? 'Unknown');
+                    const avatar = msg.character?.avatar || '';
 
                     let s = msg.character?.settings || {};
                     if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
@@ -1105,25 +1156,31 @@
                     const safeNameAttr = escAttr(name);
                     const safeNameHtml = escHtml(name);
                     const safeTextHtml = escHtml(text);
+                    const safeAvatarAttr = escAttr(avatar);
                     const safeCreatedAt = escHtml(msg.created_at_human ?? '');
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
 
                     div.innerHTML = `
                         <div class="flex items-start justify-between gap-3 leading-tight mb-0">
-                            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-                                <button type="button"
-                                    class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
-                                    data-style='${nameStyle}'
-                                    data-character-id="${messageCharacterId || ''}"
-                                    data-user-id="${msg.user_id ?? ''}"
-                                    data-character-name="${safeNameAttr}">
-                                    ${safeNameHtml}
-                                </button>
+                            <div class="flex min-w-0 items-start gap-2">
+                                ${avatarHtml(avatar, name)}
 
-                                <span class="text-[10px] text-gray-600">${safeCreatedAt}</span>
-                                <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
-                                <span class="msg-deleted text-[10px] text-gray-600 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                                <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                                    <button type="button"
+                                        class="char-trigger msg-name text-sm md:text-base font-semibold text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                        data-style='${nameStyle}'
+                                        data-character-id="${messageCharacterId || ''}"
+                                        data-user-id="${msg.user_id ?? ''}"
+                                        data-character-name="${safeNameAttr}"
+                                        data-character-avatar="${safeAvatarAttr}">
+                                        ${safeNameHtml}
+                                    </button>
+
+                                    <span class="text-[10px] text-gray-600">${safeCreatedAt}</span>
+                                    <span class="msg-edited text-[10px] text-gray-600 hidden">(edited)</span>
+                                    <span class="msg-deleted text-[10px] text-gray-600 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                                </div>
                             </div>
 
                             ${canEdit ? `
@@ -1228,25 +1285,33 @@
                     const charId = parseInt(p.character_id, 10) || 0;
                     const sigil = shortSigil(charId);
                     const displayName = (p.character_name ?? ('#' + charId));
+                    const avatar = p.avatar || '';
 
                     const row = document.createElement('div');
                     row.className = 'char-row rounded border border-gray-800/80 bg-gray-900/50 px-3 py-2';
 
                     const safeNameAttr = escAttr(displayName);
+                    const safeAvatarAttr = escAttr(avatar);
                     const safeDisplayName = escHtml(displayName);
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
 
                     row.innerHTML = `
-                        <button type="button"
-                            class="char-trigger msg-name text-sm font-semibold hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
-                            data-style='${nameStyle}'
-                            data-character-id="${p.character_id ?? ''}"
-                            data-user-id="${p.user_id ?? ''}"
-                            data-character-name="${safeNameAttr}">
-                            ${safeDisplayName}
-                        </button>
+                        <div class="flex items-center gap-2">
+                            ${avatarHtml(avatar, displayName, 'h-8 w-8')}
+                            <div class="min-w-0">
+                                <button type="button"
+                                    class="char-trigger msg-name text-sm font-semibold hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                    data-style='${nameStyle}'
+                                    data-character-id="${p.character_id ?? ''}"
+                                    data-user-id="${p.user_id ?? ''}"
+                                    data-character-name="${safeNameAttr}"
+                                    data-character-avatar="${safeAvatarAttr}">
+                                    ${safeDisplayName}
+                                </button>
 
-                        <div class="mt-1 text-[10px] text-gray-500">ID #${sigil}</div>
+                                <div class="mt-1 text-[10px] text-gray-500">ID #${sigil}</div>
+                            </div>
+                        </div>
                     `;
 
                     userListEl.appendChild(row);
