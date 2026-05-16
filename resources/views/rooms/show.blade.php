@@ -6,11 +6,11 @@
         </h2>
     </x-slot>
 
-    <div class="py-4 bg-gray-950/60">
-        <div class="max-w-none w-full mx-auto h-[calc(100vh-6rem)] flex flex-col lg:flex-row gap-3 px-2 md:px-4">
+    <div class="box-border h-[calc(100dvh-7.625rem)] min-h-0 overflow-hidden py-4 bg-gray-950/60">
+        <div class="max-w-none w-full mx-auto h-full min-h-0 overflow-hidden flex flex-col lg:flex-row gap-3 px-2 md:px-4">
 
             {{-- LEFT COLUMN --}}
-            <div id="left-panel" class="w-full lg:w-72 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
+            <div id="left-panel" class="w-full lg:w-72 min-h-0 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
                 <div class="px-4 py-3 border-b border-gray-800 bg-gray-900/80">
                     <div class="flex items-center justify-between gap-3">
                         <div>
@@ -28,7 +28,7 @@
                         <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Character Info</button>
                     </div>
                 </div>
-                <div class="flex-1 overflow-y-auto px-4 py-4 text-xs text-gray-300">
+                <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-gray-300">
                     <div data-context-panel="world" class="context-tool-panel rounded-md border border-gray-800 bg-gray-900/70 p-3">
                         <div class="flex items-center justify-between gap-2">
                             <h3 class="text-sm font-semibold text-gray-100">World Book</h3>
@@ -57,10 +57,10 @@
             </div>
 
             {{-- CENTER --}}
-            <div class="flex-1 bg-gray-950 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden ring-1 ring-emerald-500/10">
+            <div class="flex-1 min-h-0 bg-gray-950 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden ring-1 ring-emerald-500/10">
 
                 {{-- Top bar --}}
-                <div class="flex flex-col gap-3 border-b border-gray-800 bg-gray-900/90 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div class="shrink-0 flex flex-col gap-3 border-b border-gray-800 bg-gray-900/90 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div class="min-w-0">
                         <div class="flex items-center gap-2">
                             <span class="h-2 w-2 rounded-sm bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.75)]"></span>
@@ -128,7 +128,7 @@
                 </div>
 
                 {{-- Messages --}}
-                <div id="message-container" class="flex-1 block overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_32rem)] px-3 py-3 md:px-4">
+                <div id="message-container" class="flex-1 min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_32rem)] px-3 py-3 md:px-4">
                     @php
                         $messageList = $messages instanceof \Illuminate\Support\Collection
                             ? $messages->values()
@@ -288,7 +288,7 @@
                 </div>
 
                 {{-- Send --}}
-                <div class="border-t border-gray-800 bg-gray-900/95 p-3">
+                <div class="shrink-0 border-t border-gray-800 bg-gray-900/95 p-3">
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
@@ -316,7 +316,7 @@
             </div>
 
             {{-- RIGHT --}}
-            <div id="right-panel" class="w-full lg:w-80 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
+            <div id="right-panel" class="w-full lg:w-80 min-h-0 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
 
                 <div class="border-b border-gray-800 bg-gray-900/80 px-3 py-3">
                     <div class="mb-2 flex items-center justify-between gap-3">
@@ -329,7 +329,7 @@
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto text-xs">
+                <div class="flex-1 min-h-0 overflow-y-auto text-xs">
 
                     <div id="panel-rooms" class="p-2">
                         @foreach ($sidebarRooms as $r)
