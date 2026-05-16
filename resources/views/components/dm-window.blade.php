@@ -1,6 +1,6 @@
 <div
     id="dm-window"
-    class="hidden fixed z-50 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl flex flex-col overflow-hidden ring-1 ring-emerald-500/10"
+    class="hidden fixed z-50 bg-[#0b0b0c] border border-[#2a241a] rounded-md shadow-2xl flex flex-col overflow-hidden ring-1 ring-amber-500/10"
     style="
         width: 420px;
         height: 520px;
@@ -12,11 +12,11 @@
     <!-- HEADER (drag handle) -->
     <div
         id="dm-drag-handle"
-        class="cursor-move flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-900/95"
+        class="cursor-move flex items-center justify-between px-3 py-2 border-b border-[#2a241a] bg-[#101012]"
     >
         <div>
-            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-400">Private Link</div>
-            <div class="text-sm text-gray-100 font-semibold">
+            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Private Link</div>
+            <div class="text-sm text-[#f2dfb5] font-semibold">
                 Direct Messages
             </div>
         </div>
@@ -24,7 +24,7 @@
         <div class="flex gap-2">
             <button
                 id="dm-refresh-btn"
-                class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-gray-400 hover:border-gray-700 hover:text-white text-sm"
+                class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] text-sm"
                 type="button"
                 title="Refresh"
             >
@@ -33,7 +33,7 @@
 
             <button
                 id="dm-close-btn"
-                class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-gray-400 hover:border-gray-700 hover:text-white text-sm"
+                class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] text-sm"
                 type="button"
                 title="Close"
             >
@@ -46,19 +46,19 @@
     <div class="flex-1 flex overflow-hidden">
 
         <!-- LEFT: conversation list -->
-        <div class="w-44 border-r border-gray-800 bg-gray-950 overflow-y-auto text-xs text-gray-200">
-            <div class="p-2 border-b border-gray-800 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+        <div class="w-44 border-r border-[#2a241a] bg-[#0b0b0c] overflow-y-auto text-xs text-[#d6c8ad]">
+            <div class="p-2 border-b border-[#2a241a] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675]">
                 Conversations
             </div>
 
             <div id="dm-convo-list" class="p-2 space-y-2">
-                <div class="text-gray-500">Loading...</div>
+                <div class="text-[#8f8675]">Loading...</div>
             </div>
         </div>
 
         <!-- RIGHT: message area -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <div class="px-3 py-2 border-b border-gray-800 bg-gray-900/70 text-xs text-gray-300 flex items-center justify-between gap-2">
+            <div class="px-3 py-2 border-b border-[#2a241a] bg-[#101012] text-xs text-[#d6c8ad] flex items-center justify-between gap-2">
                 <div id="dm-thread-header" class="min-w-0 truncate">
                     Select a conversation.
                 </div>
@@ -72,15 +72,15 @@
                 </button>
             </div>
 
-            <div id="dm-thread" class="flex-1 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_20rem)] p-3 text-sm text-gray-100 overflow-y-auto space-y-2">
-                <div class="text-gray-500">No conversation selected.</div>
+            <div id="dm-thread" class="flex-1 bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.035),transparent_22rem)] p-3 text-sm text-[#d6c8ad] overflow-y-auto space-y-2">
+                <div class="text-[#8f8675]">No conversation selected.</div>
             </div>
 
-            <div class="border-t border-gray-800 bg-gray-900/95 p-2">
+            <div class="border-t border-[#2a241a] bg-[#101012] p-2">
                 <div class="flex gap-2">
                     <textarea
                         id="dm-input"
-                        class="flex-1 resize-none rounded bg-gray-950 border-gray-700 text-gray-200 text-sm placeholder:text-gray-600 focus:border-emerald-500 focus:ring-emerald-500"
+                        class="flex-1 resize-none rounded bg-[#0b0b0c] border-[#332817] text-[#d6c8ad] text-sm placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
                         rows="2"
                         placeholder="Message..."
                         disabled
@@ -89,13 +89,13 @@
                     <button
                         id="dm-send-btn"
                         type="button"
-                        class="rounded border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled
                     >
                         Send
                     </button>
                 </div>
-                <div class="text-[10px] text-gray-500 mt-1">
+                <div class="text-[10px] text-amber-500/70 mt-1">
                     Enter sends. Shift+Enter newline.
                 </div>
             </div>
@@ -193,7 +193,7 @@
             return `<img src="${escapeAttr(url)}" alt="${escapeAttr(name)} avatar" loading="lazy" referrerpolicy="no-referrer" class="${sizeClass} shrink-0 ${shapeClass} object-cover">`;
         }
 
-        return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">${escapeHtml(avatarInitial(name))}</div>`;
+        return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-[#332817] bg-[#0b0b0c] text-xs font-semibold text-[#8f8675]">${escapeHtml(avatarInitial(name))}</div>`;
     }
 
     function setThreadEnabled(enabled) {
@@ -230,9 +230,9 @@
         if (!canToggle) return;
 
         blockToggleBtn.textContent = activeDm.isBlockedByViewer ? 'Blocked' : 'Block';
-        blockToggleBtn.className = 'shrink-0 rounded border border-gray-800 bg-gray-950/70 px-2 py-1 text-xs ' + (
+        blockToggleBtn.className = 'shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-xs ' + (
             activeDm.isBlockedByViewer
-                ? 'text-gray-400 hover:text-gray-300'
+                ? 'text-[#8f8675] hover:text-[#d6c8ad]'
                 : 'text-red-400 hover:text-red-300'
         );
     }
@@ -322,7 +322,7 @@
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
         syncDmBlockToggle();
-        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">No conversation selected.</div>`;
+        if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;
         if (inputEl) inputEl.value = '';
         setThreadEnabled(false);
     }
@@ -332,7 +332,7 @@
 
         if (!Array.isArray(rooms) || rooms.length === 0) {
             updateGlobalUnreadBadgeFromRooms([]);
-            listEl.innerHTML = `<div class="text-gray-500">No DMs yet.</div>`;
+            listEl.innerHTML = `<div class="text-[#8f8675]">No DMs yet.</div>`;
             return;
         }
 
@@ -355,13 +355,13 @@
             btn.className =
                 'w-full text-left rounded border px-2 py-2 transition-colors ' +
                 (isActive
-                    ? 'border-emerald-500/40 bg-emerald-500/10'
-                    : 'border-gray-800 bg-gray-900/60 hover:border-gray-700 hover:bg-gray-900');
+                    ? 'border-amber-500/40 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]'
+                    : 'border-[#332817] bg-[#101012] hover:border-amber-500/40 hover:bg-[#141416]');
 
             btn.innerHTML = `
                 <div class="flex items-center gap-2">
                     ${avatarHtml(avatar, name, 'h-7 w-7')}
-                    <div class="min-w-0 flex-1 text-xs text-gray-100 truncate">${escapeHtml(name)}</div>
+                    <div class="min-w-0 flex-1 text-xs text-[#d6c8ad] truncate">${escapeHtml(name)}</div>
                     <span
                         data-dm-unread-badge="${conversationId}"
                         data-unread-count="${unreadCount}"
@@ -369,7 +369,7 @@
                         ${formatUnreadCount(unreadCount)}
                     </span>
                 </div>
-                <div class="text-[10px] text-gray-500 truncate">${escapeHtml(slug)}</div>
+                <div class="text-[10px] text-[#8f8675] truncate">${escapeHtml(slug)}</div>
             `;
 
             btn.addEventListener('click', () => {
@@ -387,7 +387,7 @@
         if (!isOpen()) return;
 
         if (!listEl) return;
-        listEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+        listEl.innerHTML = `<div class="text-[#8f8675]">Loading...</div>`;
 
         fetch('/dms', {
             headers: { 'Accept': 'application/json' },
@@ -457,7 +457,7 @@
 
         if (!Array.isArray(msgs) || msgs.length === 0) {
             if (initialLoad) {
-                threadEl.innerHTML = `<div class="text-gray-500">No messages yet.</div>`;
+                threadEl.innerHTML = `<div class="text-[#8f8675]">No messages yet.</div>`;
             }
             return;
         }
@@ -509,7 +509,7 @@
             `;
 
             const bubble = document.createElement('div');
-            bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-gray-800/50 py-0.5'}`;
+            bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-[#16120c] py-0.5'}`;
             bubble.dataset.characterId = characterId ? String(characterId) : '';
 
             bubble.innerHTML = `
@@ -517,7 +517,7 @@
                 <div class="min-w-0 flex-1">
                     ${nameMarkup}
                     <div class="msg-body-wrapper mt-0 text-sm leading-snug">
-                        <span class="msg-body text-sm text-gray-400 leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
+                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
                     </div>
                 </div>
             `;
@@ -700,7 +700,7 @@
 
         if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
         syncDmBlockToggle();
-        if (threadEl) threadEl.innerHTML = `<div class="text-gray-500">Loading...</div>`;
+        if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">Loading...</div>`;
 
         setThreadEnabled(!!activeDm.myCharacterId);
 

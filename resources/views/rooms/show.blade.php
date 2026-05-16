@@ -1,83 +1,83 @@
 {{-- resources/views/rooms/show.blade.php --}}
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-[#f2dfb5] leading-tight">
             {{ $room->name }}
         </h2>
     </x-slot>
 
-    <div class="box-border h-[calc(100dvh-7.625rem)] min-h-0 overflow-hidden py-4 bg-gray-950/60">
+    <div class="box-border h-[calc(100dvh-7.625rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
         <div class="max-w-none w-full mx-auto h-full min-h-0 overflow-hidden flex flex-col lg:flex-row gap-3 px-2 md:px-4">
 
             {{-- LEFT COLUMN --}}
-            <div id="left-panel" class="w-full lg:w-72 min-h-0 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
-                <div class="px-4 py-3 border-b border-gray-800 bg-gray-900/80">
+            <div id="left-panel" class="w-full lg:w-72 min-h-0 bg-[#0b0b0c] text-[#d6c8ad] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden">
+                <div class="px-4 py-3 border-b border-[#2a241a] bg-[#101012]">
                     <div class="flex items-center justify-between gap-3">
                         <div>
-                            <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Context Dock</div>
-                            <div class="mt-1 text-sm font-semibold text-gray-100">Room tools</div>
+                            <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Context Dock</div>
+                            <div class="mt-1 text-sm font-semibold text-[#f2dfb5]">Room tools</div>
                         </div>
-                        <span class="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">px</span>
+                        <span class="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">px</span>
                     </div>
                 </div>
-                <div class="border-b border-gray-800 bg-gray-950/80 p-2">
-                    <div class="grid grid-cols-2 gap-1 text-[11px] font-medium text-gray-300">
-                        <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-left text-emerald-200 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.08)]">World Book</button>
-                        <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Pinned Notes</button>
-                        <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Room Rules</button>
-                        <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200">Character Info</button>
+                <div class="border-b border-[#2a241a] bg-[#0b0b0c] p-2">
+                    <div class="grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
+                        <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
+                        <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
+                        <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Rules</button>
+                        <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Character Info</button>
                     </div>
                 </div>
-                <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-gray-300">
-                    <div data-context-panel="world" class="context-tool-panel rounded-md border border-gray-800 bg-gray-900/70 p-3">
+                <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-[#d6c8ad]">
+                    <div data-context-panel="world" class="context-tool-panel rounded-md border border-[#332817] bg-[#101012] p-3">
                         <div class="flex items-center justify-between gap-2">
-                            <h3 class="text-sm font-semibold text-gray-100">World Book</h3>
-                            <span class="text-[10px] uppercase tracking-[0.18em] text-gray-500">Draft</span>
+                            <h3 class="text-sm font-semibold text-[#f2dfb5]">World Book</h3>
+                            <span class="text-[10px] uppercase tracking-[0.18em] text-[#8f8675]">Draft</span>
                         </div>
-                        <p class="mt-2 leading-relaxed text-gray-400">
+                        <p class="mt-2 leading-relaxed text-[#8f8675]">
                             Shared lore, locations, NPC notes, and timeline anchors will live here.
                         </p>
                         <div class="mt-3 space-y-2">
-                            <div class="rounded border border-gray-800 bg-gray-950/70 p-2">
-                                <div class="text-[11px] font-semibold text-emerald-300">Sample entry</div>
-                                <p class="mt-1 leading-relaxed text-gray-400">A short room-specific note can be pinned for quick reference during play.</p>
+                            <div class="rounded border border-[#2a241a] bg-[#0b0b0c] p-2">
+                                <div class="text-[11px] font-semibold text-amber-300">Sample entry</div>
+                                <p class="mt-1 leading-relaxed text-[#8f8675]">A short room-specific note can be pinned for quick reference during play.</p>
                             </div>
                         </div>
                     </div>
-                    <div data-context-panel="notes" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                    <div data-context-panel="notes" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Pinned Notes are coming soon.
                     </div>
-                    <div data-context-panel="rules" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                    <div data-context-panel="rules" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Room Rules are coming soon.
                     </div>
-                    <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-gray-800 bg-gray-900/40 p-3 text-gray-500">
+                    <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Character Info is coming soon.
                     </div>
                 </div>
             </div>
 
             {{-- CENTER --}}
-            <div class="flex-1 min-h-0 bg-gray-950 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden ring-1 ring-emerald-500/10">
+            <div class="flex-1 min-h-0 bg-[#0b0b0c] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden ring-1 ring-amber-500/10">
 
                 {{-- Top bar --}}
-                <div class="shrink-0 flex flex-col gap-3 border-b border-gray-800 bg-gray-900/90 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div class="shrink-0 flex flex-col gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div class="min-w-0">
                         <div class="flex items-center gap-2">
-                            <span class="h-2 w-2 rounded-sm bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.75)]"></span>
-                            <h1 class="truncate text-lg font-semibold text-gray-50 md:text-xl">{{ $room->name }}</h1>
+                            <span class="h-2 w-2 rounded-sm bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.55)]"></span>
+                            <h1 class="truncate text-lg font-semibold text-[#f2dfb5] md:text-xl">{{ $room->name }}</h1>
                         </div>
                         @if (! empty($room->description))
-                            <p class="mt-1 max-w-3xl truncate text-sm text-gray-400">{{ $room->description }}</p>
+                            <p class="mt-1 max-w-3xl truncate text-sm text-[#8f8675]">{{ $room->description }}</p>
                         @endif
-                        <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-                            <span class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
-                                Owner <span class="font-medium text-gray-300">{{ optional($room->owner)->name ?? 'Unknown' }}</span>
+                        <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#8f8675]">
+                            <span class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
+                                Owner <span class="font-medium text-[#d6c8ad]">{{ optional($room->owner)->name ?? 'Unknown' }}</span>
                             </span>
-                            <span class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
-                                Messages <span class="font-medium text-gray-300">{{ $messages->count() }}</span>
+                            <span class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
+                                Messages <span class="font-medium text-[#d6c8ad]">{{ $messages->count() }}</span>
                             </span>
-                            <span id="room-active-count" class="rounded border border-gray-800 bg-gray-950/70 px-2 py-1">
-                                Active <span class="font-medium text-gray-500">syncing</span>
+                            <span id="room-active-count" class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
+                                Active <span class="font-medium text-[#8f8675]">syncing</span>
                             </span>
                         </div>
                     </div>
@@ -94,19 +94,19 @@
                         <div class="flex flex-wrap items-center justify-end gap-2">
 
                             <button id="toggle-left" type="button"
-                                class="rounded border border-gray-700 bg-gray-950/80 text-xs text-gray-300 px-2 py-1 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                class="rounded border border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] px-2 py-1 hover:border-amber-500/50 hover:bg-[#141416] hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-500/50">
                                 Toggle Left
                             </button>
 
                             <button id="toggle-right" type="button"
-                                class="rounded border border-gray-700 bg-gray-950/80 text-xs text-gray-300 px-2 py-1 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                class="rounded border border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] px-2 py-1 hover:border-amber-500/50 hover:bg-[#141416] hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-500/50">
                                 Toggle Right
                             </button>
 
-                            <span class="text-xs text-gray-400">Posting as</span>
+                            <span class="text-xs text-[#8f8675]">Posting as</span>
 
                             <select id="character-switcher"
-                                class="rounded border-gray-700 bg-gray-950 text-xs text-gray-100 px-2 py-1 focus:border-emerald-500 focus:ring-emerald-500">
+                                class="rounded border-[#332817] bg-[#0b0b0c] text-xs text-[#f2dfb5] px-2 py-1 focus:border-amber-500 focus:ring-amber-500">
                                 @foreach ($characters as $char)
                                     <option value="{{ $char->id }}" {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
                                         {{ $char->name }}
@@ -128,7 +128,7 @@
                 </div>
 
                 {{-- Messages --}}
-                <div id="message-container" class="flex-1 min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_32rem)] px-3 py-3 md:px-4">
+                <div id="message-container" class="flex-1 min-h-0 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.035),transparent_34rem)] px-3 py-3 md:px-4">
                     @php
                         $messageList = $messages instanceof \Illuminate\Support\Collection
                             ? $messages->values()
@@ -179,13 +179,13 @@
                             $isBlockedByViewer = (bool) ($message->is_blocked_by_viewer ?? false);
                             $blockLabel = $isBlockedByViewer ? 'Blocked' : 'Block';
                             $blockClass = $isBlockedByViewer
-                                ? 'text-gray-400 hover:text-gray-300'
+                                ? 'text-[#8f8675] hover:text-[#d6c8ad]'
                                 : 'text-red-400 hover:text-red-300';
                             $avatar = $c?->externalAvatarUrl();
                             $initial = strtoupper(substr($name, 0, 1));
                         @endphp
 
-                        <div class="group relative flex flex-none gap-2 px-2 {{ $isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-gray-900/40 py-0.5' }} msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
+                        <div class="group relative flex flex-none gap-2 px-2 {{ $isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5' }} msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
                              data-user-id="{{ $message->user_id }}"
                              data-character-id="{{ $messageCharacterId ?: '' }}"
@@ -202,7 +202,7 @@
                                              referrerpolicy="no-referrer"
                                              class="h-7 w-7 rounded-full object-cover">
                                     @else
-                                        <div class="flex h-7 w-7 items-center justify-center rounded-full border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">
+                                        <div class="flex h-7 w-7 items-center justify-center rounded-full border border-[#332817] bg-[#0b0b0c] text-xs font-semibold text-[#8f8675]">
                                             {{ $initial }}
                                         </div>
                                     @endif
@@ -213,7 +213,7 @@
                                 @unless ($isGrouped)
                                     <div class="mb-0 flex items-baseline gap-2">
                                         <button type="button"
-                                            class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                            class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                             data-style='{!! $nameStyleJson !!}'
                                             data-character-id="{{ $c?->id ?? '' }}"
                                             data-user-id="{{ $message->user_id ?? '' }}"
@@ -222,31 +222,31 @@
                                             {{ $name }}
                                         </button>
 
-                                        <span class="text-[10px] text-gray-500 ml-2">{{ $message->created_at->diffForHumans() }}</span>
-                                        <span class="msg-edited text-[10px] text-gray-500 ml-2 hidden">(edited)</span>
-                                        <span class="msg-deleted text-[10px] text-gray-500 ml-2 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
+                                        <span class="text-[10px] text-[#8f8675] ml-2">{{ $message->created_at->diffForHumans() }}</span>
+                                        <span class="msg-edited text-[10px] text-[#8f8675] ml-2 hidden">(edited)</span>
+                                        <span class="msg-deleted text-[10px] text-[#8f8675] ml-2 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>
                                     </div>
                                 @endunless
 
                                 @if ($isBlockedByViewer && ! $isAdminBlade)
-                                    <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                    <div class="msg-blocked-notice text-xs text-[#8f8675] mt-1">
                                         Message hidden from a blocked character.
                                     </div>
                                 @endif
 
-                                <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}"><span class="msg-body text-sm text-gray-400 leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span></div>
+                                <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}"><span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span></div>
 
                                 @if ($canEdit)
                                     <div class="msg-editbox hidden mt-2">
-                                        <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500"
+                                        <textarea class="msg-edit-textarea w-full rounded border border-[#332817] bg-[#0b0b0c] text-base text-[#d6c8ad] leading-relaxed p-2 focus:border-amber-500 focus:ring-amber-500"
                                                   rows="3"></textarea>
                                         <div class="mt-2 flex gap-2 justify-end">
                                             <button type="button"
-                                                class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                                class="msg-cancel-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[#d6c8ad] hover:border-amber-500/50 hover:bg-[#191511] focus:outline-none focus:ring-2 focus:ring-amber-500/50">
                                                 Cancel
                                             </button>
                                             <button type="button"
-                                                class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                                class="msg-save-btn rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50">
                                                 Save
                                             </button>
                                         </div>
@@ -256,7 +256,7 @@
 
                             <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                                 <button type="button"
-                                    class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40"
+                                    class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40"
                                     {{ $isDeleted ? 'disabled' : '' }}>
                                     Report
                                 </button>
@@ -271,12 +271,12 @@
 
                                 @if ($canEdit)
                                     <button type="button"
-                                        class="msg-edit-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40"
+                                        class="msg-edit-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40"
                                         {{ $isDeleted ? 'disabled' : '' }}>
                                         Edit
                                     </button>
                                     <button type="button"
-                                        class="msg-del-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
+                                        class="msg-del-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40"
                                         {{ $isDeleted ? 'disabled' : '' }}>
                                         Delete
                                     </button>
@@ -288,7 +288,7 @@
                 </div>
 
                 {{-- Send --}}
-                <div class="shrink-0 border-t border-gray-800 bg-gray-900/95 p-3">
+                <div class="shrink-0 border-t border-[#2a241a] bg-[#101012] p-3">
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
@@ -301,12 +301,12 @@
                             rows="3"
                             required
                             placeholder="Enter to send. Shift+Enter for newline."
-                            class="mt-1 block w-full resize-none rounded-md border-gray-700 bg-gray-950 text-gray-100 placeholder:text-gray-600 shadow-inner focus:border-emerald-500 focus:ring-emerald-500"
+                            class="mt-1 block w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500"
                         >{{ old('body') }}</textarea>
 
                         <div class="mt-2 flex items-center justify-between gap-3">
-                            <div class="text-[10px] uppercase tracking-[0.18em] text-gray-600">Transmission ready</div>
-                            <x-primary-button class="bg-emerald-600 hover:bg-emerald-500 focus:bg-emerald-600 active:bg-emerald-700 focus:ring-emerald-500">
+                            <div class="text-[10px] uppercase tracking-[0.18em] text-amber-500/70">Transmission ready</div>
+                            <x-primary-button>
                                 Send
                             </x-primary-button>
                         </div>
@@ -316,16 +316,16 @@
             </div>
 
             {{-- RIGHT --}}
-            <div id="right-panel" class="w-full lg:w-80 min-h-0 bg-gray-950 text-gray-100 rounded-lg shadow-2xl flex flex-col border border-gray-800/90 overflow-hidden">
+            <div id="right-panel" class="w-full lg:w-80 min-h-0 bg-[#0b0b0c] text-[#d6c8ad] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden">
 
-                <div class="border-b border-gray-800 bg-gray-900/80 px-3 py-3">
+                <div class="border-b border-[#2a241a] bg-[#101012] px-3 py-3">
                     <div class="mb-2 flex items-center justify-between gap-3">
-                        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-400">Room Net</div>
-                        <span id="tab-meta" class="text-[10px] text-gray-500"># active / name</span>
+                        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Room Net</div>
+                        <span id="tab-meta" class="text-[10px] text-[#8f8675]"># active / name</span>
                     </div>
                     <div class="grid grid-cols-2 gap-1 text-xs font-semibold">
-                        <button id="tab-rooms" type="button" class="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200">Rooms</button>
-                        <button id="tab-users" type="button" class="rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100">Users</button>
+                        <button id="tab-rooms" type="button" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200">Rooms</button>
+                        <button id="tab-users" type="button" class="rounded border border-[#332817] px-2 py-1.5 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]">Users</button>
                     </div>
                 </div>
 
@@ -341,7 +341,7 @@
                             <button type="button"
                                 data-room-id="{{ $r->id }}"
                                 onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                                class="w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 {{ $isCurrentRoom ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100' : 'border-gray-800/80 bg-gray-900/50 text-gray-200 hover:border-gray-700 hover:bg-gray-900' }}">
+                                class="w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
                                 <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
                                 <span
                                     data-room-unread-badge="{{ $r->id }}"
@@ -354,8 +354,8 @@
                     </div>
 
                     <div id="panel-users" class="hidden px-3 py-3">
-                        <div id="user-list" class="space-y-2 text-gray-200">
-                            <div class="text-gray-500">Loading...</div>
+                        <div id="user-list" class="space-y-2 text-[#d6c8ad]">
+                            <div class="text-[#8f8675]">Loading...</div>
                         </div>
                     </div>
 
@@ -367,26 +367,26 @@
 
     {{-- Popover (must be before script so querySelector finds it) --}}
     <div id="char-popover"
-         class="hidden fixed z-[9999] w-64 rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
+         class="hidden fixed z-[9999] w-64 rounded-lg border border-[#332817] bg-[#101012] shadow-xl">
         <div class="p-3">
             <div class="flex items-start gap-3">
-                <div id="char-popover-avatar" class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-800 bg-gray-950 text-2xl font-semibold text-gray-500"></div>
+                <div id="char-popover-avatar" class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#332817] bg-[#0b0b0c] text-2xl font-semibold text-[#8f8675]"></div>
                 <div class="min-w-0">
-                    <div id="char-popover-title" class="font-semibold text-gray-100 text-sm"></div>
-                    <div id="char-popover-sub" class="text-[10px] text-gray-400 mt-1">ID verification</div>
+                    <div id="char-popover-title" class="font-semibold text-[#f2dfb5] text-sm"></div>
+                    <div id="char-popover-sub" class="text-[10px] text-[#8f8675] mt-1">ID verification</div>
                 </div>
             </div>
 
             <div class="mt-3 flex gap-2 justify-end">
                 <a id="char-popover-profile"
                    href="#"
-                   class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                   class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
                     Profile
                 </a>
 
                 <button id="char-popover-dm"
                         type="button"
-                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                        class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
                     DM
                 </button>
             </div>
@@ -396,10 +396,10 @@
     <div id="message-report-modal"
          class="hidden fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center px-4">
         <form id="message-report-form"
-              class="w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl">
-            <h3 class="text-sm font-semibold text-gray-100">Report message</h3>
+              class="w-full max-w-md rounded-lg border border-[#332817] bg-[#101012] p-4 shadow-xl">
+            <h3 class="text-sm font-semibold text-[#f2dfb5]">Report message</h3>
             <textarea id="message-report-reason"
-                      class="mt-3 w-full rounded border border-gray-700 bg-gray-950 p-2 text-sm text-gray-100"
+                      class="mt-3 w-full rounded border border-[#332817] bg-[#0b0b0c] p-2 text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
                       rows="4"
                       maxlength="1000"
                       required
@@ -407,12 +407,12 @@
             <div class="mt-3 flex justify-end gap-2">
                 <button type="button"
                         id="message-report-cancel"
-                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                        class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
                     Cancel
                 </button>
                 <button type="submit"
                         id="message-report-submit"
-                        class="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-100 hover:bg-gray-700">
+                        class="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs text-amber-100 hover:bg-amber-500/20">
                     Submit
                 </button>
             </div>
@@ -507,8 +507,8 @@
             contextToolButtons.forEach((button) => {
                 const isActiveTool = button.dataset.contextTool === tool;
                 button.className = isActiveTool
-                    ? 'context-tool-btn rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-left text-emerald-200 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.08)]'
-                    : 'context-tool-btn rounded border border-gray-800 bg-gray-900/80 px-2 py-1.5 text-left text-gray-400 hover:border-gray-700 hover:text-gray-200';
+                    ? 'context-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]'
+                    : 'context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]';
             });
             contextToolPanels.forEach((panel) => {
                 panel.classList.toggle('hidden', panel.dataset.contextPanel !== tool);
@@ -556,7 +556,7 @@
                 return `<img src="${escAttr(url)}" alt="${escAttr(name)} avatar" loading="lazy" referrerpolicy="no-referrer" class="${sizeClass} shrink-0 ${shapeClass} object-cover">`;
             }
 
-            return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-gray-800 bg-gray-950 text-xs font-semibold text-gray-500">${escHtml(avatarInitial(name))}</div>`;
+            return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-[#332817] bg-[#0b0b0c] text-xs font-semibold text-[#8f8675]">${escHtml(avatarInitial(name))}</div>`;
         }
 
         function setCharacterBlock(blockerId, blockedId, shouldBlock) {
@@ -1159,13 +1159,13 @@
                     const previousCharacterId = parseInt(previousRow?.dataset.characterId || '0', 10) || 0;
                     const isGrouped = messageCharacterId > 0 && previousCharacterId === messageCharacterId;
                     const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
-                    const blockClass = isBlockedByViewer ? 'text-gray-400 hover:text-gray-300' : 'text-red-400 hover:text-red-300';
+                    const blockClass = isBlockedByViewer ? 'text-[#8f8675] hover:text-[#d6c8ad]' : 'text-red-400 hover:text-red-300';
                     const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
                         ? `<button type="button" class="text-xs ${blockClass} ml-1" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
                         : '';
 
                     const div = document.createElement('div');
-                    div.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-gray-900/40 py-0.5'} msg-row` + (isBlockedByViewer ? " opacity-70" : "");
+                    div.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5'} msg-row` + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
                     div.dataset.userId = String(msg.user_id ?? 0);
                     div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
@@ -1186,7 +1186,7 @@
                     const nameMarkup = isGrouped ? '' : `
                         <div class="mb-0 flex items-baseline gap-2">
                             <button type="button"
-                                class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                 data-style='${nameStyle}'
                                 data-character-id="${messageCharacterId || ''}"
                                 data-user-id="${msg.user_id ?? ''}"
@@ -1195,9 +1195,9 @@
                                 ${safeNameHtml}
                             </button>
 
-                            <span class="text-[10px] text-gray-500 ml-2">${safeCreatedAt}</span>
-                            <span class="msg-edited text-[10px] text-gray-500 ml-2 hidden">(edited)</span>
-                            <span class="msg-deleted text-[10px] text-gray-500 ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                            <span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span>
+                            <span class="msg-edited text-[10px] text-[#8f8675] ml-2 hidden">(edited)</span>
+                            <span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
                         </div>
                     `;
 
@@ -1208,19 +1208,19 @@
                             ${nameMarkup}
 
                             ${isBlockedByViewer ? `
-                                <div class="msg-blocked-notice text-xs text-gray-500 mt-1">
+                                <div class="msg-blocked-notice text-xs text-[#8f8675] mt-1">
                                     Message hidden from a blocked character.
                                 </div>
                             ` : ''}
 
-                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}"><span class="msg-body text-sm text-gray-400 leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span></div>
+                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}"><span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span></div>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">
-                                    <textarea class="msg-edit-textarea w-full rounded border border-gray-700 bg-gray-950 text-base text-gray-100 leading-relaxed p-2 focus:border-emerald-500 focus:ring-emerald-500" rows="3"></textarea>
+                                    <textarea class="msg-edit-textarea w-full rounded border border-[#332817] bg-[#0b0b0c] text-base text-[#d6c8ad] leading-relaxed p-2 focus:border-amber-500 focus:ring-amber-500" rows="3"></textarea>
                                     <div class="mt-2 flex gap-2 justify-end">
-                                        <button type="button" class="msg-cancel-btn rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-200 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Cancel</button>
-                                        <button type="button" class="msg-save-btn rounded border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">Save</button>
+                                        <button type="button" class="msg-cancel-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[#d6c8ad] hover:border-amber-500/50 hover:bg-[#191511] focus:outline-none focus:ring-2 focus:ring-amber-500/50">Cancel</button>
+                                        <button type="button" class="msg-save-btn rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50">Save</button>
                                     </div>
                                 </div>
                             ` : ''}
@@ -1228,14 +1228,14 @@
 
                         ${canEdit ? `
                             <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                                <button type="button" class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                <button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
                                 ${blockButtonHtml}
-                                <button type="button" class="msg-edit-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Edit</button>
-                                <button type="button" class="msg-del-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Delete</button>
+                                <button type="button" class="msg-edit-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Edit</button>
+                                <button type="button" class="msg-del-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Delete</button>
                             </div>
                         ` : `
                             <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                                <button type="button" class="msg-report-btn rounded border border-gray-700/80 bg-gray-950/80 px-2 py-1 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
+                                <button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
                                 ${blockButtonHtml}
                             </div>
                         `}
@@ -1287,11 +1287,11 @@
                 const roster = Array.isArray(data.roster) ? data.roster : [];
                 userListEl.innerHTML = '';
                 if (activeCountEl) {
-                    activeCountEl.innerHTML = `Active <span class="font-medium text-gray-300">${roster.length}</span>`;
+                    activeCountEl.innerHTML = `Active <span class="font-medium text-[#d6c8ad]">${roster.length}</span>`;
                 }
 
                 if (!roster.length) {
-                    userListEl.innerHTML = `<div class="text-gray-500">Nobody here.</div>`;
+                    userListEl.innerHTML = `<div class="text-[#8f8675]">Nobody here.</div>`;
                     return;
                 }
 
@@ -1311,7 +1311,7 @@
                     const avatar = p.avatar || '';
 
                     const row = document.createElement('div');
-                    row.className = 'char-row rounded border border-gray-800/80 bg-gray-900/50 px-3 py-2';
+                    row.className = 'char-row rounded border border-[#332817] bg-[#101012] px-3 py-2';
 
                     const safeNameAttr = escAttr(displayName);
                     const safeAvatarAttr = escAttr(avatar);
@@ -1323,7 +1323,7 @@
                             ${avatarHtml(avatar, displayName, 'h-8 w-8')}
                             <div class="min-w-0">
                                 <button type="button"
-                                    class="char-trigger msg-name text-base font-bold leading-none hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-sm"
+                                    class="char-trigger msg-name text-base font-bold leading-none hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                     data-style='${nameStyle}'
                                     data-character-id="${p.character_id ?? ''}"
                                     data-user-id="${p.user_id ?? ''}"
@@ -1332,7 +1332,7 @@
                                     ${safeDisplayName}
                                 </button>
 
-                                <div class="mt-1 text-[10px] text-gray-500">ID #${sigil}</div>
+                                <div class="mt-1 text-[10px] text-[#8f8675]">ID #${sigil}</div>
                             </div>
                         </div>
                     `;
@@ -1346,7 +1346,7 @@
                 console.error('Roster error:', err);
                 userListEl.innerHTML = `<div class="text-red-400">Roster error</div>`;
                 if (activeCountEl) {
-                    activeCountEl.innerHTML = `Active <span class="font-medium text-gray-500">unavailable</span>`;
+                    activeCountEl.innerHTML = `Active <span class="font-medium text-[#8f8675]">unavailable</span>`;
                 }
             });
         }
@@ -1355,8 +1355,8 @@
 
         /* tabs */
 function showRoomsTab() {
-    tabRooms.className = 'rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200';
-    tabUsers.className = 'rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100';
+    tabRooms.className = 'rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200';
+    tabUsers.className = 'rounded border border-[#332817] px-2 py-1.5 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]';
 
     panelRooms.classList.remove('hidden');
     panelUsers.classList.add('hidden');
@@ -1365,8 +1365,8 @@ function showRoomsTab() {
 }
 
 function showUsersTab() {
-    tabUsers.className = 'rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-emerald-200';
-    tabRooms.className = 'rounded border border-gray-800 px-2 py-1.5 text-gray-400 hover:border-gray-700 hover:bg-gray-800 hover:text-gray-100';
+    tabUsers.className = 'rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200';
+    tabRooms.className = 'rounded border border-[#332817] px-2 py-1.5 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]';
 
     panelRooms.classList.add('hidden');
     panelUsers.classList.remove('hidden');

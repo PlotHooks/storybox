@@ -1,4 +1,4 @@
-<nav x-data="{ open: false }" class="bg-gray-900 border-b border-gray-800">
+<nav x-data="{ open: false }" class="bg-[#0b0b0c] border-b border-[#2a241a]">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
 
@@ -7,30 +7,39 @@
 
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-200" />
+                    <a
+                        href="{{ route('dashboard') }}"
+                        aria-label="Storybox dashboard"
+                        title="Storybox"
+                        class="group inline-flex items-center rounded-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    >
+                        <img
+                            src="{{ asset('images/storybox-icon.png') }}"
+                            alt="Storybox"
+                            class="block h-10 w-auto object-contain"
+                        >
                     </a>
                 </div>
 
                 <!-- Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
 
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" class="text-gray-300">
+                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         Dashboard
                     </x-nav-link>
 
-                    <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')" class="text-gray-300">
+                    <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
                         Characters
                     </x-nav-link>
 
-                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')" class="text-gray-300">
+                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')">
                         Rooms
                     </x-nav-link>
 
                     <!-- 🔥 DM BUTTON -->
                     <button
                         id="global-dm-button"
-                        class="relative text-gray-300 hover:text-white transition"
+                        class="relative text-[#8f8675] hover:text-[#f2dfb5] transition"
                         onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))"
                     >
                         DMs
@@ -52,7 +61,7 @@
                 <x-dropdown align="right" width="48">
 
                     <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 text-sm rounded-md text-gray-300 hover:text-white transition">
+                        <button class="inline-flex items-center px-3 py-2 text-sm rounded-md text-[#8f8675] hover:text-[#f2dfb5] transition">
                             <div>{{ Auth::user()->name }}</div>
 
                             <div class="ms-1">
@@ -85,7 +94,7 @@
             <!-- MOBILE -->
             <div class="-me-2 flex items-center sm:hidden">
                 <button @click="open = ! open"
-                        class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800">
+                        class="p-2 rounded-md text-[#8f8675] hover:text-[#f2dfb5] hover:bg-[#141416]">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path :class="{'hidden': open, 'inline-flex': ! open }"
                               stroke-linecap="round"
