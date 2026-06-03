@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Events\MessageCreated;
 use App\Events\ModerationMessageCreated;
+use App\Models\Character;
 use App\Models\CharacterBlock;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
+use App\Services\RoomAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -18,10 +20,18 @@ use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
 {
+    public function __construct(
+        private readonly RoomAccessService $roomAccess,
+    ) {
+    }
+
     public function index()
     {
-        // Only public rooms belong on the Rooms page.
-        $rooms = Room::where('type', 'public')
+        $activeCharacter = $this->activeOwnedCharacter();
+
+        $rooms = $this->roomAccess
+            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $activeCharacter)
+            ->with(['creator', 'ownerCharacter'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -48,7 +58,9 @@ class RoomController extends Controller
             'description' => $request->description,
             'user_id'     => $userId,
             'created_by'  => $userId,
-            'type'        => 'public',
+            'type'        => Room::TYPE_PUBLIC,
+            'visibility'  => Room::VISIBILITY_PUBLIC,
+            'owner_character_id' => $this->activeOwnedCharacterId(),
         ]);
 
         return redirect()
@@ -60,6 +72,11 @@ class RoomController extends Controller
     {
         // rooms table is the conversation model.
         $activeCharacterId = $this->activeCharacterIdForConversation($room);
+        $activeCharacter = $this->ownedCharacterById($activeCharacterId);
+
+        if ($room->isPublicRoom()) {
+            abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+        }
 
         if ($activeCharacterId) {
             $this->assertConversationParticipant($room, $activeCharacterId);
@@ -89,8 +106,8 @@ class RoomController extends Controller
             ->select('room_id', DB::raw('COUNT(*) as active_users'))
             ->groupBy('room_id');
 
-        $sidebarRooms = Room::query()
-            ->where('rooms.type', 'public')
+        $sidebarRooms = $this->roomAccess
+            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $activeCharacter)
             ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
                 $join->on('active_presence_counts.room_id', '=', 'rooms.id');
             })
@@ -125,13 +142,56 @@ class RoomController extends Controller
                 ) as unread_count
             ', [$activeCharacterId ?: 0, $activeCharacterId ?: 0])
             ->orderBy('rooms.created_at', 'desc')
+            ->with(['ownerCharacter', 'creator'])
             ->get();
+
+        $canManageRoom = false;
+        $canManageModerators = false;
+        $roomModerators = collect();
+        $roomWhitelist = collect();
+        $roomBlacklist = collect();
+
+        if ($room->isPublicRoom() && $activeCharacter) {
+            $canManageRoom = $this->roomAccess->canManageRoom(Auth::user(), $room, $activeCharacter);
+            $canManageModerators = $this->roomAccess->isOwner($room, $activeCharacter) || $this->roomAccess->isAdmin(Auth::user());
+        }
+
+        if ($room->isPublicRoom()) {
+            $roomModerators = $room->roomCharacterRoles()
+                ->with('character')
+                ->where('role', \App\Models\RoomCharacterRole::ROLE_MODERATOR)
+                ->get()
+                ->filter(fn ($role) => $role->character !== null)
+                ->sortBy(fn ($role) => strtolower($role->character->name))
+                ->values();
+
+            $roomWhitelist = $room->roomAccessEntries()
+                ->with('character')
+                ->where('type', \App\Models\RoomAccessEntry::TYPE_WHITELIST)
+                ->get()
+                ->filter(fn ($entry) => $entry->character !== null)
+                ->sortBy(fn ($entry) => strtolower($entry->character->name))
+                ->values();
+
+            $roomBlacklist = $room->roomAccessEntries()
+                ->with('character')
+                ->where('type', \App\Models\RoomAccessEntry::TYPE_BLACKLIST)
+                ->get()
+                ->filter(fn ($entry) => $entry->character !== null)
+                ->sortBy(fn ($entry) => strtolower($entry->character->name))
+                ->values();
+        }
 
         return view('rooms.show', compact(
             'room',
             'messages',
             'activeCharacterId',
-            'sidebarRooms'
+            'sidebarRooms',
+            'canManageRoom',
+            'canManageModerators',
+            'roomModerators',
+            'roomWhitelist',
+            'roomBlacklist'
         ));
     }
 
@@ -175,7 +235,7 @@ class RoomController extends Controller
 
     private function activeCharacterIdForConversation(Room $conversation): ?int
     {
-        if ($conversation->type === 'dm') {
+        if ($conversation->type === Room::TYPE_DM) {
             return $this->getLockedDmCharacterId($conversation);
         }
 
@@ -184,7 +244,7 @@ class RoomController extends Controller
 
     private function messageCharacterIdForConversation(Room $conversation, Request $request): int
     {
-        if ($conversation->type === 'dm') {
+        if ($conversation->type === Room::TYPE_DM) {
             return $this->getLockedDmCharacterId($conversation);
         }
 
@@ -193,32 +253,53 @@ class RoomController extends Controller
 
     private function activeOwnedCharacterId(): ?int
     {
+        return $this->activeOwnedCharacter()?->id;
+    }
+
+    private function activeOwnedCharacter(): ?Character
+    {
         $sessionCharacterId = (int) session('active_character_id', 0);
 
-        if ($sessionCharacterId > 0 && DB::table('characters')
-            ->where('id', $sessionCharacterId)
-            ->where('user_id', Auth::id())
-            ->exists()) {
-            return $sessionCharacterId;
+        if ($sessionCharacterId > 0) {
+            $sessionCharacter = Character::query()
+                ->where('id', $sessionCharacterId)
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if ($sessionCharacter) {
+                return $sessionCharacter;
+            }
         }
 
-        $firstCharacterId = (int) DB::table('characters')
+        $firstCharacter = Character::query()
             ->where('user_id', Auth::id())
             ->orderBy('name')
-            ->value('id');
+            ->first();
 
-        if ($firstCharacterId <= 0) {
+        if (! $firstCharacter) {
             return null;
         }
 
-        session(['active_character_id' => $firstCharacterId]);
+        session(['active_character_id' => $firstCharacter->id]);
 
-        return $firstCharacterId;
+        return $firstCharacter;
+    }
+
+    private function ownedCharacterById(?int $characterId): ?Character
+    {
+        if (($characterId ?? 0) <= 0) {
+            return null;
+        }
+
+        return Character::query()
+            ->where('id', $characterId)
+            ->where('user_id', Auth::id())
+            ->first();
     }
 
     private function canModerate(): bool
     {
-        return (bool) (Auth::user()->is_admin ?? false);
+        return $this->roomAccess->isAdmin(Auth::user());
     }
 
     private function abortIfDmBlocked(int $firstCharacterId, int $secondCharacterId): void
@@ -255,7 +336,7 @@ class RoomController extends Controller
             return false;
         }
 
-        if ($conversation->type === 'dm') {
+        if ($conversation->type === Room::TYPE_DM) {
             return DB::table('dm_participants')
                 ->where('room_id', $conversation->id)
                 ->where('user_id', Auth::id())
@@ -263,8 +344,11 @@ class RoomController extends Controller
                 ->exists();
         }
 
-        if ($conversation->type === 'public') {
-            return true;
+        if ($conversation->type === Room::TYPE_PUBLIC) {
+            $character = $this->ownedCharacterById($characterId);
+
+            return $character !== null
+                && $this->roomAccess->canViewRoom(Auth::user(), $conversation, $character);
         }
 
         return false;
@@ -526,8 +610,12 @@ class RoomController extends Controller
         $characterId = $this->messageCharacterIdForConversation($room, $request);
         $this->assertConversationParticipant($room, $characterId);
 
-        if ($room->type === 'dm') {
+        if ($room->type === Room::TYPE_DM) {
             $this->assertDmMessageAllowed($room);
+        } else {
+            $character = $this->ownedCharacterById($characterId);
+            abort_if($character === null, 403);
+            abort_unless($this->roomAccess->canMessageRoom(Auth::user(), $room, $character), 403);
         }
 
         $message = $this->createConversationMessage($room, $characterId, $request->body);
@@ -541,7 +629,7 @@ class RoomController extends Controller
 
     public function latest(Room $room, Request $request)
     {
-        if ($room->type === 'dm') {
+        if ($room->type === Room::TYPE_DM) {
             $viewerCharacterId = $this->getLockedDmCharacterId($room);
         } else {
             $requestedCharacterId = (int) $request->query('character_id', 0);
@@ -555,6 +643,8 @@ class RoomController extends Controller
 
         if ($viewerCharacterId) {
             $this->assertConversationParticipant($room, $viewerCharacterId);
+        } elseif ($room->isPublicRoom()) {
+            abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, null), 403);
         }
 
         $messages = $this->conversationMessages($room, $request);
@@ -567,6 +657,11 @@ class RoomController extends Controller
     {
         $characterId = $this->getCharacterIdFromRequest($request);
         $this->assertConversationParticipant($room, $characterId);
+        $character = $this->ownedCharacterById($characterId);
+
+        if ($room->isPublicRoom()) {
+            abort_unless($this->roomAccess->canJoinRoom(Auth::user(), $room, $character), 403);
+        }
 
         DB::table('character_presences')->updateOrInsert(
             ['character_id' => $characterId],
@@ -590,6 +685,11 @@ class RoomController extends Controller
     {
         $characterId = $this->getCharacterIdFromRequest($request);
         $this->assertConversationParticipant($room, $characterId);
+        $character = $this->ownedCharacterById($characterId);
+
+        if ($room->isPublicRoom()) {
+            abort_unless($this->roomAccess->canJoinRoom(Auth::user(), $room, $character), 403);
+        }
 
         DB::table('character_presences')
             ->where('character_id', $characterId)
@@ -615,8 +715,10 @@ class RoomController extends Controller
             ->select('room_id', DB::raw('COUNT(*) as active_users'))
             ->groupBy('room_id');
 
-        $rooms = Room::query()
-            ->where('rooms.type', 'public')
+        $character = $this->ownedCharacterById($characterId);
+
+        $rooms = $this->roomAccess
+            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $character)
             ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
                 $join->on('active_presence_counts.room_id', '=', 'rooms.id');
             })
@@ -651,6 +753,7 @@ class RoomController extends Controller
                 ) as unread_count
             ', [$characterId, $characterId])
             ->orderBy('rooms.created_at', 'desc')
+            ->with(['ownerCharacter', 'creator'])
             ->get();
 
         return response()->json(['rooms' => $rooms]);
@@ -658,6 +761,12 @@ class RoomController extends Controller
 
     public function roster(Room $room)
     {
+        $activeCharacter = $this->activeOwnedCharacter();
+
+        if ($room->isPublicRoom()) {
+            abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+        }
+
         $cutoff = now()->subMinutes(5);
 
         $roster = DB::table('character_presences')
@@ -675,6 +784,15 @@ class RoomController extends Controller
                 'users.name as user_name',
             ])
             ->get();
+
+        $roster = $roster->map(function ($entry) {
+            $entry->character_handle = Character::formatPublicHandle(
+                (string) $entry->character_name,
+                (int) $entry->character_id
+            );
+
+            return $entry;
+        });
 
         return response()->json(['roster' => $roster]);
     }
@@ -695,7 +813,7 @@ class RoomController extends Controller
                     ->whereColumn('ccr.character_id', 'mine.character_id');
             })
             ->where('mine.user_id', $me)
-            ->where('rooms.type', 'dm')
+            ->where('rooms.type', Room::TYPE_DM)
             ->orderByDesc('rooms.updated_at')
             ->select([
                 'rooms.id as room_id',
@@ -787,7 +905,8 @@ class RoomController extends Controller
                     'slug'       => 'dm-' . Str::random(20),
                     'user_id'    => $me,
                     'created_by' => $me,
-                    'type'       => 'dm',
+                    'type'       => Room::TYPE_DM,
+                    'visibility' => Room::VISIBILITY_PUBLIC,
                     'dm_key'     => $dmKey,
                 ]);
 
@@ -811,7 +930,7 @@ class RoomController extends Controller
                 return $room;
             });
         } catch (UniqueConstraintViolationException $exception) {
-            $room = Room::where('type', 'dm')->where('dm_key', $dmKey)->first();
+            $room = Room::where('type', Room::TYPE_DM)->where('dm_key', $dmKey)->first();
             throw_unless($room, $exception);
         }
 
@@ -824,7 +943,7 @@ class RoomController extends Controller
 
         $roomId = DB::table('rooms')
             ->join('dm_participants', 'dm_participants.room_id', '=', 'rooms.id')
-            ->where('rooms.type', 'dm')
+            ->where('rooms.type', Room::TYPE_DM)
             ->groupBy('rooms.id')
             ->havingRaw('COUNT(*) = 2')
             ->havingRaw('COUNT(DISTINCT dm_participants.character_id) = 2')
@@ -863,7 +982,7 @@ class RoomController extends Controller
 
     public function dmSend(Room $room, Request $request)
     {
-        abort_unless($room->type === 'dm', 404);
+        abort_unless($room->type === Room::TYPE_DM, 404);
 
         $request->validate([
             'body' => 'required|string|max:2000',

@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\Character;
+use App\Services\RoomAccessService;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 
@@ -25,9 +26,11 @@ class AuthServiceProvider extends ServiceProvider
         // rooms table is the conversation model. This Gate is a legacy user-level fallback;
         // controller message access uses character-level participant helpers.
         Gate::define('access-room', function ($user, Room $conversation) {
-            if ($conversation->type === 'public') return true;
+            if ($conversation->type === Room::TYPE_PUBLIC) {
+                return app(RoomAccessService::class)->canViewRoom($user, $conversation, null);
+            }
 
-            if ($conversation->type === 'dm') {
+            if ($conversation->type === Room::TYPE_DM) {
                 return \DB::table('dm_participants')
                     ->where('room_id', $conversation->id)
                     ->where('user_id', $user->id)

@@ -26,9 +26,29 @@
                         <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
                         <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Rules</button>
                         <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Character Info</button>
+                        @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
+                            <button type="button" data-context-tool="settings" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Settings</button>
+                        @endif
                     </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-[#d6c8ad]">
+                    @if (session('status'))
+                        <div class="mb-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-200">
+                            {{ session('status') }}
+                        </div>
+                    @endif
+
+                    @if ($errors->any())
+                        <div class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+                            <div class="font-semibold uppercase tracking-[0.14em]">Room Settings Error</div>
+                            <ul class="mt-2 space-y-1 text-[11px] text-red-100">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <div data-context-panel="world" class="context-tool-panel rounded-md border border-[#332817] bg-[#101012] p-3">
                         <div class="flex items-center justify-between gap-2">
                             <h3 class="text-sm font-semibold text-[#f2dfb5]">World Book</h3>
@@ -53,6 +73,220 @@
                     <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Character Info is coming soon.
                     </div>
+                    @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
+                        <div data-context-panel="settings" class="context-tool-panel hidden space-y-3">
+                            <div class="rounded-md border border-[#332817] bg-[#101012] p-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h3 class="text-sm font-semibold text-[#f2dfb5]">Room Settings</h3>
+                                    <span class="text-[10px] uppercase tracking-[0.18em] text-amber-400">
+                                        {{ $canManageModerators ? 'Owner/Admin' : 'Moderator' }}
+                                    </span>
+                                </div>
+
+                                <div class="mt-3 text-[10px] uppercase tracking-[0.16em] text-[#8f8675]">Basic</div>
+                                    <form method="POST" action="{{ route('rooms.update', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 space-y-2">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                        <input type="hidden" name="context_tool" value="settings">
+                                    <div>
+                                        <label for="room-settings-name" class="block text-[11px] font-semibold text-[#d6c8ad]">Name</label>
+                                        <input
+                                            id="room-settings-name"
+                                            name="name"
+                                            type="text"
+                                            maxlength="100"
+                                            value="{{ old('name', $room->name) }}"
+                                            class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                    </div>
+                                    <div>
+                                        <label for="room-settings-description" class="block text-[11px] font-semibold text-[#d6c8ad]">Description</label>
+                                        <textarea
+                                            id="room-settings-description"
+                                            name="description"
+                                            rows="3"
+                                            maxlength="1000"
+                                            class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >{{ old('description', $room->description) }}</textarea>
+                                    </div>
+                                    <div>
+                                        <label for="room-settings-visibility" class="block text-[11px] font-semibold text-[#d6c8ad]">Visibility</label>
+                                        <select
+                                            id="room-settings-visibility"
+                                            name="visibility"
+                                            class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                            @foreach ([\App\Models\Room::VISIBILITY_PUBLIC, \App\Models\Room::VISIBILITY_HIDDEN] as $visibilityOption)
+                                                <option value="{{ $visibilityOption }}" {{ old('visibility', $room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === $visibilityOption ? 'selected' : '' }}>
+                                                    {{ ucfirst($visibilityOption) }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        class="inline-flex items-center rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                                    >
+                                        Save
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div class="rounded-md border border-[#332817] bg-[#101012] p-3">
+                                <div class="text-[10px] uppercase tracking-[0.16em] text-[#8f8675]">Access</div>
+                                <p class="mt-2 text-[11px] leading-relaxed text-[#8f8675]">
+                                    Public rooms are visible and joinable by default unless blacklisted. Hidden rooms require owner, moderator, whitelist, or admin access.
+                                </p>
+
+                                <div class="mt-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h4 class="text-sm font-semibold text-[#f2dfb5]">Whitelist</h4>
+                                        <span class="text-[10px] text-[#8f8675]">{{ $roomWhitelist->count() }} entries</span>
+                                    </div>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
+                                        Whitelist entries grant access to hidden rooms.
+                                    </p>
+                                    <form method="POST" action="{{ route('rooms.whitelist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                        @csrf
+                                        <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                        <input type="hidden" name="context_tool" value="settings">
+                                        <input
+                                            name="target_character_handle"
+                                            type="text"
+                                            maxlength="120"
+                                            placeholder="Name#ABCD"
+                                            class="min-w-0 flex-1 rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                        <button
+                                            type="submit"
+                                            class="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20"
+                                        >
+                                            Add
+                                        </button>
+                                    </form>
+                                    <div class="mt-2 space-y-1">
+                                        @forelse ($roomWhitelist as $entry)
+                                            <div class="flex items-center justify-between gap-2 rounded border border-[#2a241a] bg-[#0b0b0c] px-2 py-1.5">
+                                                <div class="min-w-0">
+                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
+                                                    <div class="text-[10px] text-[#8f8675]">{{ $entry->character->public_handle }}</div>
+                                                </div>
+                                                <form method="POST" action="{{ route('rooms.whitelist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                                    <input type="hidden" name="context_tool" value="settings">
+                                                    <button type="submit" class="text-[10px] font-semibold text-red-300 hover:text-red-200">Remove</button>
+                                                </form>
+                                            </div>
+                                        @empty
+                                            <div class="rounded border border-dashed border-[#332817] bg-[#0b0b0c] px-2 py-2 text-[11px] text-[#8f8675]">
+                                                No entries yet.
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h4 class="text-sm font-semibold text-[#f2dfb5]">Blacklist</h4>
+                                        <span class="text-[10px] text-[#8f8675]">{{ $roomBlacklist->count() }} entries</span>
+                                    </div>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
+                                        Blacklist entries deny access even to public rooms. Blacklist always wins over whitelist except for admin override.
+                                    </p>
+                                    <form method="POST" action="{{ route('rooms.blacklist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                        @csrf
+                                        <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                        <input type="hidden" name="context_tool" value="settings">
+                                        <input
+                                            name="target_character_handle"
+                                            type="text"
+                                            maxlength="120"
+                                            placeholder="Name#ABCD"
+                                            class="min-w-0 flex-1 rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                        <button
+                                            type="submit"
+                                            class="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/20"
+                                        >
+                                            Add
+                                        </button>
+                                    </form>
+                                    <div class="mt-2 space-y-1">
+                                        @forelse ($roomBlacklist as $entry)
+                                            <div class="flex items-center justify-between gap-2 rounded border border-[#2a241a] bg-[#0b0b0c] px-2 py-1.5">
+                                                <div class="min-w-0">
+                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
+                                                    <div class="text-[10px] text-[#8f8675]">{{ $entry->character->public_handle }}</div>
+                                                </div>
+                                                <form method="POST" action="{{ route('rooms.blacklist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                                    <input type="hidden" name="context_tool" value="settings">
+                                                    <button type="submit" class="text-[10px] font-semibold text-red-300 hover:text-red-200">Remove</button>
+                                                </form>
+                                            </div>
+                                        @empty
+                                            <div class="rounded border border-dashed border-[#332817] bg-[#0b0b0c] px-2 py-2 text-[11px] text-[#8f8675]">
+                                                No entries yet.
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if ($canManageModerators)
+                                <div class="rounded-md border border-[#332817] bg-[#101012] p-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <h4 class="text-sm font-semibold text-[#f2dfb5]">Moderators</h4>
+                                        <span class="text-[10px] text-[#8f8675]">{{ $roomModerators->count() }} active</span>
+                                    </div>
+                                    <form method="POST" action="{{ route('rooms.moderators.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                        @csrf
+                                        <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                        <input type="hidden" name="context_tool" value="settings">
+                                        <input
+                                            name="target_character_handle"
+                                            type="text"
+                                            maxlength="120"
+                                            placeholder="Name#ABCD"
+                                            class="min-w-0 flex-1 rounded-md border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                        <button
+                                            type="submit"
+                                            class="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20"
+                                        >
+                                            Add
+                                        </button>
+                                    </form>
+                                    <div class="mt-2 space-y-1">
+                                        @forelse ($roomModerators as $moderator)
+                                            <div class="flex items-center justify-between gap-2 rounded border border-[#2a241a] bg-[#0b0b0c] px-2 py-1.5">
+                                                <div class="min-w-0">
+                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $moderator->character->name }}</div>
+                                                    <div class="text-[10px] text-[#8f8675]">{{ $moderator->character->public_handle }}</div>
+                                                </div>
+                                                <form method="POST" action="{{ route('rooms.moderators.destroy', ['room' => $room->slug, 'character' => $moderator->character, 'tool' => 'settings']) }}">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                                    <input type="hidden" name="context_tool" value="settings">
+                                                    <button type="submit" class="text-[10px] font-semibold text-red-300 hover:text-red-200">Remove</button>
+                                                </form>
+                                            </div>
+                                        @empty
+                                            <div class="rounded border border-dashed border-[#332817] bg-[#0b0b0c] px-2 py-2 text-[11px] text-[#8f8675]">
+                                                No entries yet.
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -71,7 +305,10 @@
                         @endif
                         <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#8f8675]">
                             <span class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
-                                Owner <span class="font-medium text-[#d6c8ad]">{{ optional($room->owner)->name ?? 'Unknown' }}</span>
+                                Owner <span class="font-medium text-[#d6c8ad]">{{ optional($room->ownerCharacter)->name ?? optional($room->creator)->name ?? 'Unknown' }}</span>
+                            </span>
+                            <span class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
+                                Visibility <span class="font-medium text-[#d6c8ad]">{{ $room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC }}</span>
                             </span>
                             <span class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1">
                                 Messages <span class="font-medium text-[#d6c8ad]">{{ $messages->count() }}</span>
@@ -218,6 +455,7 @@
                                             data-character-id="{{ $c?->id ?? '' }}"
                                             data-user-id="{{ $message->user_id ?? '' }}"
                                             data-character-name="{{ e($name) }}"
+                                            data-character-handle="{{ e($c?->public_handle ?? '') }}"
                                             data-character-avatar="{{ e($avatar ?? '') }}">
                                             {{ $name }}
                                         </button>
@@ -503,6 +741,7 @@
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
         const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));
+        const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : 'world'));
         function showContextTool(tool) {
             contextToolButtons.forEach((button) => {
                 const isActiveTool = button.dataset.contextTool === tool;
@@ -517,6 +756,7 @@
         contextToolButtons.forEach((button) => {
             button.addEventListener('click', () => showContextTool(button.dataset.contextTool));
         });
+        showContextTool(initialContextTool);
 
         function escAttr(s) {
             return String(s)
@@ -632,14 +872,15 @@
             const userId = userIdRaw ? parseInt(userIdRaw, 10) : null;
 
             const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
+            const characterHandle = (triggerEl.dataset.characterHandle || '').trim();
             const avatar = (triggerEl.dataset.characterAvatar || '').trim();
 
             // Optional debug (safe: values exist now)
             // console.log('popover trigger dataset:', { characterId, userIdRaw, userId, characterName });
 
-            const sigil = characterId ? shortSigil(parseInt(characterId, 10)) : '----';
+            const fallbackHandle = characterId ? `${characterName}#${shortSigil(parseInt(characterId, 10))}` : characterName;
 
-            if (popTitle) popTitle.textContent = `${characterName} #${sigil}`;
+            if (popTitle) popTitle.textContent = characterHandle || fallbackHandle;
             if (popAvatar) {
                 popAvatar.innerHTML = avatarHtml(avatar, characterName, 'h-20 w-20', 'rounded-lg');
             }
@@ -1178,6 +1419,7 @@
                     const safeTextHtml = escHtml(text);
                     const safeAvatarAttr = escAttr(avatar);
                     const safeCreatedAt = escHtml(msg.created_at_human ?? '');
+                    const safeHandleAttr = escAttr(msg.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
                     const avatarMarkup = isGrouped ? `
@@ -1191,6 +1433,7 @@
                                 data-character-id="${messageCharacterId || ''}"
                                 data-user-id="${msg.user_id ?? ''}"
                                 data-character-name="${safeNameAttr}"
+                                data-character-handle="${safeHandleAttr}"
                                 data-character-avatar="${safeAvatarAttr}">
                                 ${safeNameHtml}
                             </button>
@@ -1306,8 +1549,8 @@
                     const fadeName = !!s.fade_name;
 
                     const charId = parseInt(p.character_id, 10) || 0;
-                    const sigil = shortSigil(charId);
                     const displayName = (p.character_name ?? ('#' + charId));
+                    const displayHandle = (p.character_handle ?? `${displayName}#${shortSigil(charId)}`);
                     const avatar = p.avatar || '';
 
                     const row = document.createElement('div');
@@ -1328,11 +1571,12 @@
                                     data-character-id="${p.character_id ?? ''}"
                                     data-user-id="${p.user_id ?? ''}"
                                     data-character-name="${safeNameAttr}"
+                                    data-character-handle="${escAttr(displayHandle)}"
                                     data-character-avatar="${safeAvatarAttr}">
                                     ${safeDisplayName}
                                 </button>
 
-                                <div class="mt-1 text-[10px] text-[#8f8675]">ID #${sigil}</div>
+                                <div class="mt-1 text-[10px] text-[#8f8675]">${escHtml(displayHandle)}</div>
                             </div>
                         </div>
                     `;

@@ -31,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('accessFilament', function ($user): bool {
             $allowed = (bool) $user->is_admin;
 
-            if (! $allowed) {
+            if (! $allowed && $this->shouldLogAdminAccessAttempt()) {
                 Log::warning('Suspicious admin access attempt', [
                     'user_id' => $user->id,
                     'route' => request()->route()?->getName(),
@@ -115,5 +115,19 @@ class AppServiceProvider extends ServiceProvider
         return $characterId > 0
             ? 'character:' . $characterId
             : $userKey . ':no-character';
+    }
+
+    private function shouldLogAdminAccessAttempt(): bool
+    {
+        $routeName = (string) (request()->route()?->getName() ?? '');
+        $path = trim((string) request()->path(), '/');
+
+        if (str_starts_with($path, 'admin')) {
+            return true;
+        }
+
+        return str_contains($routeName, 'filament')
+            || $routeName === 'filament.admin.pages.live-moderation'
+            || $routeName === 'broadcasting.auth';
     }
 }

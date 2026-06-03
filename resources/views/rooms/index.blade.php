@@ -90,10 +90,16 @@
                                                 {{ $room->description }}
                                             </div>
                                         @endif
+
+                                        @if (($room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                            <div class="text-[10px] uppercase tracking-[0.18em] text-amber-500/80">
+                                                Hidden
+                                            </div>
+                                        @endif
                                     </div>
 
                                     <div class="text-xs text-[#8f8675]">
-                                    by {{ optional($room->owner)->name ?? 'Unknown' }}
+                                    owner {{ optional($room->ownerCharacter)->name ?? optional($room->creator)->name ?? 'Unknown' }}
                                     </div>
                                 </li>
                             @endforeach

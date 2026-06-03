@@ -127,4 +127,43 @@ class Character extends Model
             $this->settings['text_color_4'] ?? null,
         ]));
     }
+
+    public function getPublicHandleAttribute(): string
+    {
+        return self::formatPublicHandle($this->name, (int) $this->id);
+    }
+
+    public static function formatPublicHandle(string $name, int $characterId): string
+    {
+        return sprintf('%s#%s', $name, self::publicShortId($characterId));
+    }
+
+    public static function publicShortId(int $characterId): string
+    {
+        $normalized = (($characterId * 2654435761) % 0xFFFFFFFF + 0xFFFFFFFF) % 0xFFFFFFFF;
+
+        return strtoupper(str_pad(substr(dechex($normalized), 0, 4), 4, '0'));
+    }
+
+    public static function resolvePublicHandle(string $handle): ?self
+    {
+        if (! preg_match('/^(.+)#([A-F0-9]{4})$/', trim($handle), $matches)) {
+            return null;
+        }
+
+        $name = trim($matches[1]);
+        $shortId = strtoupper($matches[2]);
+
+        if ($name === '') {
+            return null;
+        }
+
+        $characters = self::query()
+            ->where('name', $name)
+            ->get()
+            ->filter(fn (self $character) => self::publicShortId((int) $character->id) === $shortId)
+            ->values();
+
+        return $characters->count() === 1 ? $characters->first() : null;
+    }
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CharacterBlockController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\RoomManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -40,6 +41,13 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
     Route::post('/rooms/{room:slug}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');
+    Route::patch('/rooms/{room:slug}', [RoomManagementController::class, 'update'])->name('rooms.update');
+    Route::post('/rooms/{room:slug}/whitelist', [RoomManagementController::class, 'addWhitelist'])->name('rooms.whitelist.store');
+    Route::delete('/rooms/{room:slug}/whitelist/{character}', [RoomManagementController::class, 'removeWhitelist'])->name('rooms.whitelist.destroy');
+    Route::post('/rooms/{room:slug}/blacklist', [RoomManagementController::class, 'addBlacklist'])->name('rooms.blacklist.store');
+    Route::delete('/rooms/{room:slug}/blacklist/{character}', [RoomManagementController::class, 'removeBlacklist'])->name('rooms.blacklist.destroy');
+    Route::post('/rooms/{room:slug}/moderators', [RoomManagementController::class, 'addModerator'])->name('rooms.moderators.store');
+    Route::delete('/rooms/{room:slug}/moderators/{character}', [RoomManagementController::class, 'removeModerator'])->name('rooms.moderators.destroy');
 
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
 
@@ -53,8 +61,6 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
         ])
         ->name('rooms.messages.store');
 
-    // NOTE: your current RoomController@latest enforces DM membership only.
-    // Keep this route, but you should fix latest() to support public rooms or split it into separate endpoints.
     Route::get('/rooms/{room:slug}/messages/latest', [RoomController::class, 'latest'])->name('rooms.messages.latest');
 
     Route::get('/rooms/{room:slug}/roster', [RoomController::class, 'roster'])->name('rooms.roster');

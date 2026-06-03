@@ -31,25 +31,11 @@ class BroadcastChannelAuthorizationTest extends TestCase
         require base_path('routes/channels.php');
     }
 
-    public function test_public_room_channel_requires_owned_character_in_room(): void
+    public function test_public_room_channel_requires_owned_character_with_access(): void
     {
         $user = User::factory()->create();
         $character = $this->createCharacter($user);
         $room = $this->createRoom($user, 'public');
-
-        $this->actingAs($user)->postJson('/broadcasting/auth', [
-            'socket_id' => '123.456',
-            'channel_name' => "private-conversation.{$room->id}",
-            'character_id' => $character->id,
-        ])->assertForbidden();
-
-        DB::table('character_presences')->insert([
-            'room_id' => $room->id,
-            'character_id' => $character->id,
-            'last_seen_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
 
         $this->actingAs($user)->postJson('/broadcasting/auth', [
             'socket_id' => '123.456',
@@ -113,6 +99,7 @@ class BroadcastChannelAuthorizationTest extends TestCase
             'user_id' => $user->id,
             'created_by' => $user->id,
             'type' => $type,
+            'visibility' => 'public',
         ]);
     }
 

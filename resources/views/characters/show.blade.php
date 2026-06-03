@@ -25,12 +25,15 @@
                     <div class="text-sm text-gray-400">
                         This is a temporary character profile page.
                     </div>
+                    <div class="mt-2 text-sm text-amber-300">
+                        {{ $character->public_handle }}
+                    </div>
                 </div>
             </div>
 
             <div class="space-y-2 text-sm">
                 <div><span class="text-gray-500">Name:</span> <span class="text-gray-100">{{ $character->name }}</span></div>
-                <div><span class="text-gray-500">Character ID:</span> <span class="text-gray-100">{{ $character->id }}</span></div>
+                <div><span class="text-gray-500">Public Handle:</span> <span class="text-gray-100">{{ $character->public_handle }}</span></div>
                 <div><span class="text-gray-500">Owner user ID:</span> <span class="text-gray-100">{{ $character->user_id }}</span></div>
             </div>
 

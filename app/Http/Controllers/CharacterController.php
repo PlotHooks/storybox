@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Character;
+use App\Models\Room;
+use App\Services\RoomAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -89,10 +91,17 @@ class CharacterController extends Controller
     {
         abort_if($character->user_id !== auth()->id(), 403);
 
-        $slug = DB::table('character_presences')
-            ->join('rooms', 'rooms.id', '=', 'character_presences.room_id')
+        $room = Room::query()
+            ->join('character_presences', 'rooms.id', '=', 'character_presences.room_id')
             ->where('character_presences.character_id', $character->id)
-            ->value('rooms.slug');
+            ->select('rooms.*')
+            ->first();
+
+        $slug = null;
+
+        if ($room && app(RoomAccessService::class)->canViewRoom(auth()->user(), $room, $character)) {
+            $slug = $room->slug;
+        }
 
         return response()->json(['room_slug' => $slug]);
     }

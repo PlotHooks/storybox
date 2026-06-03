@@ -28,6 +28,37 @@ class RoomInfolist
                     ->numeric()
                     ->placeholder('-'),
                 TextEntry::make('type'),
+                TextEntry::make('visibility')
+                    ->placeholder('public'),
+                TextEntry::make('ownerCharacter.name')
+                    ->label('Owner Character')
+                    ->placeholder('-'),
+                TextEntry::make('moderators')
+                    ->state(fn ($record) => $record->roomCharacterRoles()
+                        ->where('role', \App\Models\RoomCharacterRole::ROLE_MODERATOR)
+                        ->join('characters', 'characters.id', '=', 'room_character_roles.character_id')
+                        ->orderBy('characters.name')
+                        ->pluck('characters.name')
+                        ->implode(', '))
+                    ->placeholder('-'),
+                TextEntry::make('whitelist')
+                    ->state(fn ($record) => $record->roomAccessEntries()
+                        ->where('type', \App\Models\RoomAccessEntry::TYPE_WHITELIST)
+                        ->join('characters', 'characters.id', '=', 'room_access_entries.character_id')
+                        ->orderBy('characters.name')
+                        ->pluck('characters.name')
+                        ->implode(', '))
+                    ->placeholder('-')
+                    ->columnSpanFull(),
+                TextEntry::make('blacklist')
+                    ->state(fn ($record) => $record->roomAccessEntries()
+                        ->where('type', \App\Models\RoomAccessEntry::TYPE_BLACKLIST)
+                        ->join('characters', 'characters.id', '=', 'room_access_entries.character_id')
+                        ->orderBy('characters.name')
+                        ->pluck('characters.name')
+                        ->implode(', '))
+                    ->placeholder('-')
+                    ->columnSpanFull(),
             ]);
     }
 }

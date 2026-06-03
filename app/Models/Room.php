@@ -2,13 +2,23 @@
 
 namespace App\Models;
 
+use App\Models\Character;
+use App\Models\RoomAccessEntry;
+use App\Models\RoomCharacterRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Room extends Model
 {
     use HasFactory;
+
+    public const TYPE_PUBLIC = 'public';
+    public const TYPE_DM = 'dm';
+
+    public const VISIBILITY_PUBLIC = 'public';
+    public const VISIBILITY_HIDDEN = 'hidden';
 
     // rooms table is the conversation model.
     protected $fillable = [
@@ -19,6 +29,8 @@ class Room extends Model
         'user_id',
         'type',
         'dm_key',
+        'owner_character_id',
+        'visibility',
     ];
 
     /*
@@ -29,7 +41,17 @@ class Room extends Model
 
     public function isDm(): bool
     {
-        return $this->type === 'dm';
+        return $this->type === self::TYPE_DM;
+    }
+
+    public function isPublicRoom(): bool
+    {
+        return $this->type === self::TYPE_PUBLIC;
+    }
+
+    public function isHidden(): bool
+    {
+        return ($this->visibility ?? self::VISIBILITY_PUBLIC) === self::VISIBILITY_HIDDEN;
     }
 
     public static function normalizedDmPair(int $firstCharacterId, int $secondCharacterId): array
@@ -55,20 +77,35 @@ class Room extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function owner()
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function messages()
+    public function ownerCharacter(): BelongsTo
+    {
+        return $this->belongsTo(Character::class, 'owner_character_id');
+    }
+
+    public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
     }
 
     // Matches your migration: character_presences.room_id -> rooms.id
-    public function characterPresences()
+    public function characterPresences(): HasMany
     {
         return $this->hasMany(CharacterPresence::class);
+    }
+
+    public function roomCharacterRoles(): HasMany
+    {
+        return $this->hasMany(RoomCharacterRole::class);
+    }
+
+    public function roomAccessEntries(): HasMany
+    {
+        return $this->hasMany(RoomAccessEntry::class);
     }
 
     /*

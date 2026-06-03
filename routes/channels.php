@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Character;
+use App\Models\Room;
+use App\Services\RoomAccessService;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -15,25 +18,25 @@ Broadcast::channel('conversation.{conversationId}', function ($user, int $conver
         return false;
     }
 
-    $ownsCharacter = DB::table('characters')
+    $character = Character::query()
         ->where('id', $characterId)
         ->where('user_id', $user->id)
-        ->exists();
+        ->first();
 
-    if (! $ownsCharacter) {
+    if (! $character) {
         return false;
     }
 
     // rooms table is the conversation model.
-    $conversation = DB::table('rooms')
+    $conversation = Room::query()
         ->where('id', $conversationId)
-        ->first(['id', 'type']);
+        ->first(['id', 'type', 'owner_character_id', 'visibility']);
 
     if (! $conversation) {
         return false;
     }
 
-    if ($conversation->type === 'dm') {
+    if ($conversation->type === Room::TYPE_DM) {
         return DB::table('dm_participants')
             ->where('room_id', $conversation->id)
             ->where('user_id', $user->id)
@@ -41,11 +44,8 @@ Broadcast::channel('conversation.{conversationId}', function ($user, int $conver
             ->exists();
     }
 
-    if ($conversation->type === 'public') {
-        return DB::table('character_presences')
-            ->where('room_id', $conversation->id)
-            ->where('character_id', $characterId)
-            ->exists();
+    if ($conversation->type === Room::TYPE_PUBLIC) {
+        return app(RoomAccessService::class)->canSubscribeToRoom($user, $conversation, $character);
     }
 
     return false;

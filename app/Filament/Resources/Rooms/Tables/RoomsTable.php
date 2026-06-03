@@ -22,6 +22,12 @@ class RoomsTable
                     ->searchable(),
                 TextColumn::make('slug')
                     ->searchable(),
+                TextColumn::make('ownerCharacter.name')
+                    ->label('Owner Character')
+                    ->placeholder('-')
+                    ->searchable(),
+                TextColumn::make('visibility')
+                    ->badge(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
