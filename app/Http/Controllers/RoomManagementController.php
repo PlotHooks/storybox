@@ -8,6 +8,7 @@ use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Services\RoomAccessService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class RoomManagementController extends Controller
@@ -100,6 +101,37 @@ class RoomManagementController extends Controller
             ->delete();
 
         return $this->managementResponse($request, $room, 'Moderator removed.');
+    }
+
+    public function destroy(Request $request, Room $room)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->ownedCharacterFromRequest($request);
+        abort_unless((int) session('active_character_id', 0) === (int) $actor->id, 403);
+        abort_unless($this->roomAccess->canDeleteRoom($request->user(), $room, $actor), 403);
+
+        $request->validate([
+            'delete_confirmation' => ['required', 'in:DELETE'],
+        ], [
+            'delete_confirmation.in' => 'Type DELETE exactly to confirm room deletion.',
+        ]);
+
+        DB::transaction(function () use ($room) {
+            $room->characterPresences()->delete();
+            DB::table('room_user_presence')->where('room_id', $room->id)->delete();
+            DB::table('room_presences')->where('room_id', $room->id)->delete();
+            // Intentionally preserve messages, access entries, and moderator rows for review and later purge.
+            $room->delete();
+        });
+
+        if (! $request->expectsJson()) {
+            return redirect()
+                ->route('rooms.index')
+                ->with('status', 'Room deleted successfully.');
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     private function upsertAccessEntry(Request $request, Room $room, string $type)

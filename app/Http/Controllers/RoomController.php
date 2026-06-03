@@ -147,6 +147,7 @@ class RoomController extends Controller
 
         $canManageRoom = false;
         $canManageModerators = false;
+        $canDeleteRoom = false;
         $roomModerators = collect();
         $roomWhitelist = collect();
         $roomBlacklist = collect();
@@ -154,6 +155,7 @@ class RoomController extends Controller
         if ($room->isPublicRoom() && $activeCharacter) {
             $canManageRoom = $this->roomAccess->canManageRoom(Auth::user(), $room, $activeCharacter);
             $canManageModerators = $this->roomAccess->isOwner($room, $activeCharacter) || $this->roomAccess->isAdmin(Auth::user());
+            $canDeleteRoom = $this->roomAccess->canDeleteRoom(Auth::user(), $room, $activeCharacter);
         }
 
         if ($room->isPublicRoom()) {
@@ -189,6 +191,7 @@ class RoomController extends Controller
             'sidebarRooms',
             'canManageRoom',
             'canManageModerators',
+            'canDeleteRoom',
             'roomModerators',
             'roomWhitelist',
             'roomBlacklist'
@@ -814,6 +817,7 @@ class RoomController extends Controller
             })
             ->where('mine.user_id', $me)
             ->where('rooms.type', Room::TYPE_DM)
+            ->whereNull('rooms.deleted_at')
             ->orderByDesc('rooms.updated_at')
             ->select([
                 'rooms.id as room_id',

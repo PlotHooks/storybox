@@ -14,6 +14,10 @@ class RoomAccessService
 {
     public function canViewRoom(User $user, Room $room, ?Character $character): bool
     {
+        if ($this->isSoftDeleted($room)) {
+            return false;
+        }
+
         if ($this->isAdmin($user)) {
             return true;
         }
@@ -62,6 +66,10 @@ class RoomAccessService
 
     public function canManageRoom(User $user, Room $room, Character $character): bool
     {
+        if ($this->isSoftDeleted($room)) {
+            return false;
+        }
+
         if ($this->isAdmin($user)) {
             return true;
         }
@@ -85,6 +93,10 @@ class RoomAccessService
 
     public function canSubscribeToRoom(User $user, Room $room, ?Character $character): bool
     {
+        if ($this->isSoftDeleted($room)) {
+            return false;
+        }
+
         if (! $room->isPublicRoom()) {
             return false;
         }
@@ -172,9 +184,31 @@ class RoomAccessService
             ->exists();
     }
 
+    public function canDeleteRoom(User $user, Room $room, ?Character $character): bool
+    {
+        if ($this->isSoftDeleted($room) || ! $room->isPublicRoom()) {
+            return false;
+        }
+
+        if ($character === null || ! $this->characterBelongsToUser($user, $character)) {
+            return false;
+        }
+
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        return $this->isOwner($room, $character);
+    }
+
     private function characterBelongsToUser(User $user, ?Character $character): bool
     {
         return $character !== null && (int) $character->user_id === (int) $user->id;
+    }
+
+    private function isSoftDeleted(Room $room): bool
+    {
+        return method_exists($room, 'trashed') && $room->trashed();
     }
 
     private function moderatorSubquery(int $characterId)

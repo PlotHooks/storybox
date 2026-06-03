@@ -28,7 +28,7 @@ class Message extends Model
 
     public function room()
     {
-        return $this->belongsTo(Room::class);
+        return $this->belongsTo(Room::class)->withTrashed();
     }
 
     public function user()
@@ -66,4 +66,3 @@ class Message extends Model
         return $this->belongsTo(User::class, 'deleted_by');
     }
 }
-

@@ -285,6 +285,40 @@
                                     </div>
                                 </div>
                             @endif
+
+                            @if ($canDeleteRoom)
+                                <div class="rounded-md border border-red-500/40 bg-[#101012] p-3">
+                                    <div class="text-[10px] uppercase tracking-[0.16em] text-red-300">Danger Zone</div>
+                                    <h4 class="mt-2 text-sm font-semibold text-[#f2dfb5]">Delete Room</h4>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
+                                        This action cannot be undone.
+                                    </p>
+                                    <form method="POST" action="{{ route('rooms.destroy', ['room' => $room->slug]) }}" class="mt-3 space-y-2">
+                                        @csrf
+                                        @method('DELETE')
+                                        <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
+                                        <input type="hidden" name="context_tool" value="settings">
+                                        <div>
+                                            <label for="room-delete-confirmation" class="block text-[11px] font-semibold text-[#d6c8ad]">
+                                                Type DELETE to confirm:
+                                            </label>
+                                            <input
+                                                id="room-delete-confirmation"
+                                                name="delete_confirmation"
+                                                type="text"
+                                                value="{{ old('delete_confirmation') }}"
+                                                class="mt-1 block w-full rounded-md border-red-500/30 bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:border-red-500 focus:ring-red-500"
+                                            >
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            class="inline-flex items-center rounded border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-[11px] font-semibold text-red-200 hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                                        >
+                                            Delete Room
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
                         </div>
                     @endif
                 </div>
