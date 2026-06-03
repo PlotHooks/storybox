@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Rooms\Schemas;
 
+use App\Models\RoomAccessEntry;
+use App\Models\RoomCharacterRole;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -30,32 +32,42 @@ class RoomInfolist
                 TextEntry::make('type'),
                 TextEntry::make('visibility')
                     ->placeholder('public'),
-                TextEntry::make('ownerCharacter.name')
+                TextEntry::make('owner_character_id')
+                    ->label('Owner Character ID')
+                    ->placeholder('No owner assigned'),
+                TextEntry::make('owner_public_handle')
                     ->label('Owner Character')
-                    ->placeholder('-'),
+                    ->state(fn ($record): string => $record->ownerCharacter?->public_handle ?? 'No owner assigned')
+                    ->placeholder('No owner assigned'),
                 TextEntry::make('moderators')
                     ->state(fn ($record) => $record->roomCharacterRoles()
-                        ->where('role', \App\Models\RoomCharacterRole::ROLE_MODERATOR)
-                        ->join('characters', 'characters.id', '=', 'room_character_roles.character_id')
-                        ->orderBy('characters.name')
-                        ->pluck('characters.name')
+                        ->where('role', RoomCharacterRole::ROLE_MODERATOR)
+                        ->with('character:id,name')
+                        ->get()
+                        ->map(fn (RoomCharacterRole $role) => $role->character?->public_handle)
+                        ->filter()
+                        ->sort()
                         ->implode(', '))
                     ->placeholder('-'),
                 TextEntry::make('whitelist')
                     ->state(fn ($record) => $record->roomAccessEntries()
-                        ->where('type', \App\Models\RoomAccessEntry::TYPE_WHITELIST)
-                        ->join('characters', 'characters.id', '=', 'room_access_entries.character_id')
-                        ->orderBy('characters.name')
-                        ->pluck('characters.name')
+                        ->where('type', RoomAccessEntry::TYPE_WHITELIST)
+                        ->with('character:id,name')
+                        ->get()
+                        ->map(fn (RoomAccessEntry $entry) => $entry->character?->public_handle)
+                        ->filter()
+                        ->sort()
                         ->implode(', '))
                     ->placeholder('-')
                     ->columnSpanFull(),
                 TextEntry::make('blacklist')
                     ->state(fn ($record) => $record->roomAccessEntries()
-                        ->where('type', \App\Models\RoomAccessEntry::TYPE_BLACKLIST)
-                        ->join('characters', 'characters.id', '=', 'room_access_entries.character_id')
-                        ->orderBy('characters.name')
-                        ->pluck('characters.name')
+                        ->where('type', RoomAccessEntry::TYPE_BLACKLIST)
+                        ->with('character:id,name')
+                        ->get()
+                        ->map(fn (RoomAccessEntry $entry) => $entry->character?->public_handle)
+                        ->filter()
+                        ->sort()
                         ->implode(', '))
                     ->placeholder('-')
                     ->columnSpanFull(),

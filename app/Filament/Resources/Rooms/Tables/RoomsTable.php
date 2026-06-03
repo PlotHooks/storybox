@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Rooms\Tables;
 
+use App\Models\Room;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -22,12 +23,16 @@ class RoomsTable
                     ->searchable(),
                 TextColumn::make('slug')
                     ->searchable(),
-                TextColumn::make('ownerCharacter.name')
+                TextColumn::make('owner_character_id')
+                    ->label('Owner ID')
+                    ->placeholder('No owner')
+                    ->sortable(),
+                TextColumn::make('owner_handle')
                     ->label('Owner Character')
-                    ->placeholder('-')
-                    ->searchable(),
+                    ->state(fn (Room $record): string => $record->ownerCharacter?->public_handle ?? 'No owner assigned'),
                 TextColumn::make('visibility')
-                    ->badge(),
+                    ->badge()
+                    ->placeholder('public'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
