@@ -19,6 +19,8 @@ class ProfileTest extends TestCase
             ->get('/profile');
 
         $response->assertOk();
+        $response->assertSee('action="' . route('logout') . '"', false);
+        $response->assertSee('Log Out');
     }
 
     public function test_profile_information_can_be_updated(): void

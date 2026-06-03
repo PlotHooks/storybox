@@ -58,41 +58,38 @@
 
             <!-- RIGHT -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
-                <x-dropdown align="right" width="48">
+                <div class="flex items-center gap-3">
+                    <a
+                        href="{{ route('profile.edit') }}"
+                        class="inline-flex items-center px-3 py-2 text-sm rounded-md text-[#8f8675] hover:text-[#f2dfb5] transition"
+                    >
+                        {{ Auth::user()->name }}
+                    </a>
 
-                    <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 text-sm rounded-md text-[#8f8675] hover:text-[#f2dfb5] transition">
-                            <div>{{ Auth::user()->name }}</div>
-
-                            <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd"
-                                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4z"
-                                          clip-rule="evenodd" />
-                                </svg>
-                            </div>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button
+                            type="submit"
+                            class="inline-flex items-center rounded border border-[#332817] bg-[#141416] px-3 py-2 text-sm text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5] transition"
+                        >
+                            Log Out
                         </button>
-                    </x-slot>
-
-                    <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            Profile
-                        </x-dropdown-link>
-
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <x-dropdown-link :href="route('logout')"
-                                             onclick="event.preventDefault(); this.closest('form').submit();">
-                                Log Out
-                            </x-dropdown-link>
-                        </form>
-                    </x-slot>
-
-                </x-dropdown>
+                    </form>
+                </div>
             </div>
 
             <!-- MOBILE -->
             <div class="-me-2 flex items-center sm:hidden">
+                <form method="POST" action="{{ route('logout') }}" class="me-2">
+                    @csrf
+                    <button
+                        type="submit"
+                        class="inline-flex items-center rounded border border-[#332817] bg-[#141416] px-3 py-2 text-sm text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5] transition"
+                    >
+                        Log Out
+                    </button>
+                </form>
+
                 <button @click="open = ! open"
                         class="p-2 rounded-md text-[#8f8675] hover:text-[#f2dfb5] hover:bg-[#141416]">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
