@@ -132,18 +132,13 @@
 
     let refreshListTimer = null;
     let pollDmTimer = null;
-
-    // Prevent overlapping polls (race condition -> duplicates)
     let pollInFlight = false;
-
-    // De-dupe rendered messages per conversation
-    const seenMessageIds = new Set();
+    let roomsLoaded = false;
 
     let activeDm = {
         slug: null,
         conversationId: 0,
         lastId: 0,
-        lastCharacterId: 0,
         displayName: null,
         myCharacterId: 0,
         otherCharacterId: 0,
@@ -153,6 +148,8 @@
     let activeRealtimeConversationId = 0;
     let dmReconnectHandlerBound = false;
     const dmListRealtimeConversationIds = new Set();
+    const dmRoomsBySlug = new Map();
+    const dmMessageCache = new Map();
 
     window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
 
@@ -202,7 +199,7 @@
     }
 
     window.setCharacterBlock = window.setCharacterBlock || function setCharacterBlock(blockerId, blockedId, shouldBlock) {
-        const action = shouldBlock ? "Block this character?" : "Unblock this character?";
+        const action = shouldBlock ? 'Block this character?' : 'Unblock this character?';
         if (!confirm(action)) return;
 
         const token = document.querySelector('meta[name="csrf-token"]').content;
@@ -219,7 +216,7 @@
             return res.json();
         })
         .then(() => location.reload())
-        .catch(() => alert(shouldBlock ? "Failed to block character." : "Failed to unblock character."));
+        .catch(() => alert(shouldBlock ? 'Failed to block character.' : 'Failed to unblock character.'));
     };
 
     function syncDmBlockToggle() {
@@ -263,11 +260,7 @@
         setUnreadBadge(badge, parseUnreadCount(badge.dataset.unreadCount) + 1);
     }
 
-    function clearUnreadBadge(badge) {
-        setUnreadBadge(badge, 0);
-    }
-
-    function updateGlobalUnreadBadge(rooms) {
+    function updateGlobalUnreadBadge() {
         if (!globalUnreadBadge) return;
 
         const total = Array.from(listEl?.querySelectorAll('[data-dm-unread-badge]') || [])
@@ -279,16 +272,34 @@
     function updateGlobalUnreadBadgeFromRooms(rooms) {
         if (!globalUnreadBadge) return;
 
-        const total = (Array.isArray(rooms) ? rooms : []).reduce((sum, r) => {
-            return sum + parseUnreadCount(r.unread_count);
+        const total = (Array.isArray(rooms) ? rooms : []).reduce((sum, room) => {
+            return sum + parseUnreadCount(room.unreadCount ?? room.unread_count);
         }, 0);
 
         setUnreadBadge(globalUnreadBadge, total);
     }
 
-    function clearDmUnread(conversationId) {
+    function findRoomByConversationId(conversationId) {
+        for (const room of dmRoomsBySlug.values()) {
+            if (room.roomId === conversationId) return room;
+        }
+
+        return null;
+    }
+
+    function setRoomUnreadCount(slug, count) {
+        const room = dmRoomsBySlug.get(slug);
+        if (!room) return;
+        room.unreadCount = parseUnreadCount(count);
+    }
+
+    function clearDmUnread(conversationId, slug = null) {
         const badge = listEl?.querySelector(`[data-dm-unread-badge="${conversationId}"]`);
-        clearUnreadBadge(badge);
+        setUnreadBadge(badge, 0);
+
+        const room = slug ? dmRoomsBySlug.get(slug) : findRoomByConversationId(conversationId);
+        if (room?.slug) setRoomUnreadCount(room.slug, 0);
+
         updateGlobalUnreadBadge();
     }
 
@@ -304,92 +315,174 @@
         if (!badge) return;
 
         incrementUnreadBadge(badge);
+
+        const room = findRoomByConversationId(normalizedConversationId);
+        if (room?.slug) {
+            room.unreadCount = parseUnreadCount(room.unreadCount) + 1;
+        }
+
         updateGlobalUnreadBadge();
     }
 
-    function clearThread() {
-        stopDmRealtime();
-        activeDm.slug = null;
-        activeDm.conversationId = 0;
-        activeDm.lastId = 0;
-        activeDm.lastCharacterId = 0;
-        activeDm.displayName = null;
-        activeDm.myCharacterId = 0;
-        activeDm.otherCharacterId = 0;
-        activeDm.isBlockedByViewer = false;
-        pollInFlight = false;
-        seenMessageIds.clear();
+    function getMessageCache(slug) {
+        if (!slug) return null;
 
-        if (threadHeader) threadHeader.textContent = 'Select a conversation.';
-        syncDmBlockToggle();
-        if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;
-        if (inputEl) inputEl.value = '';
-        setThreadEnabled(false);
+        if (!dmMessageCache.has(slug)) {
+            dmMessageCache.set(slug, {
+                messages: [],
+                messageIds: new Set(),
+                lastId: 0,
+                loaded: false,
+                loading: false,
+                scrollTop: null,
+            });
+        }
+
+        return dmMessageCache.get(slug);
+    }
+
+    function normalizeRoom(raw) {
+        return {
+            roomId: parseInt(raw.room_id || 0, 10) || 0,
+            slug: raw.slug || '',
+            updatedAt: raw.updated_at || null,
+            displayName: raw.other_character_name || 'DM',
+            avatar: raw.other_character_avatar || '',
+            unreadCount: parseUnreadCount(raw.unread_count),
+            myCharacterId: parseInt(raw.my_character_id || 0, 10) || 0,
+            otherCharacterId: parseInt(raw.other_character_id || 0, 10) || 0,
+            isBlockedByViewer: parseBool(raw.is_blocked_by_viewer),
+        };
+    }
+
+    function roomButtonClass(isActive) {
+        return 'w-full text-left rounded border px-2 py-2 transition-colors ' + (
+            isActive
+                ? 'border-amber-500/40 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]'
+                : 'border-[#332817] bg-[#101012] hover:border-amber-500/40 hover:bg-[#141416]'
+        );
+    }
+
+    function createRoomButton(room) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.dmSlug = room.slug;
+        btn.addEventListener('click', () => {
+            if (!room.slug) return;
+            openConversation(room.slug);
+        });
+
+        return btn;
+    }
+
+    function updateRoomButton(btn, room) {
+        if (!btn || !room) return;
+
+        btn.dataset.dmSlug = room.slug;
+        if (room.roomId) btn.dataset.dmConversationId = String(room.roomId);
+
+        const isActive = activeDm.slug && room.slug === activeDm.slug;
+        btn.className = roomButtonClass(isActive);
+        btn.innerHTML = `
+            <div class="flex items-center gap-2">
+                ${avatarHtml(room.avatar, room.displayName, 'h-7 w-7')}
+                <div class="min-w-0 flex-1 text-xs text-[#d6c8ad] truncate">${escapeHtml(room.displayName)}</div>
+                <span
+                    data-dm-unread-badge="${room.roomId}"
+                    data-unread-count="${room.unreadCount}"
+                    class="${room.unreadCount > 0 ? '' : 'hidden'} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    ${formatUnreadCount(room.unreadCount)}
+                </span>
+            </div>
+            <div class="text-[10px] text-[#8f8675] truncate">${escapeHtml(room.slug)}</div>
+        `;
+    }
+
+    function refreshRoomButton(slug) {
+        const room = dmRoomsBySlug.get(slug);
+        const btn = listEl?.querySelector(`[data-dm-slug="${CSS.escape(slug)}"]`);
+        if (!room || !btn) return;
+        updateRoomButton(btn, room);
+    }
+
+    function syncActiveConversationHighlight() {
+        if (!listEl) return;
+
+        listEl.querySelectorAll('[data-dm-slug]').forEach((btn) => {
+            const room = dmRoomsBySlug.get(btn.dataset.dmSlug || '');
+            if (room) updateRoomButton(btn, room);
+        });
+    }
+
+    function setRoomListMessage(message, isError = false) {
+        if (!listEl) return;
+        listEl.innerHTML = `<div class="${isError ? 'text-red-400' : 'text-[#8f8675]'}">${escapeHtml(message)}</div>`;
     }
 
     function renderRooms(rooms) {
         if (!listEl) return;
 
-        if (!Array.isArray(rooms) || rooms.length === 0) {
-            updateGlobalUnreadBadgeFromRooms([]);
-            listEl.innerHTML = `<div class="text-[#8f8675]">No DMs yet.</div>`;
+        const normalizedRooms = Array.isArray(rooms) ? rooms.map(normalizeRoom) : [];
+        updateGlobalUnreadBadgeFromRooms(normalizedRooms);
+        roomsLoaded = true;
+
+        if (normalizedRooms.length === 0) {
+            dmRoomsBySlug.clear();
+            setRoomListMessage('No DMs yet.');
             return;
         }
 
-        updateGlobalUnreadBadgeFromRooms(rooms);
-        listEl.innerHTML = '';
+        const previousScrollTop = listEl.scrollTop;
+        const existingButtons = new Map(
+            Array.from(listEl.querySelectorAll('[data-dm-slug]')).map((btn) => [btn.dataset.dmSlug, btn])
+        );
+        const nextSlugs = new Set();
 
-        rooms.forEach(r => {
-            const conversationId = parseInt(r.room_id || 0, 10) || 0;
-            const slug = r.slug || '';
-            const name = r.other_character_name || 'DM';
-            const avatar = r.other_character_avatar || '';
-            const unreadCount = parseUnreadCount(r.unread_count);
+        if (existingButtons.size === 0) {
+            listEl.innerHTML = '';
+        }
 
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            if (conversationId) btn.dataset.dmConversationId = String(conversationId);
+        normalizedRooms.forEach((room, index) => {
+            if (!room.slug) return;
 
-            const isActive = activeDm.slug && slug === activeDm.slug;
+            nextSlugs.add(room.slug);
+            dmRoomsBySlug.set(room.slug, room);
 
-            btn.className =
-                'w-full text-left rounded border px-2 py-2 transition-colors ' +
-                (isActive
-                    ? 'border-amber-500/40 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]'
-                    : 'border-[#332817] bg-[#101012] hover:border-amber-500/40 hover:bg-[#141416]');
+            const btn = existingButtons.get(room.slug) || createRoomButton(room);
+            updateRoomButton(btn, room);
 
-            btn.innerHTML = `
-                <div class="flex items-center gap-2">
-                    ${avatarHtml(avatar, name, 'h-7 w-7')}
-                    <div class="min-w-0 flex-1 text-xs text-[#d6c8ad] truncate">${escapeHtml(name)}</div>
-                    <span
-                        data-dm-unread-badge="${conversationId}"
-                        data-unread-count="${unreadCount}"
-                        class="${unreadCount > 0 ? '' : 'hidden'} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        ${formatUnreadCount(unreadCount)}
-                    </span>
-                </div>
-                <div class="text-[10px] text-[#8f8675] truncate">${escapeHtml(slug)}</div>
-            `;
-
-            btn.addEventListener('click', () => {
-                if (!slug) return;
-                openConversation(slug, name, r.my_character_id, r.other_character_id, parseBool(r.is_blocked_by_viewer));
-            });
-
-            listEl.appendChild(btn);
+            const currentChild = listEl.children[index];
+            if (currentChild !== btn) {
+                listEl.insertBefore(btn, currentChild || null);
+            }
         });
 
-        syncDmListRealtimeSubscriptions(rooms);
+        Array.from(listEl.querySelectorAll('[data-dm-slug]')).forEach((btn) => {
+            if (!nextSlugs.has(btn.dataset.dmSlug || '')) {
+                btn.remove();
+            }
+        });
+
+        for (const slug of Array.from(dmRoomsBySlug.keys())) {
+            if (!nextSlugs.has(slug)) {
+                dmRoomsBySlug.delete(slug);
+            }
+        }
+
+        listEl.scrollTop = previousScrollTop;
+        syncDmListRealtimeSubscriptions(normalizedRooms);
     }
 
-    function fetchDmRooms() {
-        if (!isOpen()) return;
+    function fetchDmRooms(options = {}) {
+        const { showLoading = false } = options;
 
-        if (!listEl) return;
-        listEl.innerHTML = `<div class="text-[#8f8675]">Loading...</div>`;
+        if (!isOpen() || !listEl) return Promise.resolve([]);
 
-        fetch('/dms', {
+        if (showLoading && !roomsLoaded) {
+            setRoomListMessage('Loading...');
+        }
+
+        return fetch('/dms', {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
@@ -397,14 +490,15 @@
         .then(data => {
             const rooms = data && Array.isArray(data.rooms) ? data.rooms : [];
             renderRooms(rooms);
+            return rooms;
         })
         .catch(err => {
             console.error('DM list error:', err);
-            if (listEl) listEl.innerHTML = `<div class="text-red-400">Could not load DMs.</div>`;
+            if (!roomsLoaded) setRoomListMessage('Could not load DMs.', true);
+            return [];
         });
     }
 
-    // ----- Style helpers (same behavior as rooms) -----
     function buildStops(s) {
         const stops = [];
         if (s.c1) stops.push(s.c1);
@@ -447,152 +541,267 @@
         (root || document).querySelectorAll('.msg-name, .msg-body').forEach(applyStyleFromDataset);
     }
 
-    function appendMessages(msgs, initialLoad) {
-        if (!threadEl) return;
+    function replaceCachedMessages(slug, msgs) {
+        const cache = getMessageCache(slug);
+        if (!cache) return;
 
-        if (initialLoad) {
-            threadEl.innerHTML = '';
-            activeDm.lastCharacterId = 0;
+        cache.messages = [];
+        cache.messageIds.clear();
+        cache.lastId = 0;
+
+        (Array.isArray(msgs) ? msgs : []).forEach((message) => {
+            const id = parseInt(message?.id || 0, 10);
+            if (!id || cache.messageIds.has(id)) return;
+            cache.messageIds.add(id);
+            cache.messages.push(message);
+            if (id > cache.lastId) cache.lastId = id;
+        });
+
+        cache.loaded = true;
+    }
+
+    function appendCachedMessages(slug, msgs) {
+        const cache = getMessageCache(slug);
+        if (!cache) return false;
+
+        let changed = false;
+
+        (Array.isArray(msgs) ? msgs : []).forEach((message) => {
+            const id = parseInt(message?.id || 0, 10);
+            if (!id || cache.messageIds.has(id)) return;
+            cache.messageIds.add(id);
+            cache.messages.push(message);
+            if (id > cache.lastId) cache.lastId = id;
+            changed = true;
+        });
+
+        if (changed) {
+            cache.messages.sort((a, b) => (parseInt(a?.id || 0, 10) || 0) - (parseInt(b?.id || 0, 10) || 0));
+            cache.loaded = true;
         }
 
-        if (!Array.isArray(msgs) || msgs.length === 0) {
-            if (initialLoad) {
-                threadEl.innerHTML = `<div class="text-[#8f8675]">No messages yet.</div>`;
-            }
+        return changed;
+    }
+
+    function renderConversationLoading() {
+        if (!threadEl) return;
+        threadEl.innerHTML = `<div class="text-[#8f8675]">Loading...</div>`;
+    }
+
+    function renderActiveConversation(options = {}) {
+        if (!threadEl || !activeDm.slug) return;
+
+        const cache = getMessageCache(activeDm.slug);
+        if (!cache) return;
+
+        const restoreScroll = options.restoreScroll === true;
+        const keepPosition = options.keepPosition === true;
+        const previousScrollTop = threadEl.scrollTop;
+        const previousDistanceFromBottom = threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight;
+        const shouldStickBottom = options.forceBottom === true || (!restoreScroll && !keepPosition && previousDistanceFromBottom < 80);
+
+        threadEl.innerHTML = '';
+        activeDm.lastId = cache.lastId || 0;
+
+        if (!cache.loaded) {
+            renderConversationLoading();
             return;
         }
 
-        const wasNearBottom =
-            threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight < 80;
+        if (cache.messages.length === 0) {
+            threadEl.innerHTML = `<div class="text-[#8f8675]">No messages yet.</div>`;
+        } else {
+            let lastCharacterId = 0;
 
-        msgs.forEach(m => {
-            const mid = parseInt(m.id || 0, 10);
-            if (!mid) return;
+            cache.messages.forEach((m) => {
+                const bodyRaw = (m.content ?? m.body ?? '').toString();
+                const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
+                const bodyDisplay = bodyRaw.trim();
+                const who =
+                    (m.character && m.character.name)
+                        ? m.character.name
+                        : (m.user && m.user.name ? m.user.name : 'Unknown');
+                const avatar = m.character?.avatar || '';
+                const characterId = parseInt(m.character?.id ?? m.character_id ?? 0, 10) || 0;
+                const isGrouped = characterId > 0 && lastCharacterId === characterId;
 
-            // De-dupe: prevents "first send shows twice"
-            if (seenMessageIds.has(mid)) return;
-            seenMessageIds.add(mid);
+                let settings = (m.character && m.character.settings) ? m.character.settings : {};
+                if (typeof settings === 'string') {
+                    try { settings = JSON.parse(settings); } catch (e) { settings = {}; }
+                }
 
-            const bodyRaw = (m.content ?? m.body ?? '').toString();
-            const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
-            const bodyDisplay = bodyRaw.trim();
+                const c1 = settings.text_color_1 || '#D8F3FF';
+                const c2 = settings.text_color_2 || null;
+                const c3 = settings.text_color_3 || null;
+                const c4 = settings.text_color_4 || null;
+                const fadeName = !!settings.fade_name;
+                const fadeMsg = !!settings.fade_message;
+                const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
+                const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
+                const avatarMarkup = isGrouped
+                    ? '<div class="w-7 shrink-0"></div>'
+                    : `<div class="w-7 shrink-0">${avatarHtml(avatar, who, 'h-7 w-7')}</div>`;
+                const nameMarkup = isGrouped ? '' : `
+                            <div class="mb-0 flex items-baseline gap-2">
+                                <span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                            </div>
+                `;
 
-            const who =
-                (m.character && m.character.name)
-                    ? m.character.name
-                    : (m.user && m.user.name ? m.user.name : 'Unknown');
-            const avatar = m.character?.avatar || '';
-            const characterId = parseInt(m.character?.id ?? m.character_id ?? 0, 10) || 0;
-            const isGrouped = characterId > 0 && activeDm.lastCharacterId === characterId;
-
-            // Character settings (for fades/colors)
-            let settings = (m.character && m.character.settings) ? m.character.settings : {};
-            if (typeof settings === 'string') {
-                try { settings = JSON.parse(settings); } catch (e) { settings = {}; }
-            }
-
-            const c1 = settings.text_color_1 || '#D8F3FF';
-            const c2 = settings.text_color_2 || null;
-            const c3 = settings.text_color_3 || null;
-            const c4 = settings.text_color_4 || null;
-
-            const fadeName = !!settings.fade_name;
-            const fadeMsg  = !!settings.fade_message;
-
-            const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
-            const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
-            const avatarMarkup = isGrouped ? '<div class="w-7 shrink-0"></div>' : `<div class="w-7 shrink-0">${avatarHtml(avatar, who, 'h-7 w-7')}</div>`;
-            const nameMarkup = isGrouped ? '' : `
-                        <div class="mb-0 flex items-baseline gap-2">
-                            <span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                const bubble = document.createElement('div');
+                bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-[#16120c] py-0.5'}`;
+                bubble.dataset.characterId = characterId ? String(characterId) : '';
+                bubble.innerHTML = `
+                    ${avatarMarkup}
+                    <div class="min-w-0 flex-1">
+                        ${nameMarkup}
+                        <div class="msg-body-wrapper mt-0 text-sm leading-snug">
+                            <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
                         </div>
-            `;
-
-            const bubble = document.createElement('div');
-            bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-[#16120c] py-0.5'}`;
-            bubble.dataset.characterId = characterId ? String(characterId) : '';
-
-            bubble.innerHTML = `
-                ${avatarMarkup}
-                <div class="min-w-0 flex-1">
-                    ${nameMarkup}
-                    <div class="msg-body-wrapper mt-0 text-sm leading-snug">
-                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
                     </div>
-                </div>
-            `;
+                `;
 
-            threadEl.appendChild(bubble);
+                threadEl.appendChild(bubble);
+                applyStylesIn(bubble);
+                lastCharacterId = characterId;
+            });
+        }
 
-            applyStylesIn(bubble);
+        if (restoreScroll && cache.scrollTop !== null) {
+            threadEl.scrollTop = Math.min(cache.scrollTop, Math.max(threadEl.scrollHeight - threadEl.clientHeight, 0));
+            return;
+        }
 
-            if (mid > activeDm.lastId) activeDm.lastId = mid;
-            activeDm.lastCharacterId = characterId;
-        });
-
-        if (wasNearBottom || initialLoad) {
+        if (shouldStickBottom) {
             threadEl.scrollTop = threadEl.scrollHeight;
+            return;
+        }
+
+        if (keepPosition) {
+            threadEl.scrollTop = Math.min(previousScrollTop, Math.max(threadEl.scrollHeight - threadEl.clientHeight, 0));
         }
     }
 
-    function fetchConversationInitial(slug) {
-        if (!slug) return;
+    function storeActiveConversationScroll() {
+        if (!threadEl || !activeDm.slug) return;
+        const cache = getMessageCache(activeDm.slug);
+        if (!cache || !cache.loaded) return;
+        cache.scrollTop = threadEl.scrollTop;
+    }
 
-        pollInFlight = false;
-        seenMessageIds.clear();
-        activeDm.lastId = 0;
-        activeDm.lastCharacterId = 0;
-        activeDm.conversationId = 0;
+    function applyActiveConversationMeta(room) {
+        activeDm.slug = room?.slug || null;
+        activeDm.conversationId = room?.roomId || 0;
+        activeDm.lastId = getMessageCache(activeDm.slug)?.lastId || 0;
+        activeDm.displayName = room?.displayName || room?.slug || null;
+        activeDm.myCharacterId = room?.myCharacterId || 0;
+        activeDm.otherCharacterId = room?.otherCharacterId || 0;
+        activeDm.isBlockedByViewer = !!room?.isBlockedByViewer;
+
+        if (threadHeader) {
+            threadHeader.textContent = activeDm.displayName ? `DM: ${activeDm.displayName}` : 'Select a conversation.';
+        }
+
+        syncDmBlockToggle();
+        setThreadEnabled(!!activeDm.myCharacterId);
+        syncActiveConversationHighlight();
+    }
+
+    function clearThread() {
+        storeActiveConversationScroll();
         stopDmRealtime();
+        activeDm.slug = null;
+        activeDm.conversationId = 0;
+        activeDm.lastId = 0;
+        activeDm.displayName = null;
+        activeDm.myCharacterId = 0;
+        activeDm.otherCharacterId = 0;
+        activeDm.isBlockedByViewer = false;
+        pollInFlight = false;
 
-        fetch(`/dms/${encodeURIComponent(slug)}/messages?after=0`, {
+        if (threadHeader) threadHeader.textContent = 'Select a conversation.';
+        syncDmBlockToggle();
+        if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;
+        if (inputEl) inputEl.value = '';
+        setThreadEnabled(false);
+        syncActiveConversationHighlight();
+    }
+
+    function fetchConversationMessages(slug, options = {}) {
+        if (!slug) return Promise.resolve([]);
+
+        const { reset = false } = options;
+        const cache = getMessageCache(slug);
+        if (!cache || cache.loading) return Promise.resolve([]);
+
+        cache.loading = true;
+        const after = reset ? 0 : (cache.lastId || 0);
+
+        return fetch(`/dms/${encodeURIComponent(slug)}/messages?after=${after}`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
         .then(r => r.json())
         .then(data => {
-            activeDm.conversationId = parseInt(data?.room?.id, 10) || 0;
+            const roomId = parseInt(data?.room?.id, 10) || 0;
             const msgs = data && Array.isArray(data.messages) ? data.messages : [];
-            appendMessages(msgs, true);
-            clearDmUnread(activeDm.conversationId);
-            fetchDmRooms();
-            startDmRealtime();
+            const room = dmRoomsBySlug.get(slug);
+
+            if (room && roomId && room.roomId !== roomId) {
+                room.roomId = roomId;
+                refreshRoomButton(slug);
+            }
+
+            if (reset) {
+                replaceCachedMessages(slug, msgs);
+            } else {
+                appendCachedMessages(slug, msgs);
+            }
+
+            cache.loading = false;
+
+            if (activeDm.slug === slug) {
+                if (roomId) activeDm.conversationId = roomId;
+                clearDmUnread(activeDm.conversationId, slug);
+                renderActiveConversation({
+                    restoreScroll: reset,
+                    keepPosition: !reset,
+                    forceBottom: reset && cache.scrollTop === null,
+                });
+                startDmRealtime();
+            }
+
+            if (msgs.length > 0) {
+                fetchDmRooms({ showLoading: false });
+            }
+
+            return msgs;
         })
         .catch(err => {
+            cache.loading = false;
             console.error('DM thread load error:', err);
-            if (threadEl) threadEl.innerHTML = `<div class="text-red-400">Could not load messages.</div>`;
+            if (activeDm.slug === slug && reset && threadEl) {
+                threadEl.innerHTML = `<div class="text-red-400">Could not load messages.</div>`;
+            }
+            return [];
         });
     }
 
     function pollConversation() {
-        if (!activeDm.slug) return;
-        if (pollInFlight) return;
+        if (!activeDm.slug || pollInFlight) return;
 
         pollInFlight = true;
+        const cache = getMessageCache(activeDm.slug);
 
-        const after = activeDm.lastId || 0;
-
-        fetch(`/dms/${encodeURIComponent(activeDm.slug)}/messages?after=${after}`, {
-            headers: { 'Accept': 'application/json' },
-            credentials: 'same-origin'
-        })
-        .then(r => r.json())
-        .then(data => {
-            const msgs = data && Array.isArray(data.messages) ? data.messages : [];
-            if (msgs.length) appendMessages(msgs, false);
-            clearDmUnread(activeDm.conversationId);
-        })
-        .catch(() => {})
-        .finally(() => {
-            pollInFlight = false;
-        });
+        fetchConversationMessages(activeDm.slug, { reset: !cache?.loaded })
+            .finally(() => {
+                pollInFlight = false;
+            });
     }
 
     function startDmPolling() {
         stopDmPolling();
         pollDmTimer = setInterval(() => {
-            if (!isOpen()) return;
-            if (!activeDm.slug) return;
+            if (!isOpen() || !activeDm.slug) return;
             pollConversation();
         }, 2500);
     }
@@ -631,7 +840,7 @@
         window.Echo.private(`conversation.${activeRealtimeConversationId}`)
             .listen('.message.created', (event) => {
                 const eventId = parseInt(event.id, 10);
-                if (!eventId || seenMessageIds.has(eventId)) return;
+                if (!eventId) return;
                 pollConversation();
             });
     }
@@ -640,8 +849,8 @@
         if (!window.Echo || !Array.isArray(rooms)) return;
 
         rooms.forEach((room) => {
-            const conversationId = parseInt(room.room_id || 0, 10) || 0;
-            const characterId = parseInt(room.my_character_id || 0, 10) || 0;
+            const conversationId = parseInt(room.roomId || 0, 10) || 0;
+            const characterId = parseInt(room.myCharacterId || 0, 10) || 0;
 
             if (!conversationId || !characterId || dmListRealtimeConversationIds.has(conversationId)) {
                 return;
@@ -658,10 +867,13 @@
                     if (!eventId) return;
 
                     if (isOpen() && activeDm.conversationId === conversationId) {
+                        pollConversation();
+                        fetchDmRooms({ showLoading: false });
                         return;
                     }
 
                     incrementDmUnread(conversationId);
+                    fetchDmRooms({ showLoading: false });
                 });
         });
     }
@@ -678,7 +890,7 @@
         stopListRefresh();
         refreshListTimer = setInterval(() => {
             if (!isOpen()) return;
-            fetchDmRooms();
+            fetchDmRooms({ showLoading: false });
         }, 10000);
     }
 
@@ -689,23 +901,33 @@
         }
     }
 
-    function openConversation(slug, displayName, lockedMyCharacterId, otherCharacterId, isBlockedByViewer) {
+    function openConversation(slug) {
+        const room = dmRoomsBySlug.get(slug);
+        if (!room) return;
+
+        if (activeDm.slug === slug) {
+            fetchConversationMessages(slug, { reset: false });
+            return;
+        }
+
+        storeActiveConversationScroll();
         stopDmRealtime();
-        activeDm.slug = slug;
-        activeDm.conversationId = 0;
-        activeDm.displayName = displayName || slug;
-        activeDm.myCharacterId = parseInt(lockedMyCharacterId || 0, 10) || 0;
-        activeDm.otherCharacterId = parseInt(otherCharacterId || 0, 10) || 0;
-        activeDm.isBlockedByViewer = parseBool(isBlockedByViewer);
+        applyActiveConversationMeta(room);
+        clearDmUnread(room.roomId, room.slug);
 
-        if (threadHeader) threadHeader.textContent = `DM: ${activeDm.displayName}`;
-        syncDmBlockToggle();
-        if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">Loading...</div>`;
+        const cache = getMessageCache(slug);
+        if (cache?.loaded) {
+            renderActiveConversation({
+                restoreScroll: true,
+                forceBottom: cache.scrollTop === null,
+            });
+            fetchConversationMessages(slug, { reset: false });
+        } else {
+            renderConversationLoading();
+            fetchConversationMessages(slug, { reset: true });
+        }
 
-        setThreadEnabled(!!activeDm.myCharacterId);
-
-        fetchConversationInitial(slug);
-        fetchDmRooms();
+        startDmRealtime();
         startDmPolling();
     }
 
@@ -740,8 +962,7 @@
         })
         .then(r => r.json())
         .then(() => {
-            fetchDmRooms();
-            // Let the DB commit settle; then pull once (de-dupe prevents doubles anyway)
+            fetchDmRooms({ showLoading: false });
             setTimeout(() => pollConversation(), 150);
         })
         .catch(err => {
@@ -749,37 +970,49 @@
         });
     }
 
-    /*
-    | OPEN EVENT
-    */
     window.addEventListener('open-dm-window', (e) => {
         dmWindow.classList.remove('hidden');
 
-        fetchDmRooms();
-        startListRefresh();
-
         const slug = e?.detail?.slug;
         const name = e?.detail?.name;
+        const myCharacterId = parseInt(e?.detail?.my_character_id || 0, 10) || 0;
+        const otherCharacterId = parseInt(e?.detail?.other_character_id || 0, 10) || 0;
+        const isBlockedByViewer = parseBool(e?.detail?.is_blocked_by_viewer);
 
-        if (slug) {
-            openConversation(
-                slug,
-                name || slug,
-                e?.detail?.my_character_id,
-                e?.detail?.other_character_id,
-                e?.detail?.is_blocked_by_viewer
-            );
-        } else {
-            clearThread();
-        }
+        fetchDmRooms({ showLoading: true }).then((rooms) => {
+            const existingRoom = slug ? dmRoomsBySlug.get(slug) : null;
+
+            if (slug && !existingRoom && name) {
+                dmRoomsBySlug.set(slug, {
+                    roomId: 0,
+                    slug,
+                    updatedAt: null,
+                    displayName: name,
+                    avatar: '',
+                    unreadCount: 0,
+                    myCharacterId,
+                    otherCharacterId,
+                    isBlockedByViewer,
+                });
+            }
+
+            if (slug) {
+                openConversation(slug);
+            } else if (!activeDm.slug) {
+                clearThread();
+            }
+        });
+
+        startListRefresh();
     });
 
     refreshBtn?.addEventListener('click', () => {
-        fetchDmRooms();
+        fetchDmRooms({ showLoading: false });
         if (activeDm.slug) pollConversation();
     });
 
     closeBtn?.addEventListener('click', () => {
+        storeActiveConversationScroll();
         dmWindow.classList.add('hidden');
         stopDmRealtime();
     });
@@ -791,6 +1024,10 @@
             e.preventDefault();
             sendDmMessage();
         }
+    });
+
+    threadEl?.addEventListener('scroll', () => {
+        storeActiveConversationScroll();
     });
 
     document.addEventListener('visibilitychange', () => {

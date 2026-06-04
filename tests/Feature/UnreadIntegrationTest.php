@@ -151,6 +151,89 @@ class UnreadIntegrationTest extends TestCase
         $this->assertSame(0, (int) collect($roomsAfterOpen)->firstWhere('slug', $room->slug)['unread_count']);
     }
 
+
+    public function test_opening_a_dm_marks_it_read_without_reordering_the_dm_list(): void
+    {
+        [$firstUser, $firstCharacter] = $this->createUserWithCharacter();
+        [$secondUser, $secondCharacter] = $this->createUserWithCharacter();
+        [$thirdUser, $thirdCharacter] = $this->createUserWithCharacter();
+
+        $olderRoom = $this->createDmRoom($firstUser, $firstCharacter, $secondUser, $secondCharacter);
+        $newerRoom = $this->createDmRoom($firstUser, $firstCharacter, $thirdUser, $thirdCharacter);
+
+        DB::table('rooms')->where('id', $olderRoom->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+        DB::table('rooms')->where('id', $newerRoom->id)->update([
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        $this->createMessage($olderRoom, $secondUser, $secondCharacter, 'Unread one.');
+        $latestMessage = $this->createMessage($olderRoom, $secondUser, $secondCharacter, 'Unread two.');
+
+        $roomsBeforeOpen = $this->actingAs($firstUser)
+            ->getJson(route('dms.index'))
+            ->assertOk()
+            ->json('rooms');
+
+        $this->assertSame([$newerRoom->slug, $olderRoom->slug], collect($roomsBeforeOpen)->pluck('slug')->all());
+
+        $this->actingAs($firstUser)
+            ->getJson(route('dms.messages.index', $olderRoom->slug))
+            ->assertOk();
+
+        $this->assertDatabaseHas('character_conversation_reads', [
+            'character_id' => $firstCharacter->id,
+            'conversation_id' => $olderRoom->id,
+            'last_read_message_id' => $latestMessage->id,
+        ]);
+
+        $roomsAfterOpen = $this->actingAs($firstUser)
+            ->getJson(route('dms.index'))
+            ->assertOk()
+            ->json('rooms');
+
+        $this->assertSame([$newerRoom->slug, $olderRoom->slug], collect($roomsAfterOpen)->pluck('slug')->all());
+        $this->assertSame(0, (int) collect($roomsAfterOpen)->firstWhere('slug', $olderRoom->slug)['unread_count']);
+    }
+
+    public function test_sending_a_dm_message_updates_dm_ordering_by_recent_activity(): void
+    {
+        [$firstUser, $firstCharacter] = $this->createUserWithCharacter();
+        [$secondUser, $secondCharacter] = $this->createUserWithCharacter();
+        [$thirdUser, $thirdCharacter] = $this->createUserWithCharacter();
+
+        $olderRoom = $this->createDmRoom($firstUser, $firstCharacter, $secondUser, $secondCharacter);
+        $newerRoom = $this->createDmRoom($firstUser, $firstCharacter, $thirdUser, $thirdCharacter);
+
+        DB::table('rooms')->where('id', $olderRoom->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+        DB::table('rooms')->where('id', $newerRoom->id)->update([
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        $beforeSend = $this->actingAs($firstUser)
+            ->getJson(route('dms.index'))
+            ->assertOk()
+            ->json('rooms');
+
+        $this->assertSame([$newerRoom->slug, $olderRoom->slug], collect($beforeSend)->pluck('slug')->all());
+
+        $this->actingAs($firstUser)
+            ->postJson(route('dms.messages.store', $olderRoom->slug), [
+                'body' => 'Fresh DM activity.',
+            ])
+            ->assertOk();
+
+        $afterSend = $this->actingAs($firstUser)
+            ->getJson(route('dms.index'))
+            ->assertOk()
+            ->json('rooms');
+
+        $this->assertSame([$olderRoom->slug, $newerRoom->slug], collect($afterSend)->pluck('slug')->all());
+    }
+
     private function createUserWithCharacter(): array
     {
         $user = User::factory()->create();
