@@ -501,6 +501,10 @@ class RoomController extends Controller
             'body'         => $body,
         ]);
 
+        if ($conversation->type === Room::TYPE_DM) {
+            $conversation->touch();
+        }
+
         broadcast(new MessageCreated($message))->toOthers();
         event(new ModerationMessageCreated($message));
 
