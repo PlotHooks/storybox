@@ -28,6 +28,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
     Route::get('/characters/{character}/current-room', [CharacterController::class, 'currentRoom'])->name('characters.currentRoom');
     Route::post('/characters/{character}/style', [CharacterController::class, 'updateStyle'])->name('characters.style');
+    Route::delete('/characters/{character}', [CharacterController::class, 'destroy'])->name('characters.destroy');
     Route::post('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'store'])
         ->name('characters.blocks.store');
     Route::delete('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'destroy'])

@@ -1,5 +1,10 @@
 @php
     $dmActive = request()->routeIs('dms.*');
+    $charactersPanelAvailable = request()->routeIs('rooms.*');
+    $charactersActive = request()->routeIs('characters.*') || ($charactersPanelAvailable && request()->query('characters') === '1');
+    $charactersButtonClasses = $charactersActive
+        ? 'inline-flex items-center rounded-md border border-amber-400/70 bg-amber-500/15 px-3 py-2 text-sm font-semibold leading-5 text-[#fff2cc] shadow-[0_0_0_1px_rgba(245,158,11,0.2),0_0_18px_rgba(245,158,11,0.16)] focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition duration-150 ease-in-out'
+        : 'inline-flex items-center rounded-md border border-transparent px-3 py-2 text-sm font-medium leading-5 text-[#8f8675] hover:border-[#5a431f] hover:bg-[#141416] hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-400/40 transition duration-150 ease-in-out';
     $dmButtonClasses = $dmActive
         ? 'relative inline-flex items-center rounded-md border border-amber-400/70 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-[#fff2cc] shadow-[0_0_0_1px_rgba(245,158,11,0.2),0_0_18px_rgba(245,158,11,0.16)] transition focus:outline-none focus:ring-2 focus:ring-amber-400/50'
         : 'relative inline-flex items-center rounded-md border border-transparent px-3 py-2 text-sm font-medium text-[#8f8675] transition hover:border-[#5a431f] hover:bg-[#141416] hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-400/40';
@@ -8,11 +13,7 @@
 <nav x-data="{ open: false }" class="bg-[#0b0b0c] border-b border-[#2a241a]">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
-
-            <!-- LEFT -->
             <div class="flex">
-
-                <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a
                         href="{{ route('rooms.landing') }}"
@@ -28,12 +29,16 @@
                     </a>
                 </div>
 
-                <!-- Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-
-                    <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
-                        Characters
-                    </x-nav-link>
+                    @if ($charactersPanelAvailable)
+                        <button type="button" data-open-characters-panel class="{{ $charactersButtonClasses }}">
+                            Characters
+                        </button>
+                    @else
+                        <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
+                            Characters
+                        </x-nav-link>
+                    @endif
 
                     <button
                         id="global-dm-button"
@@ -43,7 +48,6 @@
                     >
                         DMs
 
-                        <!-- unread badge placeholder -->
                         <span
                             id="dm-unread-badge"
                             class="hidden absolute -top-2 -right-2 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"
@@ -51,11 +55,9 @@
                             0
                         </span>
                     </button>
-
                 </div>
             </div>
 
-            <!-- RIGHT -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
                 <div class="flex items-center gap-3">
                     <a
@@ -77,8 +79,17 @@
                 </div>
             </div>
 
-            <!-- MOBILE -->
-            <div class="-me-2 flex items-center sm:hidden">
+            <div class="-me-2 flex items-center gap-2 sm:hidden">
+                @if ($charactersPanelAvailable)
+                    <button type="button" data-open-characters-panel class="{{ $charactersButtonClasses }}">
+                        Characters
+                    </button>
+                @else
+                    <a href="{{ route('characters.index') }}" class="{{ $charactersButtonClasses }}">
+                        Characters
+                    </a>
+                @endif
+
                 <form method="POST" action="{{ route('logout') }}" class="me-2">
                     @csrf
                     <button
@@ -105,7 +116,6 @@
                     </svg>
                 </button>
             </div>
-
         </div>
     </div>
 </nav>

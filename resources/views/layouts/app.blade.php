@@ -36,5 +36,8 @@
             </main>
         </div>
         <x-dm-window />
+        @auth
+            @include('characters.panel')
+        @endauth
     </body>
 </html>

@@ -16,7 +16,7 @@ class RoomLandingRedirectTest extends TestCase
 
     public function test_root_redirects_to_chat_landing(): void
     {
-        $this->get(/);
+        $this->get('/')
             ->assertRedirect('/chat');
     }
 

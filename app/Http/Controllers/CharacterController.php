@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Character;
 use App\Models\Room;
 use App\Services\RoomAccessService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -38,6 +39,38 @@ class CharacterController extends Controller
         return $avatar === '' ? null : $avatar;
     }
 
+    private function redirectTarget(Request $request): string
+    {
+        $target = trim((string) $request->input('return_to', ''));
+
+        if ($target === '') {
+            return route('characters.index');
+        }
+
+        if (str_starts_with($target, '/')) {
+            return $target;
+        }
+
+        $appHost = parse_url(url('/'), PHP_URL_HOST);
+        $targetHost = parse_url($target, PHP_URL_HOST);
+
+        if ($appHost && $targetHost && strcasecmp($appHost, $targetHost) === 0) {
+            $path = parse_url($target, PHP_URL_PATH) ?: '/';
+            $query = parse_url($target, PHP_URL_QUERY);
+
+            return $query ? $path.'?'.$query : $path;
+        }
+
+        return route('characters.index');
+    }
+
+    private function redirectToTarget(Request $request, string $status): RedirectResponse
+    {
+        return redirect()
+            ->to($this->redirectTarget($request))
+            ->with('status', $status);
+    }
+
     public function index()
     {
         $characters = auth()->user()
@@ -58,30 +91,25 @@ class CharacterController extends Controller
         ]);
 
         auth()->user()->characters()->create([
-            'name' => $validated['name'],
+            'name' => $validated['name'] ?? $character->name,
             'avatar' => $this->normalizeAvatar($validated['avatar'] ?? null),
             'slug' => str()->slug($validated['name']) . '-' . uniqid(),
         ]);
 
-        return redirect()
-            ->route('characters.index')
-            ->with('status', 'Character created.');
+        return $this->redirectToTarget($request, 'Character created.');
     }
 
-    public function switch(Character $character)
+    public function switch(Request $request, Character $character)
     {
         abort_if($character->user_id !== auth()->id(), 403);
 
         session(['active_character_id' => $character->id]);
 
-        return redirect()
-            ->route('characters.index')
-            ->with('status', 'Switched to ' . $character->name . '.');
+        return $this->redirectToTarget($request, 'Switched to ' . $character->name . '.');
     }
 
     public function show(Character $character)
     {
-        // Prevent IDOR
         abort_if($character->user_id !== auth()->id(), 403);
 
         return view('characters.show', compact('character'));
@@ -110,14 +138,15 @@ class CharacterController extends Controller
     {
         abort_if($character->user_id !== auth()->id(), 403);
 
-        $request->validate([
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'max:100'],
             'avatar' => $this->avatarValidationRules(),
             'text_color_1' => ['required', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'text_color_2' => ['nullable', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'text_color_3' => ['nullable', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'text_color_4' => ['nullable', 'regex:/^#?[0-9a-fA-F]{6}$/'],
             'fade_message' => ['nullable'],
-            'fade_name'    => ['nullable'],
+            'fade_name' => ['nullable'],
         ]);
 
         $norm = function ($v) {
@@ -134,10 +163,11 @@ class CharacterController extends Controller
             'text_color_3' => $norm($request->text_color_3),
             'text_color_4' => $norm($request->text_color_4),
             'fade_message' => $request->boolean('fade_message'),
-            'fade_name'    => $request->boolean('fade_name'),
+            'fade_name' => $request->boolean('fade_name'),
         ]);
 
         $updates = [
+            'name' => $validated['name'] ?? $character->name,
             'settings' => $updated,
         ];
 
@@ -147,8 +177,27 @@ class CharacterController extends Controller
 
         $character->update($updates);
 
-        return redirect()
-            ->route('characters.index')
-            ->with('status', 'Style updated for ' . $character->name . '.');
+        return $this->redirectToTarget($request, 'Updated ' . $character->name . '.');
+    }
+
+    public function destroy(Request $request, Character $character)
+    {
+        abort_if($character->user_id !== auth()->id(), 403);
+
+        if ((int) session('active_character_id', 0) === (int) $character->id) {
+            return redirect()
+                ->to($this->redirectTarget($request))
+                ->withErrors([
+                    'character_delete' => 'Switch away from the active character before deleting it.',
+                ]);
+        }
+
+        $name = $character->name;
+
+        DB::transaction(function () use ($character) {
+            $character->delete();
+        });
+
+        return $this->redirectToTarget($request, 'Deleted ' . $name . '.');
     }
 }

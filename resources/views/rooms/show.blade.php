@@ -1193,6 +1193,8 @@
         applyStylesIn(document);
 
         /* active character */
+        const serverActiveCharacterId = {{ (int) ($activeCharacterId ?? 0) }};
+
         function getTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
@@ -1221,12 +1223,12 @@
 
         (function initActiveCharacterPerTab() {
             if (!switcher) return;
-            const stored = getTabCharacterId();
-            if (stored) {
-                switcher.value = String(stored);
-                setTabCharacterId(stored);
-            } else {
-                setTabCharacterId(parseInt(switcher.value, 10));
+
+            const preferred = serverActiveCharacterId || parseInt(switcher.value, 10) || getTabCharacterId();
+
+            if (preferred) {
+                switcher.value = String(preferred);
+                setTabCharacterId(preferred);
             }
 
             const cid = getTabCharacterId();

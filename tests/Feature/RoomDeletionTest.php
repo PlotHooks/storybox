@@ -151,20 +151,11 @@ class RoomDeletionTest extends TestCase
         $fallbackRoom = $this->createRoom($ownerUser, $ownerCharacter, 'Fallback Room');
 
         DB::table('character_presences')->insert([
-            [
-                'character_id' => $ownerCharacter->id,
-                'room_id' => $deletedRoom->id,
-                'last_seen_at' => now(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'character_id' => $ownerCharacter->id,
-                'room_id' => $fallbackRoom->id,
-                'last_seen_at' => now()->subMinute(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
+            'character_id' => $ownerCharacter->id,
+            'room_id' => $deletedRoom->id,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $this->actingAs($ownerUser)
