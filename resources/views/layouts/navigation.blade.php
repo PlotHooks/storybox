@@ -1,3 +1,10 @@
+@php
+    $dmActive = request()->routeIs('dms.*');
+    $dmButtonClasses = $dmActive
+        ? 'relative inline-flex items-center rounded-md border border-amber-400/70 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-[#fff2cc] shadow-[0_0_0_1px_rgba(245,158,11,0.2),0_0_18px_rgba(245,158,11,0.16)] transition focus:outline-none focus:ring-2 focus:ring-amber-400/50'
+        : 'relative inline-flex items-center rounded-md border border-transparent px-3 py-2 text-sm font-medium text-[#8f8675] transition hover:border-[#5a431f] hover:bg-[#141416] hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-400/40';
+@endphp
+
 <nav x-data="{ open: false }" class="bg-[#0b0b0c] border-b border-[#2a241a]">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -8,8 +15,8 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a
-                        href="{{ route('dashboard') }}"
-                        aria-label="Storybox dashboard"
+                        href="{{ route('rooms.landing') }}"
+                        aria-label="Storybox chat home"
                         title="Storybox"
                         class="group inline-flex items-center rounded-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                     >
@@ -24,30 +31,22 @@
                 <!-- Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
 
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        Dashboard
-                    </x-nav-link>
-
                     <x-nav-link :href="route('characters.index')" :active="request()->routeIs('characters.*')">
                         Characters
                     </x-nav-link>
 
-                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')">
-                        Rooms
-                    </x-nav-link>
-
-                    <!-- 🔥 DM BUTTON -->
                     <button
                         id="global-dm-button"
-                        class="relative text-[#8f8675] hover:text-[#f2dfb5] transition"
+                        class="{{ $dmButtonClasses }}"
                         onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))"
+                        aria-pressed="{{ $dmActive ? 'true' : 'false' }}"
                     >
                         DMs
 
                         <!-- unread badge placeholder -->
                         <span
                             id="dm-unread-badge"
-                            class="hidden absolute -top-2 -right-4 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"
+                            class="hidden absolute -top-2 -right-2 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full"
                         >
                             0
                         </span>

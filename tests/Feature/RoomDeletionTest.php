@@ -143,6 +143,39 @@ class RoomDeletionTest extends TestCase
         ]);
     }
 
+
+    public function test_deleting_a_room_redirects_to_another_accessible_chat_room_when_available(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        $deletedRoom = $this->createRoom($ownerUser, $ownerCharacter, 'Delete Me');
+        $fallbackRoom = $this->createRoom($ownerUser, $ownerCharacter, 'Fallback Room');
+
+        DB::table('character_presences')->insert([
+            [
+                'character_id' => $ownerCharacter->id,
+                'room_id' => $deletedRoom->id,
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'character_id' => $ownerCharacter->id,
+                'room_id' => $fallbackRoom->id,
+                'last_seen_at' => now()->subMinute(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->delete(route('rooms.destroy', $deletedRoom->slug), [
+                'character_id' => $ownerCharacter->id,
+                'delete_confirmation' => 'DELETE',
+            ])
+            ->assertRedirect(route('rooms.show', $fallbackRoom->slug));
+    }
+
     public function test_deleted_room_becomes_inaccessible_across_listing_show_presence_messages_websocket_and_unread_counts(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();

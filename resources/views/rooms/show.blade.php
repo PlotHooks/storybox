@@ -38,7 +38,7 @@
                         </div>
                     @endif
 
-                    @if ($errors->any())
+                    @if ($errors->any() && old('context_tool') === 'settings')
                         <div class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
                             <div class="font-semibold uppercase tracking-[0.14em]">Room Settings Error</div>
                             <ul class="mt-2 space-y-1 text-[11px] text-red-100">
@@ -601,31 +601,60 @@
                     </div>
                 </div>
 
-                <div class="flex-1 min-h-0 overflow-y-auto text-xs">
+                <div class="flex-1 min-h-0 text-xs">
 
-                    <div id="panel-rooms" class="p-2">
-                        @foreach ($sidebarRooms as $r)
-                            @php
-                                $unreadCount = (int) ($r->unread_count ?? 0);
-                                $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
-                                $isCurrentRoom = (int) $r->id === (int) $room->id;
-                            @endphp
-                            <button type="button"
-                                data-room-id="{{ $r->id }}"
-                                onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                                class="w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
-                                <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
-                                <span
-                                    data-room-unread-badge="{{ $r->id }}"
-                                    data-unread-count="{{ $unreadCount }}"
-                                    class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                                    {{ $unreadLabel }}
-                                </span>
+                    <div id="panel-rooms" class="flex h-full min-h-0 flex-col">
+                        <div class="shrink-0 space-y-2 border-b border-[#2a241a] bg-[#0b0b0c] p-2">
+                            <button
+                                id="open-create-room-modal"
+                                type="button"
+                                class="w-full rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-sm font-semibold text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                            >
+                                + Create Room
                             </button>
-                        @endforeach
+
+                            <div>
+                                <label for="room-filter-input" class="sr-only">Filter rooms</label>
+                                <input
+                                    id="room-filter-input"
+                                    type="text"
+                                    value="{{ old('room_filter', '') }}"
+                                    placeholder="Filter rooms"
+                                    class="block w-full rounded-md border-[#332817] bg-[#101012] px-3 py-2 text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                                >
+                            </div>
+                        </div>
+
+                        <div id="room-list" class="flex-1 min-h-0 space-y-2 overflow-y-auto p-2">
+                            @foreach ($sidebarRooms as $r)
+                                @php
+                                    $unreadCount = (int) ($r->unread_count ?? 0);
+                                    $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
+                                    $isCurrentRoom = (int) $r->id === (int) $room->id;
+                                @endphp
+                                <button type="button"
+                                    data-room-id="{{ $r->id }}"
+                                    data-room-name="{{ \Illuminate\Support\Str::lower($r->name) }}"
+                                    data-room-description="{{ \Illuminate\Support\Str::lower((string) ($r->description ?? '')) }}"
+                                    onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
+                                    class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
+                                    <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
+                                    <span
+                                        data-room-unread-badge="{{ $r->id }}"
+                                        data-unread-count="{{ $unreadCount }}"
+                                        class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                        {{ $unreadLabel }}
+                                    </span>
+                                </button>
+                            @endforeach
+                        </div>
+
+                        <div id="room-list-empty" class="hidden px-3 py-4 text-[#8f8675]">
+                            No rooms match this filter.
+                        </div>
                     </div>
 
-                    <div id="panel-users" class="hidden px-3 py-3">
+                    <div id="panel-users" class="hidden h-full min-h-0 overflow-y-auto px-3 py-3">
                         <div id="user-list" class="space-y-2 text-[#d6c8ad]">
                             <div class="text-[#8f8675]">Loading...</div>
                         </div>
@@ -691,6 +720,87 @@
         </form>
     </div>
 
+    <div
+        id="create-room-modal"
+        class="{{ $errors->has('name') || $errors->has('description') ? '' : 'hidden' }} fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 px-4"
+    >
+        <div class="w-full max-w-md rounded-lg border border-[#332817] bg-[#101012] p-4 shadow-xl">
+            <div class="flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-[#f2dfb5]">Create Room</h3>
+                <button
+                    id="close-create-room-modal"
+                    type="button"
+                    class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]"
+                >
+                    Close
+                </button>
+            </div>
+
+            @if ($errors->has('name') || $errors->has('description'))
+                <div class="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
+                    <div class="font-semibold uppercase tracking-[0.14em]">Create Room Error</div>
+                    <ul class="mt-2 space-y-1 text-red-100">
+                        @error('name')
+                            <li>{{ $message }}</li>
+                        @enderror
+                        @error('description')
+                            <li>{{ $message }}</li>
+                        @enderror
+                    </ul>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('rooms.store') }}" class="mt-3 space-y-4">
+                @csrf
+
+                <div>
+                    <label for="create-room-name" class="block text-sm font-medium text-[#d6c8ad]">
+                        Name
+                    </label>
+                    <input
+                        id="create-room-name"
+                        name="name"
+                        type="text"
+                        required
+                        maxlength="100"
+                        value="{{ old('name') }}"
+                        class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                        placeholder="GOOC, Wormwood Tavern, etc."
+                    >
+                </div>
+
+                <div>
+                    <label for="create-room-description" class="block text-sm font-medium text-[#d6c8ad]">
+                        Description
+                    </label>
+                    <textarea
+                        id="create-room-description"
+                        name="description"
+                        rows="2"
+                        class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                        placeholder="Short blurb about the room."
+                    >{{ old('description') }}</textarea>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        id="cancel-create-room-modal"
+                        class="rounded border border-[#332817] bg-[#141416] px-3 py-2 text-xs font-semibold text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="inline-flex items-center rounded border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012]"
+                    >
+                        Create Room
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <style>
         .char-row { position: relative; }
     </style>
@@ -722,6 +832,15 @@
 
         const panelRooms = document.getElementById('panel-rooms');
         const panelUsers = document.getElementById('panel-users');
+        const roomFilterInput = document.getElementById('room-filter-input');
+        const roomList = document.getElementById('room-list');
+        const roomListEmpty = document.getElementById('room-list-empty');
+        const roomListItems = Array.from(document.querySelectorAll('.room-list-item'));
+        const createRoomModal = document.getElementById('create-room-modal');
+        const openCreateRoomModalButton = document.getElementById('open-create-room-modal');
+        const closeCreateRoomModalButton = document.getElementById('close-create-room-modal');
+        const cancelCreateRoomModalButton = document.getElementById('cancel-create-room-modal');
+        const createRoomNameInput = document.getElementById('create-room-name');
 
         const tabMeta    = document.getElementById('tab-meta');
         const userListEl = document.getElementById('user-list');
@@ -760,6 +879,35 @@
             setUnreadBadge(badge, 0);
         }
 
+        function openCreateRoomModal() {
+            if (!createRoomModal) return;
+            createRoomModal.classList.remove('hidden');
+            window.setTimeout(() => createRoomNameInput?.focus(), 0);
+        }
+
+        function closeCreateRoomModal() {
+            createRoomModal?.classList.add('hidden');
+        }
+
+        function applyRoomFilter() {
+            if (!roomFilterInput) return;
+
+            const term = roomFilterInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            roomListItems.forEach((item) => {
+                const roomName = item.dataset.roomName || '';
+                const roomDescription = item.dataset.roomDescription || '';
+                const matches = term === '' || roomName.includes(term) || roomDescription.includes(term);
+
+                item.classList.toggle('hidden', !matches);
+                if (matches) visibleCount += 1;
+            });
+
+            roomList?.classList.toggle('hidden', visibleCount === 0);
+            roomListEmpty?.classList.toggle('hidden', visibleCount > 0);
+        }
+
         document.querySelectorAll('[data-message-id]').forEach((row) => {
             const id = parseInt(row.dataset.messageId, 10);
             if (id) seenMessageIds.add(id);
@@ -772,6 +920,14 @@
 
         document.getElementById('toggle-left')?.addEventListener('click', () => leftPanel?.classList.toggle('hidden'));
         document.getElementById('toggle-right')?.addEventListener('click', () => rightPanel?.classList.toggle('hidden'));
+        openCreateRoomModalButton?.addEventListener('click', openCreateRoomModal);
+        closeCreateRoomModalButton?.addEventListener('click', closeCreateRoomModal);
+        cancelCreateRoomModalButton?.addEventListener('click', closeCreateRoomModal);
+        createRoomModal?.addEventListener('click', (event) => {
+            if (event.target === createRoomModal) closeCreateRoomModal();
+        });
+        roomFilterInput?.addEventListener('input', applyRoomFilter);
+        applyRoomFilter();
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
         const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));

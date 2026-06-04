@@ -7,9 +7,7 @@ use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomManagementController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::redirect('/', '/chat');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -34,6 +32,8 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
         ->name('characters.blocks.store');
     Route::delete('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'destroy'])
         ->name('characters.blocks.destroy');
+
+    Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');

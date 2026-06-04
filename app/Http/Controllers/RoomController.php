@@ -25,6 +25,11 @@ class RoomController extends Controller
     ) {
     }
 
+    public function landing()
+    {
+        return redirect()->to(app(\App\Services\RoomLandingService::class)->destinationFor(Auth::user()));
+    }
+
     public function index()
     {
         $activeCharacter = $this->activeOwnedCharacter();
@@ -118,6 +123,7 @@ class RoomController extends Controller
             ->select(
                 'rooms.id',
                 'rooms.name',
+                'rooms.description',
                 'rooms.slug',
                 DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
             )
@@ -736,6 +742,7 @@ class RoomController extends Controller
             ->select(
                 'rooms.id',
                 'rooms.name',
+                'rooms.description',
                 'rooms.slug',
                 DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
             )

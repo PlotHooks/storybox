@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Services\RoomAccessService;
+use App\Services\RoomLandingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -127,7 +128,7 @@ class RoomManagementController extends Controller
 
         if (! $request->expectsJson()) {
             return redirect()
-                ->route('rooms.index')
+                ->to(app(RoomLandingService::class)->destinationFor($request->user()))
                 ->with('status', 'Room deleted successfully.');
         }
 
