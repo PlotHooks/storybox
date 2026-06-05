@@ -72,10 +72,10 @@
                     $fadeMsg = (bool) ($s['fade_message'] ?? false);
                     $fadeName = (bool) ($s['fade_name'] ?? false);
                     $avatar = $char->externalAvatarUrl();
-                    $isActiveCharacter = (int) $activeId === (int) $char->id;
+                    $isPostingCharacter = (int) $activeId === (int) $char->id;
                 @endphp
 
-                <div class="rounded-lg border {{ $isActiveCharacter ? 'border-amber-500/40 bg-amber-500/5' : 'border-gray-800' }} p-3">
+                <div class="rounded-lg border {{ $isPostingCharacter ? 'border-amber-500/40 bg-amber-500/5' : 'border-gray-800' }} p-3">
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex min-w-0 items-center gap-3">
                             @if ($avatar)
@@ -93,8 +93,8 @@
                             <div class="min-w-0">
                                 <div class="truncate text-gray-100 font-semibold">
                                     {{ $char->name }}
-                                    @if ($isActiveCharacter)
-                                        <span class="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">Active</span>
+                                    @if ($isPostingCharacter)
+                                        <span class="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">Posting now</span>
                                     @endif
                                 </div>
                                 <div class="mt-1 text-xs text-gray-500">{{ $char->public_handle }}</div>
@@ -102,15 +102,7 @@
                         </div>
 
                         <div class="flex shrink-0 items-center gap-2">
-                            @if (! $isActiveCharacter)
-                                <form method="POST" action="{{ route('characters.switch', $char) }}">
-                                    @csrf
-                                    <input type="hidden" name="return_to" value="{{ $returnTo }}">
-                                    <x-primary-button>Use</x-primary-button>
-                                </form>
-                            @endif
-
-                            @if (! $isActiveCharacter)
+                            @if (! $isPostingCharacter)
                                 <form method="POST" action="{{ route('characters.destroy', $char) }}" onsubmit="return confirm('Delete this character? This also removes their messages, presence, DM participation, and related room links.');">
                                     @csrf
                                     @method('DELETE')
@@ -120,7 +112,7 @@
                                     </button>
                                 </form>
                             @else
-                                <span class="text-[11px] text-gray-500">Switch away to delete</span>
+                                <span class="text-[11px] text-gray-500">Switch in chat to delete</span>
                             @endif
                         </div>
                     </div>

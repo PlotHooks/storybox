@@ -76,7 +76,7 @@ class RoomController extends Controller
     public function show(Room $room)
     {
         // rooms table is the conversation model.
-        $activeCharacterId = $this->activeCharacterIdForConversation($room);
+        [$activeCharacterId, $characterSelectionNotice] = $this->activeCharacterSelectionForConversation($room);
         $activeCharacter = $this->ownedCharacterById($activeCharacterId);
 
         if ($room->isPublicRoom()) {
@@ -194,6 +194,7 @@ class RoomController extends Controller
             'room',
             'messages',
             'activeCharacterId',
+            'characterSelectionNotice',
             'sidebarRooms',
             'canManageRoom',
             'canManageModerators',
@@ -251,6 +252,45 @@ class RoomController extends Controller
         return $this->activeOwnedCharacterId();
     }
 
+    private function activeCharacterSelectionForConversation(Room $conversation): array
+    {
+        if ($conversation->type === Room::TYPE_DM) {
+            return [$this->getLockedDmCharacterId($conversation), null];
+        }
+
+        $preferredCharacter = $this->preferredOwnedCharacter();
+
+        if (
+            $preferredCharacter !== null
+            && $this->roomAccess->canViewRoom(Auth::user(), $conversation, $preferredCharacter)
+        ) {
+            return [$preferredCharacter->id, null];
+        }
+
+        if (
+            $preferredCharacter !== null
+            && $this->roomAccess->isBlacklisted($conversation, $preferredCharacter)
+        ) {
+            return [$preferredCharacter->id, null];
+        }
+
+        $fallbackCharacter = Character::query()
+            ->where('user_id', Auth::id())
+            ->orderBy('name')
+            ->get()
+            ->first(fn (Character $character) => $this->roomAccess->canViewRoom(Auth::user(), $conversation, $character));
+
+        if ($fallbackCharacter !== null) {
+            $notice = $preferredCharacter !== null
+                ? 'Posting as reset to '.$fallbackCharacter->name.' for this room.'
+                : null;
+
+            return [$fallbackCharacter->id, $notice];
+        }
+
+        return [null, null];
+    }
+
     private function messageCharacterIdForConversation(Room $conversation, Request $request): int
     {
         if ($conversation->type === Room::TYPE_DM) {
@@ -267,31 +307,25 @@ class RoomController extends Controller
 
     private function activeOwnedCharacter(): ?Character
     {
+        return $this->preferredOwnedCharacter()
+            ?? Character::query()
+                ->where('user_id', Auth::id())
+                ->orderBy('name')
+                ->first();
+    }
+
+    private function preferredOwnedCharacter(): ?Character
+    {
         $sessionCharacterId = (int) session('active_character_id', 0);
 
-        if ($sessionCharacterId > 0) {
-            $sessionCharacter = Character::query()
-                ->where('id', $sessionCharacterId)
-                ->where('user_id', Auth::id())
-                ->first();
-
-            if ($sessionCharacter) {
-                return $sessionCharacter;
-            }
-        }
-
-        $firstCharacter = Character::query()
-            ->where('user_id', Auth::id())
-            ->orderBy('name')
-            ->first();
-
-        if (! $firstCharacter) {
+        if ($sessionCharacterId <= 0) {
             return null;
         }
 
-        session(['active_character_id' => $firstCharacter->id]);
-
-        return $firstCharacter;
+        return Character::query()
+            ->where('id', $sessionCharacterId)
+            ->where('user_id', Auth::id())
+            ->first();
     }
 
     private function ownedCharacterById(?int $characterId): ?Character
@@ -309,6 +343,19 @@ class RoomController extends Controller
     private function canModerate(): bool
     {
         return $this->roomAccess->isAdmin(Auth::user());
+    }
+
+
+    public function setCurrentCharacter(Request $request)
+    {
+        $characterId = $this->getCharacterIdFromRequest($request);
+
+        session(['active_character_id' => $characterId]);
+
+        return response()->json([
+            'ok' => true,
+            'character_id' => $characterId,
+        ]);
     }
 
     private function abortIfDmBlocked(int $firstCharacterId, int $secondCharacterId): void

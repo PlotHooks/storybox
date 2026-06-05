@@ -74,12 +74,6 @@ class RoomLandingService
             ->orderBy('name')
             ->first();
 
-        if (! $firstCharacter) {
-            return null;
-        }
-
-        session(['active_character_id' => $firstCharacter->id]);
-
         return $firstCharacter;
     }
 }

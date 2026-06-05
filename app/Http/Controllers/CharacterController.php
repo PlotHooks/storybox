@@ -98,16 +98,6 @@ class CharacterController extends Controller
 
         return $this->redirectToTarget($request, 'Character created.');
     }
-
-    public function switch(Request $request, Character $character)
-    {
-        abort_if($character->user_id !== auth()->id(), 403);
-
-        session(['active_character_id' => $character->id]);
-
-        return $this->redirectToTarget($request, 'Switched to ' . $character->name . '.');
-    }
-
     public function show(Character $character)
     {
         abort_if($character->user_id !== auth()->id(), 403);

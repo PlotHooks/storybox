@@ -24,7 +24,6 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     // Characters
     Route::get('/characters', [CharacterController::class, 'index'])->name('characters.index');
     Route::post('/characters', [CharacterController::class, 'store'])->name('characters.store');
-    Route::post('/characters/{character}/switch', [CharacterController::class, 'switch'])->name('characters.switch');
     Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
     Route::get('/characters/{character}/current-room', [CharacterController::class, 'currentRoom'])->name('characters.currentRoom');
     Route::post('/characters/{character}/style', [CharacterController::class, 'updateStyle'])->name('characters.style');
@@ -35,6 +34,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
         ->name('characters.blocks.destroy');
 
     Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
+    Route::post('/chat/current-character', [RoomController::class, 'setCurrentCharacter'])->name('rooms.current-character');
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');

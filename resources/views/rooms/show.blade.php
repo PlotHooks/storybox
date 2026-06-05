@@ -168,8 +168,7 @@
                                     <div class="mt-2 space-y-1">
                                         @forelse ($roomWhitelist as $entry)
                                             <div class="flex items-center justify-between gap-2 rounded border border-[#2a241a] bg-[#0b0b0c] px-2 py-1.5">
-                                                <div class="min-w-0">
-                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
+                                                <div class="min-w-0">                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
                                                     <div class="text-[10px] text-[#8f8675]">{{ $entry->character->public_handle }}</div>
                                                 </div>
                                                 <form method="POST" action="{{ route('rooms.whitelist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}">
@@ -330,6 +329,11 @@
                 {{-- Top bar --}}
                 <div class="shrink-0 flex flex-col gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div class="min-w-0">
+                        @if (! empty($characterSelectionNotice))
+                            <div class="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                                {{ $characterSelectionNotice }}
+                            </div>
+                        @endif
                         <div class="flex items-center gap-2">
                             <span class="h-2 w-2 rounded-sm bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.55)]"></span>
                             <h1 class="truncate text-lg font-semibold text-[#f2dfb5] md:text-xl">{{ $room->name }}</h1>
@@ -811,6 +815,7 @@
         const conversationChannelName = `private-conversation.${conversationId}`;
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
+        const currentCharacterUrl = @json(route('rooms.current-character'));
         const currentUserId = {{ (int) Auth::id() }};
         const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
         const ownedCharacterIds = @json($characters->pluck('id')->map(fn ($id) => (int) $id)->values());
@@ -1208,6 +1213,24 @@
             if (hiddenChar) hiddenChar.value = String(id);
         }
 
+
+        function syncCurrentCharacter(id) {
+            if (!id) return Promise.resolve(false);
+
+            return fetch(currentCharacterUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ character_id: id }),
+            })
+            .then((response) => response.ok)
+            .catch(() => false);
+        }
+
         window.Storybox = window.Storybox || {};
         window.Storybox.activeCharacterId = () => getTabCharacterId();
         window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
@@ -1229,6 +1252,7 @@
             if (preferred) {
                 switcher.value = String(preferred);
                 setTabCharacterId(preferred);
+                syncCurrentCharacter(preferred);
             }
 
             const cid = getTabCharacterId();
@@ -1244,13 +1268,17 @@
 
             setTabCharacterId(newId);
 
-            const target = getLastRoomForCharacter(newId);
-            if (target && target !== roomSlug) {
-                window.location.href = `/rooms/${target}`;
-                return;
-            }
+            syncCurrentCharacter(newId).then((ok) => {
+                if (!ok) return;
 
-            sendPresencePing();
+                const target = getLastRoomForCharacter(newId);
+                if (target && target !== roomSlug) {
+                    window.location.href = `/rooms/${target}`;
+                    return;
+                }
+
+                sendPresencePing();
+            });
         });
 
         /* presence */

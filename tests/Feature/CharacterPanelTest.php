@@ -26,21 +26,28 @@ class CharacterPanelTest extends TestCase
             ->assertSee('Characters');
     }
 
-    public function test_switching_character_can_redirect_back_to_room_with_panel_open(): void
+    public function test_characters_panel_does_not_offer_a_separate_switch_action(): void
     {
         [$user, $firstCharacter] = $this->createUserWithCharacter('First');
         $secondCharacter = $this->createCharacter($user, 'Second Character');
         $room = $this->createRoom($user, $firstCharacter, 'Tavern');
-        $returnTo = route('rooms.show', ['room' => $room->slug, 'characters' => 1]);
 
         $this->actingAs($user)
             ->withSession(['active_character_id' => $firstCharacter->id])
-            ->post(route('characters.switch', $secondCharacter), [
-                'return_to' => $returnTo,
-            ])
-            ->assertRedirect($returnTo);
+            ->get(route('rooms.show', ['room' => $room->slug, 'characters' => 1]))
+            ->assertOk()
+            ->assertDontSee('/characters/'.$secondCharacter->id.'/switch', false);
+    }
 
-        $this->assertSame($secondCharacter->id, session('active_character_id'));
+    public function test_legacy_switch_route_is_unavailable(): void
+    {
+        [$user, $firstCharacter] = $this->createUserWithCharacter('First');
+        $secondCharacter = $this->createCharacter($user, 'Second Character');
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $firstCharacter->id])
+            ->post('/characters/'.$secondCharacter->id.'/switch')
+            ->assertNotFound();
     }
 
     public function test_non_active_character_can_be_deleted_from_panel_flow(): void
