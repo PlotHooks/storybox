@@ -150,6 +150,7 @@
     const dmListRealtimeConversationIds = new Set();
     const dmRoomsBySlug = new Map();
     const dmMessageCache = new Map();
+    const lastDmSlugStorageKey = 'storybox_last_dm_slug';
 
     window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
 
@@ -355,6 +356,50 @@
         };
     }
 
+
+    function getLastOpenedDmSlug() {
+        try {
+            return sessionStorage.getItem(lastDmSlugStorageKey) || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function setLastOpenedDmSlug(slug) {
+        if (!slug) return;
+
+        try {
+            sessionStorage.setItem(lastDmSlugStorageKey, slug);
+        } catch (e) {
+            // Ignore storage failures and continue with in-memory selection only.
+        }
+    }
+
+    function clearLastOpenedDmSlug() {
+        try {
+            sessionStorage.removeItem(lastDmSlugStorageKey);
+        } catch (e) {
+            // Ignore storage failures and continue with in-memory selection only.
+        }
+    }
+
+    function resolveDefaultConversationSlug(rooms) {
+        const normalizedRooms = Array.isArray(rooms)
+            ? rooms.map(normalizeRoom).filter((room) => !!room.slug)
+            : [];
+
+        if (activeDm.slug && normalizedRooms.some((room) => room.slug === activeDm.slug)) {
+            return activeDm.slug;
+        }
+
+        const storedSlug = getLastOpenedDmSlug();
+        if (storedSlug && normalizedRooms.some((room) => room.slug === storedSlug)) {
+            return storedSlug;
+        }
+
+        return normalizedRooms[0]?.slug || null;
+    }
+
     function roomButtonClass(isActive) {
         return 'w-full text-left rounded border px-2 py-2 transition-colors ' + (
             isActive
@@ -428,6 +473,7 @@
 
         if (normalizedRooms.length === 0) {
             dmRoomsBySlug.clear();
+            clearLastOpenedDmSlug();
             setRoomListMessage('No DMs yet.');
             return;
         }
@@ -905,8 +951,24 @@
         const room = dmRoomsBySlug.get(slug);
         if (!room) return;
 
+        setLastOpenedDmSlug(slug);
+
         if (activeDm.slug === slug) {
-            fetchConversationMessages(slug, { reset: false });
+            const cache = getMessageCache(slug);
+
+            if (cache?.loaded) {
+                renderActiveConversation({
+                    restoreScroll: true,
+                    forceBottom: cache.scrollTop === null,
+                });
+                fetchConversationMessages(slug, { reset: false });
+            } else {
+                renderConversationLoading();
+                fetchConversationMessages(slug, { reset: true });
+            }
+
+            startDmRealtime();
+            startDmPolling();
             return;
         }
 
@@ -996,9 +1058,11 @@
                 });
             }
 
-            if (slug) {
-                openConversation(slug);
-            } else if (!activeDm.slug) {
+            const defaultSlug = slug || resolveDefaultConversationSlug(rooms);
+
+            if (defaultSlug) {
+                openConversation(defaultSlug);
+            } else {
                 clearThread();
             }
         });
