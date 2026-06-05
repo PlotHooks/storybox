@@ -42,6 +42,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
     Route::post('/rooms/{room:slug}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');
+    Route::put('/rooms/{room:slug}/follow', [RoomController::class, 'follow'])->name('rooms.follow');
     Route::patch('/rooms/{room:slug}', [RoomManagementController::class, 'update'])->name('rooms.update');
     Route::delete('/rooms/{room:slug}', [RoomManagementController::class, 'destroy'])->name('rooms.destroy');
     Route::post('/rooms/{room:slug}/whitelist', [RoomManagementController::class, 'addWhitelist'])->name('rooms.whitelist.store');

@@ -256,6 +256,15 @@ class CharacterBlockTest extends TestCase
 
         $this->createMessage($room, $otherUser, $otherCharacter, 'Unread message.');
 
+        DB::table('user_room_states')->insert([
+            'user_id' => $viewerUser->id,
+            'room_id' => $room->id,
+            'is_following' => true,
+            'last_read_message_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $rooms = $this->actingAs($viewerUser)
             ->getJson(route('rooms.sidebar', ['character_id' => $viewerCharacter->id]))
             ->assertOk()
@@ -283,6 +292,15 @@ class CharacterBlockTest extends TestCase
         CharacterBlock::create([
             'blocker_character_id' => $blockedViewerCharacter->id,
             'blocked_character_id' => $viewerCharacter->id,
+        ]);
+
+        DB::table('user_room_states')->insert([
+            'user_id' => $viewerUser->id,
+            'room_id' => $room->id,
+            'is_following' => true,
+            'last_read_message_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $rooms = $this->actingAs($viewerUser)

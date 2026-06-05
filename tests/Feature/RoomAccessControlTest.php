@@ -169,23 +169,27 @@ class RoomAccessControlTest extends TestCase
             ->withSession(['active_character_id' => $ownerCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
+            ->assertSee('Follow Room')
             ->assertSee('Room Settings');
 
         $this->actingAs($moderatorUser)
             ->withSession(['active_character_id' => $moderatorCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
+            ->assertSee('Follow Room')
             ->assertSee('Room Settings');
 
         $this->actingAs($viewerUser)
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
+            ->assertSee('Follow Room')
             ->assertDontSee('Room Settings');
 
         $this->actingAs($ownerUser)
             ->get(route('dms.messages.index', $dmRoom->slug))
             ->assertOk()
+            ->assertDontSee('Follow Room')
             ->assertDontSee('Room Settings');
     }
 

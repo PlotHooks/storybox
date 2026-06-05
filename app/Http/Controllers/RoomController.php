@@ -9,6 +9,8 @@ use App\Models\CharacterBlock;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
+use App\Models\UserRoomState;
+use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -68,6 +70,16 @@ class RoomController extends Controller
             'owner_character_id' => $this->activeOwnedCharacterId(),
         ]);
 
+        UserRoomState::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'room_id' => $room->id,
+            ],
+            [
+                'is_following' => true,
+            ]
+        );
+
         return redirect()
             ->route('rooms.show', $room->slug)
             ->with('status', 'Room created.');
@@ -81,6 +93,7 @@ class RoomController extends Controller
 
         if ($room->isPublicRoom()) {
             abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+            $this->markPublicRoomRead($room->id);
         }
 
         if ($activeCharacterId) {
@@ -104,52 +117,8 @@ class RoomController extends Controller
 
         $this->applyBlockedMessageFlags($messages, $activeCharacterId);
 
-        $cutoff = now()->subMinutes(5);
-
-        $activePresenceCounts = DB::table('character_presences')
-            ->where('last_seen_at', '>=', $cutoff)
-            ->select('room_id', DB::raw('COUNT(*) as active_users'))
-            ->groupBy('room_id');
-
-        $sidebarRooms = $this->roomAccess
-            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $activeCharacter)
-            ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
-                $join->on('active_presence_counts.room_id', '=', 'rooms.id');
-            })
-            ->leftJoin('character_conversation_reads as ccr', function ($join) use ($activeCharacterId) {
-                $join->on('ccr.conversation_id', '=', 'rooms.id')
-                    ->where('ccr.character_id', '=', $activeCharacterId ?: 0);
-            })
-            ->select(
-                'rooms.id',
-                'rooms.name',
-                'rooms.description',
-                'rooms.slug',
-                DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
-            )
-            ->selectRaw('
-                (
-                    SELECT COUNT(*)
-                    FROM messages m
-                    WHERE m.room_id = rooms.id
-                    AND m.deleted_at IS NULL
-                    AND m.id > COALESCE(ccr.last_read_message_id, 0)
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM character_blocks cb
-                        WHERE (
-                            cb.blocker_character_id = ?
-                            AND cb.blocked_character_id = m.character_id
-                        ) OR (
-                            cb.blocker_character_id = m.character_id
-                            AND cb.blocked_character_id = ?
-                        )
-                    )
-                ) as unread_count
-            ', [$activeCharacterId ?: 0, $activeCharacterId ?: 0])
-            ->orderBy('rooms.created_at', 'desc')
-            ->with(['ownerCharacter', 'creator'])
-            ->get();
+        $sidebarRooms = $this->sidebarRoomsForPublicRooms($activeCharacter)->get();
+        $isFollowingRoom = (bool) ($sidebarRooms->firstWhere('id', $room->id)->is_following ?? false);
 
         $canManageRoom = false;
         $canManageModerators = false;
@@ -201,7 +170,8 @@ class RoomController extends Controller
             'canDeleteRoom',
             'roomModerators',
             'roomWhitelist',
-            'roomBlacklist'
+            'roomBlacklist',
+            'isFollowingRoom'
         ));
     }
 
@@ -345,6 +315,73 @@ class RoomController extends Controller
         return $this->roomAccess->isAdmin(Auth::user());
     }
 
+    private function markPublicRoomRead(int $roomId, ?int $latestMessageId = null): void
+    {
+        app(MarkPublicRoomRead::class)(Auth::id(), $roomId, $latestMessageId);
+    }
+
+    private function sidebarRoomsForPublicRooms(?Character $character)
+    {
+        $cutoff = now()->subMinutes(5);
+        $userId = (int) Auth::id();
+
+        $activePresenceCounts = DB::table('character_presences')
+            ->where('last_seen_at', '>=', $cutoff)
+            ->select('room_id', DB::raw('COUNT(*) as active_users'))
+            ->groupBy('room_id');
+
+        return $this->roomAccess
+            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $character)
+            ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
+                $join->on('active_presence_counts.room_id', '=', 'rooms.id');
+            })
+            ->leftJoin('user_room_states as urs', function ($join) use ($userId) {
+                $join->on('urs.room_id', '=', 'rooms.id')
+                    ->where('urs.user_id', '=', $userId);
+            })
+            ->select(
+                'rooms.id',
+                'rooms.name',
+                'rooms.description',
+                'rooms.slug',
+                DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users'),
+                DB::raw('COALESCE(urs.is_following, 0) as is_following')
+            )
+            ->selectRaw($this->publicRoomUnreadCountSql(), [$userId, $userId, $userId])
+            ->orderBy('rooms.created_at', 'desc')
+            ->with(['ownerCharacter', 'creator']);
+    }
+
+    private function publicRoomUnreadCountSql(): string
+    {
+        return '
+            CASE
+                WHEN COALESCE(urs.is_following, 0) = 1 THEN (
+                    SELECT COUNT(*)
+                    FROM messages m
+                    WHERE m.room_id = rooms.id
+                    AND m.deleted_at IS NULL
+                    AND m.user_id <> ?
+                    AND m.id > COALESCE(urs.last_read_message_id, 0)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM character_blocks cb
+                        INNER JOIN characters blocker_characters ON blocker_characters.id = cb.blocker_character_id
+                        WHERE blocker_characters.user_id = ?
+                        AND cb.blocked_character_id = m.character_id
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM character_blocks cb
+                        INNER JOIN characters blocked_characters ON blocked_characters.id = cb.blocked_character_id
+                        WHERE blocked_characters.user_id = ?
+                        AND cb.blocker_character_id = m.character_id
+                    )
+                )
+                ELSE 0
+            END as unread_count
+        ';
+    }
 
     public function setCurrentCharacter(Request $request)
     {
@@ -680,6 +717,10 @@ class RoomController extends Controller
 
         $message = $this->createConversationMessage($room, $characterId, $request->body);
 
+        if ($room->isPublicRoom()) {
+            $this->markPublicRoomRead($room->id, $message->id);
+        }
+
         if ($request->wantsJson()) {
             return response()->json($message->load('user', 'character'));
         }
@@ -733,12 +774,48 @@ class RoomController extends Controller
             ]
         );
 
-        app(\App\Services\MarkConversationRead::class)(
-            $characterId,
-            $room->id
-        );
+        if ($room->isPublicRoom()) {
+            $this->markPublicRoomRead($room->id);
+        } else {
+            app(\App\Services\MarkConversationRead::class)(
+                $characterId,
+                $room->id
+            );
+        }
 
         return response()->json(['ok' => true]);
+    }
+
+    public function follow(Room $room, Request $request)
+    {
+        abort_if(! $room->isPublicRoom(), 404);
+
+        [$activeCharacterId] = $this->activeCharacterSelectionForConversation($room);
+        $activeCharacter = $this->ownedCharacterById($activeCharacterId);
+
+        abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+
+        $validated = $request->validate([
+            'follow' => ['required', 'boolean'],
+        ]);
+
+        $state = UserRoomState::firstOrNew([
+            'user_id' => Auth::id(),
+            'room_id' => $room->id,
+        ]);
+        $state->is_following = (bool) $validated['follow'];
+        $state->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'is_following' => $state->is_following,
+            ]);
+        }
+
+        return redirect()
+            ->route('rooms.show', ['room' => $room->slug, 'tool' => 'follow'])
+            ->with('status', $state->is_following ? 'Room followed.' : 'Room unfollowed.');
     }
 
     public function leave(Room $room, Request $request)
@@ -768,54 +845,9 @@ class RoomController extends Controller
             $characterId = $this->activeOwnedCharacterId() ?: 0;
         }
 
-        $cutoff = now()->subMinutes(5);
-
-        $activePresenceCounts = DB::table('character_presences')
-            ->where('last_seen_at', '>=', $cutoff)
-            ->select('room_id', DB::raw('COUNT(*) as active_users'))
-            ->groupBy('room_id');
-
         $character = $this->ownedCharacterById($characterId);
 
-        $rooms = $this->roomAccess
-            ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $character)
-            ->leftJoinSub($activePresenceCounts, 'active_presence_counts', function ($join) {
-                $join->on('active_presence_counts.room_id', '=', 'rooms.id');
-            })
-            ->leftJoin('character_conversation_reads as ccr', function ($join) use ($characterId) {
-                $join->on('ccr.conversation_id', '=', 'rooms.id')
-                    ->where('ccr.character_id', '=', $characterId);
-            })
-            ->select(
-                'rooms.id',
-                'rooms.name',
-                'rooms.description',
-                'rooms.slug',
-                DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users')
-            )
-            ->selectRaw('
-                (
-                    SELECT COUNT(*)
-                    FROM messages m
-                    WHERE m.room_id = rooms.id
-                    AND m.deleted_at IS NULL
-                    AND m.id > COALESCE(ccr.last_read_message_id, 0)
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM character_blocks cb
-                        WHERE (
-                            cb.blocker_character_id = ?
-                            AND cb.blocked_character_id = m.character_id
-                        ) OR (
-                            cb.blocker_character_id = m.character_id
-                            AND cb.blocked_character_id = ?
-                        )
-                    )
-                ) as unread_count
-            ', [$characterId, $characterId])
-            ->orderBy('rooms.created_at', 'desc')
-            ->with(['ownerCharacter', 'creator'])
-            ->get();
+        $rooms = $this->sidebarRoomsForPublicRooms($character)->get();
 
         return response()->json(['rooms' => $rooms]);
     }
@@ -1024,10 +1056,14 @@ class RoomController extends Controller
         $characterId = $this->getLockedDmCharacterId($room);
         $this->assertConversationParticipant($room, $characterId);
 
-        app(\App\Services\MarkConversationRead::class)(
-            $characterId,
-            $room->id
-        );
+        if ($room->isPublicRoom()) {
+            $this->markPublicRoomRead($room->id);
+        } else {
+            app(\App\Services\MarkConversationRead::class)(
+                $characterId,
+                $room->id
+            );
+        }
 
         $messages = $this->conversationMessages($room, $request, false);
         $this->applyBlockedMessageFlags($messages, $characterId);

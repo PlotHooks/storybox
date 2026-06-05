@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Character;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
+use App\Models\UserRoomState;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -108,6 +109,11 @@ class Room extends Model
     public function roomAccessEntries(): HasMany
     {
         return $this->hasMany(RoomAccessEntry::class);
+    }
+
+    public function userRoomStates(): HasMany
+    {
+        return $this->hasMany(UserRoomState::class);
     }
 
     /*

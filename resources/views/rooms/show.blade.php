@@ -26,6 +26,9 @@
                         <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
                         <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Rules</button>
                         <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Character Info</button>
+                        @if ($room->isPublicRoom())
+                            <button type="button" data-context-tool="follow" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">{{ $isFollowingRoom ? '✓ Follow Room' : 'Follow Room' }}</button>
+                        @endif
                         @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
                             <button type="button" data-context-tool="settings" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Settings</button>
                         @endif
@@ -73,6 +76,30 @@
                     <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Character Info is coming soon.
                     </div>
+                    @if ($room->isPublicRoom())
+                        <div data-context-panel="follow" class="context-tool-panel hidden rounded-md border border-[#332817] bg-[#101012] p-3">
+                            <h3 class="text-sm font-semibold text-[#f2dfb5]">Follow Room</h3>
+                            <p class="mt-2 text-[11px] leading-relaxed text-[#8f8675]">
+                                Only followed rooms show unread indicators in your room list.
+                            </p>
+                            <form method="POST" action="{{ route('rooms.follow', $room->slug) }}" class="mt-3">
+                                @csrf
+                                @method('PUT')
+                                <input type="hidden" name="follow" value="0">
+                                <label class="flex items-center gap-2 text-[11px] font-semibold text-[#d6c8ad]">
+                                    <input
+                                        type="checkbox"
+                                        name="follow"
+                                        value="1"
+                                        {{ $isFollowingRoom ? 'checked' : '' }}
+                                        onchange="this.form.submit()"
+                                        class="rounded border-[#332817] bg-[#0b0b0c] text-amber-500 focus:ring-amber-500"
+                                    >
+                                    <span>Follow this room</span>
+                                </label>
+                            </form>
+                        </div>
+                    @endif
                     @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
                         <div data-context-panel="settings" class="context-tool-panel hidden space-y-3">
                             <div class="rounded-md border border-[#332817] bg-[#101012] p-3">

@@ -6,8 +6,10 @@ These rules are intentionally small and operational. They describe the boundarie
 - All message and conversation mutations require an authenticated, authorized user.
 - Character actions require character ownership.
 - Conversation mutations require current conversation access or participant membership.
-- Public room read state must not be mutated from `session('active_character_id')`.
-- Read/unread mutation must happen only through explicit request paths that include a validated character identity.
+- Public room read state is user-account state and must not be derived from switching posting characters.
+- Public room read state must not be mutated from `session('active_character_id')` alone.
+- Public room read/unread mutation must happen only through explicit authenticated, access-checked room request paths.
+- DM read/unread mutation must happen only through explicit request paths that include a validated character identity.
 - DM sends must derive sender identity from `dm_participants` where possible.
 - Admin overrides must be gated server-side.
 - UI restrictions are never sufficient authorization.

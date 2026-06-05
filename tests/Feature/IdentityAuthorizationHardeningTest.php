@@ -60,16 +60,23 @@ class IdentityAuthorizationHardeningTest extends TestCase
         Log::shouldNotHaveReceived('warning');
     }
 
-    public function test_public_room_show_does_not_mark_read_from_session_active_character(): void
+    public function test_public_room_show_marks_user_room_read_without_touching_character_read_state(): void
     {
         [$user, $character] = $this->createUserWithCharacter();
-        $room = $this->createPublicRoom($user);
-        $message = $this->createMessage($room, $user, $character, 'Unread message.');
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createPublicRoom($otherUser);
+        $message = $this->createMessage($room, $otherUser, $otherCharacter, 'Unread message.');
 
         $this->actingAs($user)
             ->withSession(['active_character_id' => $character->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk();
+
+        $this->assertDatabaseHas('user_room_states', [
+            'user_id' => $user->id,
+            'room_id' => $room->id,
+            'last_read_message_id' => $message->id,
+        ]);
 
         $this->assertDatabaseMissing('character_conversation_reads', [
             'character_id' => $character->id,
