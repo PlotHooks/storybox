@@ -32,6 +32,9 @@ class DmWindowComposerTest extends TestCase
                 'id' => $targetCharacter->id,
                 'name' => $targetCharacter->name,
             ])
+            ->assertJsonMissingPath('targets.0.user_name')
+            ->assertJsonMissingPath('targets.0.user_id')
+            ->assertJsonMissingPath('targets.0.owner')
             ->assertJsonMissing([
                 'id' => $otherOwnedCharacter->id,
             ]);
@@ -82,6 +85,32 @@ class DmWindowComposerTest extends TestCase
             ]);
     }
 
+
+    public function test_dm_window_composer_search_does_not_match_owner_user_name(): void
+    {
+        [$senderUser, $senderCharacter] = $this->createUserWithCharacter('Sender User');
+        [$targetUser, $targetCharacter] = $this->createUserWithCharacter('Hidden Owner');
+
+        $this->actingAs($senderUser)
+            ->getJson(route('dms.targets', [
+                'from_character_id' => $senderCharacter->id,
+                'query' => 'Hidden Owner',
+            ]))
+            ->assertOk()
+            ->assertExactJson(['targets' => []]);
+
+        $this->actingAs($senderUser)
+            ->getJson(route('dms.targets', [
+                'from_character_id' => $senderCharacter->id,
+                'query' => $targetCharacter->name,
+            ]))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $targetCharacter->id,
+                'name' => $targetCharacter->name,
+            ]);
+    }
+
     public function test_dm_window_composer_search_rejects_unowned_sender_character(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
@@ -111,9 +140,11 @@ class DmWindowComposerTest extends TestCase
         $this->assertSame(0, Room::where('type', Room::TYPE_DM)->count());
     }
 
-    private function createUserWithCharacter(): array
+    private function createUserWithCharacter(?string $userName = null): array
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'name' => $userName ?? ('user_' . Str::random(8)),
+        ]);
 
         return [$user, $this->createCharacter($user)];
     }

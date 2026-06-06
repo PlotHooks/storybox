@@ -270,7 +270,6 @@
             name: raw?.name || 'Character',
             avatar: raw?.avatar || '',
             handle: raw?.handle || '',
-            userName: raw?.user_name || '',
         };
     }
 
@@ -340,7 +339,6 @@
                         <div class="min-w-0 flex-1">
                             <div class="truncate text-sm font-semibold text-[#f2dfb5]">${escapeHtml(target.name)}</div>
                             <div class="truncate text-[11px] text-[#8f8675]">${escapeHtml(target.handle)}</div>
-                            <div class="truncate text-[10px] uppercase tracking-[0.12em] text-amber-500/70">User: ${escapeHtml(target.userName)}</div>
                         </div>
                     </div>
                 </button>
@@ -465,7 +463,7 @@
                         id="dm-compose-search"
                         type="text"
                         value="${escapeAttr(dmComposerState.query)}"
-                        placeholder="Search characters or users"
+                        placeholder="Search characters"
                         class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
                         ${hasFromCharacter ? '' : 'disabled'}
                     >

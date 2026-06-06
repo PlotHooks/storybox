@@ -980,11 +980,9 @@ class RoomController extends Controller
         }
 
         $targets = Character::query()
-            ->join('users', 'users.id', '=', 'characters.user_id')
             ->where('characters.user_id', '!=', Auth::id())
-            ->where(function ($query) use ($nameTerm, $term) {
-                $query->where('characters.name', 'like', '%' . $nameTerm . '%')
-                    ->orWhere('users.name', 'like', '%' . $term . '%');
+            ->where(function ($query) use ($nameTerm) {
+                $query->where('characters.name', 'like', '%' . $nameTerm . '%');
             })
             ->whereNotExists(function ($query) use ($fromCharacterId) {
                 $query->select(DB::raw(1))
@@ -1004,7 +1002,6 @@ class RoomController extends Controller
                 'characters.id',
                 'characters.name',
                 'characters.avatar',
-                'users.name as user_name',
             ])
             ->map(function ($target) {
                 return [
@@ -1012,15 +1009,13 @@ class RoomController extends Controller
                     'name' => $target->name,
                     'avatar' => $target->avatar,
                     'handle' => Character::formatPublicHandle((string) $target->name, (int) $target->id),
-                    'user_name' => $target->user_name,
                 ];
             })
             ->filter(function (array $target) use ($term) {
                 $needle = Str::lower($term);
 
                 return str_contains(Str::lower($target['name']), $needle)
-                    || str_contains(Str::lower($target['handle']), $needle)
-                    || str_contains(Str::lower($target['user_name']), $needle);
+                    || str_contains(Str::lower($target['handle']), $needle);
             })
             ->values();
 
