@@ -903,7 +903,7 @@ class RoomController extends Controller
             ->join('characters as other_char', 'other_char.id', '=', 'other.character_id')
             ->leftJoin('character_conversation_reads as ccr', function ($join) {
                 $join->on('ccr.conversation_id', '=', 'rooms.id')
-                    ->whereColumn('ccr.character_id', 'mine.character_id');
+                    ->whereColumn('ccr.character_id', '=', 'mine.character_id');
             })
             ->where('mine.user_id', $me)
             ->where('rooms.type', Room::TYPE_DM)
@@ -949,6 +949,82 @@ class RoomController extends Controller
             ->get();
 
         return response()->json(['rooms' => $rooms]);
+    }
+
+    public function dmTargets(Request $request)
+    {
+        $request->validate([
+            'from_character_id' => ['required', 'integer'],
+            'query' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $fromCharacterId = (int) $request->query('from_character_id', 0);
+        $fromCharacter = $this->ownedCharacterById($fromCharacterId);
+
+        if (! $fromCharacter) {
+            $this->logSuspiciousAuthorizationFailure('dm_target_search_character_not_owned', [
+                'submitted_character_id' => $fromCharacterId,
+            ]);
+        }
+
+        abort_unless($fromCharacter, 403);
+
+        $term = trim((string) $request->query('query', ''));
+        if ($term === '') {
+            return response()->json(['targets' => []]);
+        }
+
+        $nameTerm = trim(str_contains($term, '#') ? (strstr($term, '#', true) ?: $term) : $term);
+        if ($nameTerm === '') {
+            $nameTerm = $term;
+        }
+
+        $targets = Character::query()
+            ->join('users', 'users.id', '=', 'characters.user_id')
+            ->where('characters.user_id', '!=', Auth::id())
+            ->where(function ($query) use ($nameTerm, $term) {
+                $query->where('characters.name', 'like', '%' . $nameTerm . '%')
+                    ->orWhere('users.name', 'like', '%' . $term . '%');
+            })
+            ->whereNotExists(function ($query) use ($fromCharacterId) {
+                $query->select(DB::raw(1))
+                    ->from('character_blocks')
+                    ->where('blocker_character_id', $fromCharacterId)
+                    ->whereColumn('blocked_character_id', 'characters.id');
+            })
+            ->whereNotExists(function ($query) use ($fromCharacterId) {
+                $query->select(DB::raw(1))
+                    ->from('character_blocks')
+                    ->where('blocked_character_id', $fromCharacterId)
+                    ->whereColumn('blocker_character_id', 'characters.id');
+            })
+            ->orderBy('characters.name')
+            ->limit(20)
+            ->get([
+                'characters.id',
+                'characters.name',
+                'characters.avatar',
+                'users.name as user_name',
+            ])
+            ->map(function ($target) {
+                return [
+                    'id' => (int) $target->id,
+                    'name' => $target->name,
+                    'avatar' => $target->avatar,
+                    'handle' => Character::formatPublicHandle((string) $target->name, (int) $target->id),
+                    'user_name' => $target->user_name,
+                ];
+            })
+            ->filter(function (array $target) use ($term) {
+                $needle = Str::lower($term);
+
+                return str_contains(Str::lower($target['name']), $needle)
+                    || str_contains(Str::lower($target['handle']), $needle)
+                    || str_contains(Str::lower($target['user_name']), $needle);
+            })
+            ->values();
+
+        return response()->json(['targets' => $targets]);
     }
 
     public function dmStart(Request $request)

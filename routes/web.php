@@ -77,6 +77,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
 
     // DMs
     Route::get('/dms', [RoomController::class, 'dmIndex'])->name('dms.index');
+    Route::get('/dms/targets', [RoomController::class, 'dmTargets'])->name('dms.targets');
     Route::post('/dms/start', [RoomController::class, 'dmStart'])
         ->middleware('throttle:dm-action')
         ->name('dms.start');

@@ -1,3 +1,17 @@
+@php
+    $dmOwnedCharacters = auth()->check()
+        ? auth()->user()->characters()->orderBy('name')->get(['id', 'name', 'avatar'])
+        : collect();
+    $dmDefaultFromCharacter = $dmOwnedCharacters->firstWhere('id', (int) session('active_character_id', 0))
+        ?? $dmOwnedCharacters->first();
+    $dmOwnedCharacterOptions = $dmOwnedCharacters->map(fn ($character) => [
+        'id' => (int) $character->id,
+        'name' => $character->name,
+        'avatar' => $character->avatar,
+        'handle' => $character->public_handle,
+    ])->values();
+@endphp
+
 <div
     id="dm-window"
     class="hidden fixed z-50 bg-[#0b0b0c] border border-[#2a241a] rounded-md shadow-2xl flex flex-col overflow-hidden ring-1 ring-amber-500/10"
@@ -46,12 +60,22 @@
     <div class="flex-1 flex overflow-hidden">
 
         <!-- LEFT: conversation list -->
-        <div class="w-44 border-r border-[#2a241a] bg-[#0b0b0c] overflow-y-auto text-xs text-[#d6c8ad]">
+        <div class="w-44 border-r border-[#2a241a] bg-[#0b0b0c] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
             <div class="p-2 border-b border-[#2a241a] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675]">
                 Conversations
             </div>
 
-            <div id="dm-convo-list" class="p-2 space-y-2">
+            <div class="p-2 border-b border-[#2a241a]">
+                <button
+                    id="dm-new-btn"
+                    type="button"
+                    class="w-full rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                >
+                    + New DM
+                </button>
+            </div>
+
+            <div id="dm-convo-list" class="flex-1 overflow-y-auto p-2 space-y-2">
                 <div class="text-[#8f8675]">Loading...</div>
             </div>
         </div>
@@ -76,7 +100,7 @@
                 <div class="text-[#8f8675]">No conversation selected.</div>
             </div>
 
-            <div class="border-t border-[#2a241a] bg-[#101012] p-2">
+            <div id="dm-thread-footer" class="border-t border-[#2a241a] bg-[#101012] p-2">
                 <div class="flex gap-2">
                     <textarea
                         id="dm-input"
@@ -118,22 +142,37 @@
     if (!dmWindow) return;
 
     const csrf = @json(csrf_token());
+    const dmTargetsUrl = @json(route('dms.targets'));
+    const dmStartUrl = @json(route('dms.start'));
+    const ownedDmCharacters = (Array.isArray(@json($dmOwnedCharacterOptions)) ? @json($dmOwnedCharacterOptions) : [])
+        .map((character) => ({
+            id: parseInt(character.id || 0, 10) || 0,
+            name: character.name || 'Character',
+            avatar: character.avatar || '',
+            handle: character.handle || '',
+        }))
+        .filter((character) => character.id > 0);
+    const defaultDmFromCharacterId = parseInt(@json((int) ($dmDefaultFromCharacter?->id ?? 0)), 10) || 0;
 
     const listEl = document.getElementById('dm-convo-list');
     const globalUnreadBadge = document.getElementById('dm-unread-badge');
     const refreshBtn = document.getElementById('dm-refresh-btn');
     const closeBtn = document.getElementById('dm-close-btn');
+    const newDmBtn = document.getElementById('dm-new-btn');
 
     const threadHeader = document.getElementById('dm-thread-header');
     const blockToggleBtn = document.getElementById('dm-block-toggle');
     const threadEl = document.getElementById('dm-thread');
     const inputEl = document.getElementById('dm-input');
     const sendBtn = document.getElementById('dm-send-btn');
+    const threadFooter = document.getElementById('dm-thread-footer');
 
     let refreshListTimer = null;
     let pollDmTimer = null;
     let pollInFlight = false;
     let roomsLoaded = false;
+    let dmComposeSearchTimer = null;
+    let dmComposeSearchController = null;
 
     let activeDm = {
         slug: null,
@@ -151,6 +190,15 @@
     const dmRoomsBySlug = new Map();
     const dmMessageCache = new Map();
     const lastDmSlugStorageKey = 'storybox_last_dm_slug';
+    const dmComposerState = {
+        active: false,
+        fromCharacterId: defaultDmFromCharacterId,
+        query: '',
+        results: [],
+        error: '',
+        loading: false,
+        starting: false,
+    };
 
     window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
 
@@ -197,6 +245,346 @@
     function setThreadEnabled(enabled) {
         if (inputEl) inputEl.disabled = !enabled;
         if (sendBtn) sendBtn.disabled = !enabled;
+    }
+
+    function setThreadFooterVisible(visible) {
+        if (!threadFooter) return;
+        threadFooter.classList.toggle('hidden', !visible);
+    }
+
+    function resolveDmFromCharacterId(candidate = 0) {
+        const normalized = parseInt(candidate || 0, 10) || 0;
+        if (ownedDmCharacters.some((character) => character.id === normalized)) {
+            return normalized;
+        }
+
+        return ownedDmCharacters[0]?.id || 0;
+    }
+
+    function normalizeDmTarget(raw) {
+        const id = parseInt(raw?.id || 0, 10) || 0;
+        if (!id) return null;
+
+        return {
+            id,
+            name: raw?.name || 'Character',
+            avatar: raw?.avatar || '',
+            handle: raw?.handle || '',
+            userName: raw?.user_name || '',
+        };
+    }
+
+    function abortDmTargetSearch() {
+        if (dmComposeSearchTimer) {
+            clearTimeout(dmComposeSearchTimer);
+            dmComposeSearchTimer = null;
+        }
+
+        if (dmComposeSearchController) {
+            dmComposeSearchController.abort();
+            dmComposeSearchController = null;
+        }
+    }
+
+    function resetDmComposerState() {
+        abortDmTargetSearch();
+        dmComposerState.active = false;
+        dmComposerState.fromCharacterId = resolveDmFromCharacterId(defaultDmFromCharacterId);
+        dmComposerState.query = '';
+        dmComposerState.results = [];
+        dmComposerState.error = '';
+        dmComposerState.loading = false;
+        dmComposerState.starting = false;
+    }
+
+    function updateNewDmComposerResults() {
+        if (!dmComposerState.active || !threadEl) return;
+
+        const fromSelect = threadEl.querySelector('#dm-compose-from');
+        const searchInput = threadEl.querySelector('#dm-compose-search');
+        const resultsEl = threadEl.querySelector('#dm-compose-results');
+        if (!resultsEl) return;
+
+        if (fromSelect) {
+            fromSelect.value = String(resolveDmFromCharacterId(dmComposerState.fromCharacterId));
+        }
+
+        if (searchInput && searchInput.value !== dmComposerState.query) {
+            searchInput.value = dmComposerState.query;
+        }
+
+        const hasFromCharacter = !!resolveDmFromCharacterId(dmComposerState.fromCharacterId);
+        let markup = '';
+
+        if (!hasFromCharacter) {
+            markup = '<div class="text-[#8f8675]">You need at least one character to start a DM.</div>';
+        } else if (dmComposerState.error) {
+            markup = `<div class="text-red-400">${escapeHtml(dmComposerState.error)}</div>`;
+        } else if (dmComposerState.starting) {
+            markup = '<div class="text-amber-200">Opening DM...</div>';
+        } else if (dmComposerState.loading) {
+            markup = '<div class="text-[#8f8675]">Searching...</div>';
+        } else if (dmComposerState.query.trim() === '') {
+            markup = '<div class="text-[#8f8675]">Type a character or user name to search.</div>';
+        } else if (dmComposerState.results.length === 0) {
+            markup = '<div class="text-[#8f8675]">No matching characters available.</div>';
+        } else {
+            markup = dmComposerState.results.map((target) => `
+                <button
+                    type="button"
+                    data-dm-target-id="${target.id}"
+                    class="w-full rounded border border-[#332817] bg-[#0b0b0c] px-2.5 py-2 text-left text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                >
+                    <div class="flex items-center gap-2">
+                        ${avatarHtml(target.avatar, target.name, 'h-8 w-8')}
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-sm font-semibold text-[#f2dfb5]">${escapeHtml(target.name)}</div>
+                            <div class="truncate text-[11px] text-[#8f8675]">${escapeHtml(target.handle)}</div>
+                            <div class="truncate text-[10px] uppercase tracking-[0.12em] text-amber-500/70">User: ${escapeHtml(target.userName)}</div>
+                        </div>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        resultsEl.innerHTML = markup;
+        resultsEl.querySelectorAll('[data-dm-target-id]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = parseInt(button.dataset.dmTargetId || '0', 10) || 0;
+                if (targetId) {
+                    startDmFromComposer(targetId);
+                }
+            });
+        });
+    }
+
+    function requestDmTargets() {
+        const fromCharacterId = resolveDmFromCharacterId(dmComposerState.fromCharacterId);
+        const query = dmComposerState.query.trim();
+
+        if (!dmComposerState.active) return;
+
+        if (!fromCharacterId || query === '') {
+            dmComposerState.loading = false;
+            dmComposerState.results = [];
+            updateNewDmComposerResults();
+            return;
+        }
+
+        abortDmTargetSearch();
+        dmComposeSearchController = new AbortController();
+
+        const url = new URL(dmTargetsUrl, window.location.origin);
+        url.searchParams.set('from_character_id', String(fromCharacterId));
+        url.searchParams.set('query', query);
+
+        fetch(url.toString(), {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            signal: dmComposeSearchController.signal,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    let message = 'Could not search characters.';
+                    try {
+                        const data = await response.json();
+                        if (typeof data?.message === 'string' && data.message) {
+                            message = data.message;
+                        }
+                    } catch (error) {
+                        // Ignore parse errors and fall back to the default message.
+                    }
+
+                    throw new Error(message);
+                }
+
+                return response.json();
+            })
+            .then((data) => {
+                dmComposeSearchController = null;
+                if (!dmComposerState.active) return;
+
+                dmComposerState.loading = false;
+                dmComposerState.error = '';
+                dmComposerState.results = Array.isArray(data?.targets)
+                    ? data.targets.map(normalizeDmTarget).filter(Boolean)
+                    : [];
+                updateNewDmComposerResults();
+            })
+            .catch((error) => {
+                if (error?.name === 'AbortError') return;
+
+                dmComposeSearchController = null;
+                if (!dmComposerState.active) return;
+
+                dmComposerState.loading = false;
+                dmComposerState.results = [];
+                dmComposerState.error = error?.message || 'Could not search characters.';
+                updateNewDmComposerResults();
+            });
+    }
+
+    function renderNewDmComposer() {
+        if (!threadEl) return;
+
+        dmComposerState.active = true;
+        dmComposerState.fromCharacterId = resolveDmFromCharacterId(dmComposerState.fromCharacterId || defaultDmFromCharacterId);
+
+        if (threadHeader) {
+            threadHeader.textContent = 'New Direct Message';
+        }
+
+        blockToggleBtn?.classList.add('hidden');
+        setThreadEnabled(false);
+        setThreadFooterVisible(false);
+
+        const hasFromCharacter = !!resolveDmFromCharacterId(dmComposerState.fromCharacterId);
+        const fromOptions = ownedDmCharacters.map((character) => `
+            <option value="${character.id}" ${character.id === dmComposerState.fromCharacterId ? 'selected' : ''}>${escapeHtml(character.name)} (${escapeHtml(character.handle)})</option>
+        `).join('');
+
+        threadEl.innerHTML = `
+            <div class="space-y-4">
+                <div>
+                    <div class="text-sm font-semibold text-[#f2dfb5]">New Direct Message</div>
+                    <p class="mt-1 text-xs leading-relaxed text-[#8f8675]">Choose which of your characters is sending, then search for a recipient character.</p>
+                </div>
+                <div>
+                    <label for="dm-compose-from" class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675]">From</label>
+                    <select
+                        id="dm-compose-from"
+                        class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                        ${hasFromCharacter ? '' : 'disabled'}
+                    >
+                        ${fromOptions || '<option value="">No characters available</option>'}
+                    </select>
+                </div>
+                <div>
+                    <label for="dm-compose-search" class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675]">To</label>
+                    <input
+                        id="dm-compose-search"
+                        type="text"
+                        value="${escapeAttr(dmComposerState.query)}"
+                        placeholder="Search characters or users"
+                        class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                        ${hasFromCharacter ? '' : 'disabled'}
+                    >
+                    <div class="mt-2 text-[10px] uppercase tracking-[0.14em] text-amber-500/70">Selecting a target will open an existing DM or start a new one.</div>
+                </div>
+                <div id="dm-compose-results" class="space-y-2 rounded border border-[#2a241a] bg-[#101012] p-2"></div>
+            </div>
+        `;
+
+        const fromSelect = threadEl.querySelector('#dm-compose-from');
+        const searchInput = threadEl.querySelector('#dm-compose-search');
+
+        fromSelect?.addEventListener('change', () => {
+            dmComposerState.fromCharacterId = resolveDmFromCharacterId(fromSelect.value);
+            dmComposerState.error = '';
+            dmComposerState.results = [];
+            if (dmComposerState.query.trim() !== '') {
+                dmComposerState.loading = true;
+                updateNewDmComposerResults();
+                requestDmTargets();
+                return;
+            }
+
+            updateNewDmComposerResults();
+        });
+
+        searchInput?.addEventListener('input', () => {
+            dmComposerState.query = searchInput.value;
+            dmComposerState.error = '';
+            dmComposerState.results = [];
+            dmComposerState.starting = false;
+            abortDmTargetSearch();
+
+            if (dmComposerState.query.trim() === '') {
+                dmComposerState.loading = false;
+                updateNewDmComposerResults();
+                return;
+            }
+
+            dmComposerState.loading = true;
+            updateNewDmComposerResults();
+            dmComposeSearchTimer = window.setTimeout(() => requestDmTargets(), 200);
+        });
+
+        updateNewDmComposerResults();
+        searchInput?.focus();
+    }
+
+    function startDmFromComposer(targetId) {
+        const fromCharacterId = resolveDmFromCharacterId(dmComposerState.fromCharacterId);
+        const target = dmComposerState.results.find((entry) => entry.id === targetId);
+        if (!fromCharacterId || !target) return;
+
+        dmComposerState.error = '';
+        dmComposerState.starting = true;
+        updateNewDmComposerResults();
+
+        fetch(dmStartUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                my_character_id: fromCharacterId,
+                other_character_id: target.id,
+            })
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(typeof data?.message === 'string' && data.message ? data.message : 'Could not start DM.');
+                }
+
+                return data;
+            })
+            .then((data) => fetchDmRooms({ showLoading: false }).then(() => {
+                dmComposerState.starting = false;
+
+                if (!dmRoomsBySlug.has(data.slug)) {
+                    const placeholder = {
+                        roomId: 0,
+                        slug: data.slug || '',
+                        updatedAt: null,
+                        displayName: target.name,
+                        avatar: target.avatar || '',
+                        unreadCount: 0,
+                        myCharacterId: fromCharacterId,
+                        otherCharacterId: target.id,
+                        isBlockedByViewer: false,
+                    };
+                    dmRoomsBySlug.set(placeholder.slug, placeholder);
+
+                    const button = createRoomButton(placeholder);
+                    updateRoomButton(button, placeholder);
+                    const firstButton = listEl?.querySelector('[data-dm-slug]');
+                    listEl?.insertBefore(button, firstButton || null);
+                }
+
+                openConversation(data.slug);
+            }))
+            .catch((error) => {
+                dmComposerState.starting = false;
+                dmComposerState.error = error?.message || 'Could not start DM.';
+                updateNewDmComposerResults();
+            });
+    }
+
+    function showNewDmComposer() {
+        clearThread();
+        dmComposerState.fromCharacterId = resolveDmFromCharacterId(defaultDmFromCharacterId);
+        dmComposerState.query = '';
+        dmComposerState.results = [];
+        dmComposerState.error = '';
+        dmComposerState.loading = false;
+        dmComposerState.starting = false;
+        renderNewDmComposer();
     }
 
     window.setCharacterBlock = window.setCharacterBlock || function setCharacterBlock(blockerId, blockedId, shouldBlock) {
@@ -522,7 +910,12 @@
     function fetchDmRooms(options = {}) {
         const { showLoading = false } = options;
 
-        if (!isOpen() || !listEl) return Promise.resolve([]);
+        try {
+            if (!isOpen() || !listEl) return Promise.resolve([]);
+        } catch (error) {
+            console.error('DM list preflight error:', error);
+            return Promise.resolve([]);
+        }
 
         if (showLoading && !roomsLoaded) {
             setRoomListMessage('Loading...');
@@ -532,10 +925,24 @@
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
-        .then(r => r.json())
+        .then(async (response) => {
+            if (!response.ok) {
+                throw new Error(`DM list request failed (${response.status})`);
+            }
+
+            return response.json();
+        })
         .then(data => {
             const rooms = data && Array.isArray(data.rooms) ? data.rooms : [];
-            renderRooms(rooms);
+
+            try {
+                renderRooms(rooms);
+            } catch (error) {
+                console.error('DM list render error:', error);
+                if (!roomsLoaded) setRoomListMessage('Could not load DMs.', true);
+                return [];
+            }
+
             return rooms;
         })
         .catch(err => {
@@ -735,6 +1142,8 @@
     }
 
     function applyActiveConversationMeta(room) {
+        resetDmComposerState();
+        setThreadFooterVisible(true);
         activeDm.slug = room?.slug || null;
         activeDm.conversationId = room?.roomId || 0;
         activeDm.lastId = getMessageCache(activeDm.slug)?.lastId || 0;
@@ -753,6 +1162,7 @@
     }
 
     function clearThread() {
+        resetDmComposerState();
         storeActiveConversationScroll();
         stopDmRealtime();
         activeDm.slug = null;
@@ -768,6 +1178,7 @@
         syncDmBlockToggle();
         if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;
         if (inputEl) inputEl.value = '';
+        setThreadFooterVisible(true);
         setThreadEnabled(false);
         syncActiveConversationHighlight();
     }
@@ -951,6 +1362,8 @@
         const room = dmRoomsBySlug.get(slug);
         if (!room) return;
 
+        resetDmComposerState();
+        setThreadFooterVisible(true);
         setLastOpenedDmSlug(slug);
 
         if (activeDm.slug === slug) {
@@ -1033,46 +1446,68 @@
     }
 
     window.addEventListener('open-dm-window', (e) => {
-        dmWindow.classList.remove('hidden');
+        try {
+            dmWindow.classList.remove('hidden');
 
-        const slug = e?.detail?.slug;
-        const name = e?.detail?.name;
-        const myCharacterId = parseInt(e?.detail?.my_character_id || 0, 10) || 0;
-        const otherCharacterId = parseInt(e?.detail?.other_character_id || 0, 10) || 0;
-        const isBlockedByViewer = parseBool(e?.detail?.is_blocked_by_viewer);
+            const slug = e?.detail?.slug;
+            const name = e?.detail?.name;
+            const myCharacterId = parseInt(e?.detail?.my_character_id || 0, 10) || 0;
+            const otherCharacterId = parseInt(e?.detail?.other_character_id || 0, 10) || 0;
+            const isBlockedByViewer = parseBool(e?.detail?.is_blocked_by_viewer);
 
-        fetchDmRooms({ showLoading: true }).then((rooms) => {
-            const existingRoom = slug ? dmRoomsBySlug.get(slug) : null;
+            fetchDmRooms({ showLoading: true }).then((rooms) => {
+                try {
+                    const existingRoom = slug ? dmRoomsBySlug.get(slug) : null;
 
-            if (slug && !existingRoom && name) {
-                dmRoomsBySlug.set(slug, {
-                    roomId: 0,
-                    slug,
-                    updatedAt: null,
-                    displayName: name,
-                    avatar: '',
-                    unreadCount: 0,
-                    myCharacterId,
-                    otherCharacterId,
-                    isBlockedByViewer,
-                });
-            }
+                    if (slug && !existingRoom && name) {
+                        dmRoomsBySlug.set(slug, {
+                            roomId: 0,
+                            slug,
+                            updatedAt: null,
+                            displayName: name,
+                            avatar: '',
+                            unreadCount: 0,
+                            myCharacterId,
+                            otherCharacterId,
+                            isBlockedByViewer,
+                        });
+                    }
 
-            const defaultSlug = slug || resolveDefaultConversationSlug(rooms);
+                    const defaultSlug = slug || resolveDefaultConversationSlug(rooms);
 
-            if (defaultSlug) {
-                openConversation(defaultSlug);
-            } else {
-                clearThread();
-            }
-        });
+                    if (defaultSlug) {
+                        openConversation(defaultSlug);
+                    } else {
+                        clearThread();
+                    }
+                } catch (error) {
+                    console.error('DM open flow error:', error);
+                    clearThread();
+                }
+            });
 
-        startListRefresh();
+            startListRefresh();
+        } catch (error) {
+            console.error('DM window open error:', error);
+            clearThread();
+        }
     });
 
     refreshBtn?.addEventListener('click', () => {
         fetchDmRooms({ showLoading: false });
         if (activeDm.slug) pollConversation();
+    });
+
+    newDmBtn?.addEventListener('click', () => {
+        try {
+            dmWindow.classList.remove('hidden');
+            showNewDmComposer();
+            fetchDmRooms({ showLoading: !roomsLoaded });
+            startListRefresh();
+        } catch (error) {
+            console.error('New DM composer error:', error);
+            clearThread();
+        }
     });
 
     closeBtn?.addEventListener('click', () => {
