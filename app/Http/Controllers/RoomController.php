@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Validation\ValidationException;
 
@@ -593,12 +594,49 @@ class RoomController extends Controller
 
         if ($conversation->type === Room::TYPE_DM) {
             $conversation->touch();
+            $this->restoreDmForOtherParticipants($conversation->id, Auth::id());
         }
 
         broadcast(new MessageCreated($message))->toOthers();
         event(new ModerationMessageCreated($message));
 
         return $message;
+    }
+
+    private function restoreDmForUser(int $roomId, int $userId): void
+    {
+        if (! $this->dmParticipantArchiveColumnExists()) {
+            return;
+        }
+
+        DB::table('dm_participants')
+            ->where('room_id', $roomId)
+            ->where('user_id', $userId)
+            ->update([
+                'archived_at' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function restoreDmForOtherParticipants(int $roomId, int $excludedUserId): void
+    {
+        if (! $this->dmParticipantArchiveColumnExists()) {
+            return;
+        }
+
+        DB::table('dm_participants')
+            ->where('room_id', $roomId)
+            ->where('user_id', '!=', $excludedUserId)
+            ->whereNotNull('archived_at')
+            ->update([
+                'archived_at' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function dmParticipantArchiveColumnExists(): bool
+    {
+        return Schema::hasColumn('dm_participants', 'archived_at');
     }
 
     private function assertCanEditOrDelete(Message $message): void
@@ -945,8 +983,15 @@ class RoomController extends Controller
                         )
                     )
                 ) as unread_count
-            ')
-            ->get();
+            ');
+
+        if ($this->dmParticipantArchiveColumnExists()) {
+            $rooms->addSelect('mine.archived_at');
+        } else {
+            $rooms->selectRaw('NULL as archived_at');
+        }
+
+        $rooms = $rooms->get();
 
         return response()->json(['rooms' => $rooms]);
     }
@@ -1056,12 +1101,16 @@ class RoomController extends Controller
         $dmKey = Room::normalizedDmKey($myCharacterId, $otherCharacterId);
 
         if ($room = $this->findDmRoomForCharacterPair($myCharacterId, $otherCharacterId)) {
+            $this->restoreDmForUser($room->id, $me);
+
             return response()->json(['slug' => $room->slug]);
         }
 
         try {
             $room = DB::transaction(function () use ($me, $myCharacterId, $otherCharacterId, $otherChar, $dmKey) {
                 if ($existing = $this->findDmRoomForCharacterPair($myCharacterId, $otherCharacterId)) {
+                    $this->restoreDmForUser($existing->id, $me);
+
                     return $existing;
                 }
 
@@ -1097,6 +1146,8 @@ class RoomController extends Controller
         } catch (UniqueConstraintViolationException $exception) {
             $room = Room::where('type', Room::TYPE_DM)->where('dm_key', $dmKey)->first();
             throw_unless($room, $exception);
+
+            $this->restoreDmForUser($room->id, $me);
         }
 
         return response()->json(['slug' => $room->slug]);
@@ -1120,6 +1171,43 @@ class RoomController extends Controller
             ->value('rooms.id');
 
         return $roomId ? Room::find($roomId) : null;
+    }
+
+    public function dmArchive(Room $room)
+    {
+        abort_unless($room->type === Room::TYPE_DM, 404);
+
+        $this->getLockedDmCharacterId($room);
+        $archivedAt = now();
+
+        if (! $this->dmParticipantArchiveColumnExists()) {
+            return response()->json([
+                'message' => 'DM archive support is unavailable until the archive migration is applied.',
+            ], 409);
+        }
+
+        DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->where('user_id', Auth::id())
+            ->update([
+                'archived_at' => $archivedAt,
+                'updated_at' => $archivedAt,
+            ]);
+
+        return response()->json([
+            'ok' => true,
+            'archived_at' => $archivedAt->toJSON(),
+        ]);
+    }
+
+    public function dmRestore(Room $room)
+    {
+        abort_unless($room->type === Room::TYPE_DM, 404);
+
+        $this->getLockedDmCharacterId($room);
+        $this->restoreDmForUser($room->id, Auth::id());
+
+        return response()->json(['ok' => true]);
     }
 
     public function dmMessages(Room $room, Request $request)
@@ -1160,6 +1248,7 @@ class RoomController extends Controller
         $characterId = $this->getLockedDmCharacterId($room);
         $this->assertConversationParticipant($room, $characterId);
         $this->assertDmMessageAllowed($room);
+        $this->restoreDmForUser($room->id, Auth::id());
 
         $message = $this->createConversationMessage($room, $characterId, $request->body);
 

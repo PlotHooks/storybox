@@ -65,7 +65,7 @@
                 Conversations
             </div>
 
-            <div class="p-2 border-b border-[#2a241a]">
+            <div class="p-2 border-b border-[#2a241a] space-y-2">
                 <button
                     id="dm-new-btn"
                     type="button"
@@ -73,9 +73,17 @@
                 >
                     + New DM
                 </button>
+
+                <label for="dm-convo-filter" class="sr-only">Filter conversations</label>
+                <input
+                    id="dm-convo-filter"
+                    type="text"
+                    placeholder="Filter conversations"
+                    class="block w-full rounded border border-[#332817] bg-[#0b0b0c] px-2.5 py-2 text-[11px] text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                >
             </div>
 
-            <div id="dm-convo-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+            <div id="dm-convo-list" class="flex-1 overflow-y-auto p-2 space-y-3">
                 <div class="text-[#8f8675]">Loading...</div>
             </div>
         </div>
@@ -87,13 +95,23 @@
                     Select a conversation.
                 </div>
 
-                <button
-                    id="dm-block-toggle"
-                    type="button"
-                    class="hidden shrink-0 text-xs text-red-400 hover:text-red-300"
-                >
-                    Block
-                </button>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button
+                        id="dm-archive-active-btn"
+                        type="button"
+                        class="hidden rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-xs text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]"
+                    >
+                        Close DM
+                    </button>
+
+                    <button
+                        id="dm-block-toggle"
+                        type="button"
+                        class="hidden shrink-0 text-xs text-red-400 hover:text-red-300"
+                    >
+                        Block
+                    </button>
+                </div>
             </div>
 
             <div id="dm-thread" class="flex-1 bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.035),transparent_22rem)] p-3 text-sm text-[#d6c8ad] overflow-y-auto space-y-2">
@@ -155,12 +173,14 @@
     const defaultDmFromCharacterId = parseInt(@json((int) ($dmDefaultFromCharacter?->id ?? 0)), 10) || 0;
 
     const listEl = document.getElementById('dm-convo-list');
+    const convoFilterInput = document.getElementById('dm-convo-filter');
     const globalUnreadBadge = document.getElementById('dm-unread-badge');
     const refreshBtn = document.getElementById('dm-refresh-btn');
     const closeBtn = document.getElementById('dm-close-btn');
     const newDmBtn = document.getElementById('dm-new-btn');
 
     const threadHeader = document.getElementById('dm-thread-header');
+    const archiveActiveBtn = document.getElementById('dm-archive-active-btn');
     const blockToggleBtn = document.getElementById('dm-block-toggle');
     const threadEl = document.getElementById('dm-thread');
     const inputEl = document.getElementById('dm-input');
@@ -186,6 +206,8 @@
 
     let activeRealtimeConversationId = 0;
     let dmReconnectHandlerBound = false;
+    let dmConversationFilter = '';
+    let archivedSectionExpanded = false;
     const dmListRealtimeConversationIds = new Set();
     const dmRoomsBySlug = new Map();
     const dmMessageCache = new Map();
@@ -550,6 +572,7 @@
                         roomId: 0,
                         slug: data.slug || '',
                         updatedAt: null,
+                        archivedAt: null,
                         displayName: target.name,
                         avatar: target.avatar || '',
                         unreadCount: 0,
@@ -558,11 +581,7 @@
                         isBlockedByViewer: false,
                     };
                     dmRoomsBySlug.set(placeholder.slug, placeholder);
-
-                    const button = createRoomButton(placeholder);
-                    updateRoomButton(button, placeholder);
-                    const firstButton = listEl?.querySelector('[data-dm-slug]');
-                    listEl?.insertBefore(button, firstButton || null);
+                    renderRooms(Array.from(dmRoomsBySlug.values()));
                 }
 
                 openConversation(data.slug);
@@ -650,8 +669,9 @@
     function updateGlobalUnreadBadge() {
         if (!globalUnreadBadge) return;
 
-        const total = Array.from(listEl?.querySelectorAll('[data-dm-unread-badge]') || [])
-            .reduce((sum, badge) => sum + parseUnreadCount(badge.dataset.unreadCount), 0);
+        const total = Array.from(dmRoomsBySlug.values()).reduce((sum, room) => {
+            return sum + parseUnreadCount(room.unreadCount);
+        }, 0);
 
         setUnreadBadge(globalUnreadBadge, total);
     }
@@ -698,16 +718,13 @@
             return;
         }
 
-        const badge = listEl?.querySelector(`[data-dm-unread-badge="${normalizedConversationId}"]`);
-        if (!badge) return;
-
-        incrementUnreadBadge(badge);
-
         const room = findRoomByConversationId(normalizedConversationId);
         if (room?.slug) {
             room.unreadCount = parseUnreadCount(room.unreadCount) + 1;
         }
 
+        const badge = listEl?.querySelector(`[data-dm-unread-badge="${normalizedConversationId}"]`);
+        incrementUnreadBadge(badge);
         updateGlobalUnreadBadge();
     }
 
@@ -729,19 +746,35 @@
     }
 
     function normalizeRoom(raw) {
+        const roomId = parseInt((raw.roomId ?? raw.room_id ?? 0), 10) || 0;
+        const myCharacterId = parseInt((raw.myCharacterId ?? raw.my_character_id ?? 0), 10) || 0;
+        const otherCharacterId = parseInt((raw.otherCharacterId ?? raw.other_character_id ?? 0), 10) || 0;
+
         return {
-            roomId: parseInt(raw.room_id || 0, 10) || 0,
+            roomId,
             slug: raw.slug || '',
-            updatedAt: raw.updated_at || null,
-            displayName: raw.other_character_name || 'DM',
-            avatar: raw.other_character_avatar || '',
-            unreadCount: parseUnreadCount(raw.unread_count),
-            myCharacterId: parseInt(raw.my_character_id || 0, 10) || 0,
-            otherCharacterId: parseInt(raw.other_character_id || 0, 10) || 0,
-            isBlockedByViewer: parseBool(raw.is_blocked_by_viewer),
+            updatedAt: raw.updatedAt ?? raw.updated_at ?? null,
+            archivedAt: raw.archivedAt ?? raw.archived_at ?? null,
+            displayName: raw.displayName || raw.other_character_name || 'DM',
+            avatar: raw.avatar || raw.other_character_avatar || '',
+            unreadCount: parseUnreadCount(raw.unreadCount ?? raw.unread_count),
+            myCharacterId,
+            otherCharacterId,
+            isBlockedByViewer: parseBool(raw.isBlockedByViewer ?? raw.is_blocked_by_viewer),
         };
     }
 
+    function isArchivedRoom(room) {
+        return !!room?.archivedAt;
+    }
+
+    function matchesConversationFilter(room) {
+        const needle = dmConversationFilter.trim().toLowerCase();
+        if (!needle) return true;
+
+        return String(room.displayName || '').toLowerCase().includes(needle)
+            || String(room.slug || '').toLowerCase().includes(needle);
+    }
 
     function getLastOpenedDmSlug() {
         try {
@@ -773,6 +806,7 @@
         const normalizedRooms = Array.isArray(rooms)
             ? rooms.map(normalizeRoom).filter((room) => !!room.slug)
             : [];
+        const activeRooms = normalizedRooms.filter((room) => !isArchivedRoom(room));
 
         if (activeDm.slug && normalizedRooms.some((room) => room.slug === activeDm.slug)) {
             return activeDm.slug;
@@ -783,66 +817,61 @@
             return storedSlug;
         }
 
-        return normalizedRooms[0]?.slug || null;
+        return activeRooms[0]?.slug || normalizedRooms[0]?.slug || null;
     }
 
     function roomButtonClass(isActive) {
-        return 'w-full text-left rounded border px-2 py-2 transition-colors ' + (
+        return 'min-w-0 flex-1 text-left rounded border px-2 py-2 transition-colors ' + (
             isActive
                 ? 'border-amber-500/40 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]'
                 : 'border-[#332817] bg-[#101012] hover:border-amber-500/40 hover:bg-[#141416]'
         );
     }
 
-    function createRoomButton(room) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.dataset.dmSlug = room.slug;
-        btn.addEventListener('click', () => {
-            if (!room.slug) return;
-            openConversation(room.slug);
-        });
-
-        return btn;
-    }
-
-    function updateRoomButton(btn, room) {
-        if (!btn || !room) return;
-
-        btn.dataset.dmSlug = room.slug;
-        if (room.roomId) btn.dataset.dmConversationId = String(room.roomId);
-
+    function roomRowMarkup(room) {
         const isActive = activeDm.slug && room.slug === activeDm.slug;
-        btn.className = roomButtonClass(isActive);
-        btn.innerHTML = `
-            <div class="flex items-center gap-2">
-                ${avatarHtml(room.avatar, room.displayName, 'h-7 w-7')}
-                <div class="min-w-0 flex-1 text-xs text-[#d6c8ad] truncate">${escapeHtml(room.displayName)}</div>
-                <span
-                    data-dm-unread-badge="${room.roomId}"
-                    data-unread-count="${room.unreadCount}"
-                    class="${room.unreadCount > 0 ? '' : 'hidden'} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    ${formatUnreadCount(room.unreadCount)}
-                </span>
+
+        return `
+            <div class="flex items-start gap-2" data-dm-row="${escapeAttr(room.slug)}">
+                <button
+                    type="button"
+                    data-dm-open="${escapeAttr(room.slug)}"
+                    class="${roomButtonClass(isActive)}"
+                >
+                    <div class="flex items-center gap-2">
+                        ${avatarHtml(room.avatar, room.displayName, 'h-7 w-7')}
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-xs text-[#d6c8ad]">${escapeHtml(room.displayName)}</div>
+                            <div class="truncate text-[10px] text-[#8f8675]">${escapeHtml(room.slug)}</div>
+                        </div>
+                        <span
+                            data-dm-unread-badge="${room.roomId}"
+                            data-unread-count="${room.unreadCount}"
+                            class="${room.unreadCount > 0 ? '' : 'hidden'} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            ${formatUnreadCount(room.unreadCount)}
+                        </span>
+                    </div>
+                </button>
             </div>
-            <div class="text-[10px] text-[#8f8675] truncate">${escapeHtml(room.slug)}</div>
         `;
     }
 
-    function refreshRoomButton(slug) {
-        const room = dmRoomsBySlug.get(slug);
-        const btn = listEl?.querySelector(`[data-dm-slug="${CSS.escape(slug)}"]`);
-        if (!room || !btn) return;
-        updateRoomButton(btn, room);
+    function roomSectionMarkup(label, rooms, emptyMessage = '') {
+        if (rooms.length > 0) {
+            return `<div class="space-y-2">${rooms.map(roomRowMarkup).join('')}</div>`;
+        }
+
+        if (!emptyMessage) return '';
+        return `<div class="rounded border border-dashed border-[#2a241a] px-2 py-3 text-[11px] text-[#8f8675]">${escapeHtml(emptyMessage)}</div>`;
+    }
+
+    function refreshRoomButton() {
+        renderRooms(Array.from(dmRoomsBySlug.values()));
     }
 
     function syncActiveConversationHighlight() {
         if (!listEl) return;
-
-        listEl.querySelectorAll('[data-dm-slug]').forEach((btn) => {
-            const room = dmRoomsBySlug.get(btn.dataset.dmSlug || '');
-            if (room) updateRoomButton(btn, room);
-        });
+        renderRooms(Array.from(dmRoomsBySlug.values()));
     }
 
     function setRoomListMessage(message, isError = false) {
@@ -850,58 +879,181 @@
         listEl.innerHTML = `<div class="${isError ? 'text-red-400' : 'text-[#8f8675]'}">${escapeHtml(message)}</div>`;
     }
 
+    function getPartitionedRooms(rooms) {
+        const normalizedRooms = Array.isArray(rooms)
+            ? rooms.map(normalizeRoom).filter((room) => !!room.slug)
+            : [];
+
+        return {
+            normalizedRooms,
+            activeConversations: normalizedRooms.filter((room) => !isArchivedRoom(room)),
+            archivedConversations: normalizedRooms.filter((room) => isArchivedRoom(room)),
+        };
+    }
+
+    function toggleArchivedSection() {
+        archivedSectionExpanded = !archivedSectionExpanded;
+        renderRooms(Array.from(dmRoomsBySlug.values()));
+    }
+
+    function toggleDmArchiveState(slug, archived, options = {}) {
+        const room = dmRoomsBySlug.get(slug);
+        if (!room) return Promise.resolve(false);
+
+        return fetch(`/dms/${encodeURIComponent(slug)}/${archived ? 'restore' : 'archive'}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin',
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(typeof data?.message === 'string' && data.message ? data.message : 'Could not update DM state.');
+                }
+
+                return data;
+            })
+            .then((data) => {
+                room.archivedAt = archived ? null : (data?.archived_at || new Date().toISOString());
+
+                if (!archived && !archivedSectionExpanded) {
+                    archivedSectionExpanded = true;
+                }
+
+                renderRooms(Array.from(dmRoomsBySlug.values()));
+
+                if (options.skipRefresh === true) {
+                    return room;
+                }
+
+                return fetchDmRooms({ showLoading: false }).then(() => dmRoomsBySlug.get(slug) || room);
+            })
+            .catch((error) => {
+                console.error('DM archive toggle error:', error);
+                return false;
+            });
+    }
+
+    function syncActiveDmArchiveControl() {
+        if (!archiveActiveBtn) return;
+
+        const room = activeDm.slug ? dmRoomsBySlug.get(activeDm.slug) : null;
+        const canToggle = !!activeDm.slug && !!room && !dmComposerState.active;
+        archiveActiveBtn.classList.toggle('hidden', !canToggle);
+
+        if (!canToggle) return;
+
+        const archived = isArchivedRoom(room);
+        archiveActiveBtn.textContent = archived ? 'Restore DM' : 'Close DM';
+        archiveActiveBtn.title = archived ? 'Restore this conversation' : 'Close this conversation';
+    }
+
+    function closeActiveDmConversation() {
+        if (!activeDm.slug) return;
+
+        const currentSlug = activeDm.slug;
+        const currentRoom = dmRoomsBySlug.get(currentSlug);
+        const shouldRestore = !!currentRoom && isArchivedRoom(currentRoom);
+
+        toggleDmArchiveState(currentSlug, shouldRestore, { skipRefresh: true })
+            .then((result) => {
+                if (!result) return;
+
+                if (shouldRestore) {
+                    openConversation(currentSlug);
+                    fetchDmRooms({ showLoading: false });
+                    return;
+                }
+
+                clearLastOpenedDmSlug();
+                clearThread();
+
+                return fetchDmRooms({ showLoading: false }).then((rooms) => {
+                    const { activeConversations } = getPartitionedRooms(rooms);
+                    const nextActiveRoom = activeConversations[0] || null;
+
+                    if (nextActiveRoom?.slug) {
+                        openConversation(nextActiveRoom.slug);
+                    }
+                });
+            });
+    }
+
+    function bindRoomListInteractions() {
+        if (!listEl) return;
+
+        listEl.querySelectorAll('[data-dm-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const slug = button.dataset.dmOpen || '';
+                if (slug) openConversation(slug);
+            });
+        });
+
+        listEl.querySelectorAll('[data-dm-archived-section-toggle]').forEach((button) => {
+            button.addEventListener('click', toggleArchivedSection);
+        });
+    }
+
     function renderRooms(rooms) {
         if (!listEl) return;
 
-        const normalizedRooms = Array.isArray(rooms) ? rooms.map(normalizeRoom) : [];
-        updateGlobalUnreadBadgeFromRooms(normalizedRooms);
+        const { normalizedRooms, activeConversations, archivedConversations } = getPartitionedRooms(rooms);
         roomsLoaded = true;
 
+        dmRoomsBySlug.clear();
+        normalizedRooms.forEach((room) => {
+            dmRoomsBySlug.set(room.slug, room);
+        });
+        updateGlobalUnreadBadge();
+        syncActiveDmArchiveControl();
+
         if (normalizedRooms.length === 0) {
-            dmRoomsBySlug.clear();
             clearLastOpenedDmSlug();
             setRoomListMessage('No DMs yet.');
             return;
         }
 
         const previousScrollTop = listEl.scrollTop;
-        const existingButtons = new Map(
-            Array.from(listEl.querySelectorAll('[data-dm-slug]')).map((btn) => [btn.dataset.dmSlug, btn])
+        const visibleActiveRooms = activeConversations.filter(matchesConversationFilter);
+        const visibleArchivedRooms = archivedConversations.filter(matchesConversationFilter);
+        const hasFilter = dmConversationFilter.trim() !== '';
+
+        const activeMarkup = roomSectionMarkup(
+            'Active',
+            visibleActiveRooms,
+            archivedConversations.length > 0 || hasFilter ? 'No active conversations match this filter.' : 'No active DMs yet.'
         );
-        const nextSlugs = new Set();
+        const archivedHeader = `
+            <button
+                type="button"
+                data-dm-archived-section-toggle
+                class="flex w-full items-center justify-between rounded border border-[#2a241a] bg-[#101012] px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675] hover:border-amber-500/30 hover:text-[#d6c8ad]"
+            >
+                <span>Archived (${archivedConversations.length})</span>
+                <span>${archivedSectionExpanded ? '−' : '+'}</span>
+            </button>
+        `;
+        const archivedMarkup = archivedConversations.length > 0
+            ? archivedHeader + (archivedSectionExpanded
+                ? `<div class="mt-2">${roomSectionMarkup('Archived', visibleArchivedRooms, hasFilter ? 'No archived conversations match this filter.' : 'No archived DMs.')}</div>`
+                : '')
+            : '';
 
-        if (existingButtons.size === 0) {
-            listEl.innerHTML = '';
-        }
-
-        normalizedRooms.forEach((room, index) => {
-            if (!room.slug) return;
-
-            nextSlugs.add(room.slug);
-            dmRoomsBySlug.set(room.slug, room);
-
-            const btn = existingButtons.get(room.slug) || createRoomButton(room);
-            updateRoomButton(btn, room);
-
-            const currentChild = listEl.children[index];
-            if (currentChild !== btn) {
-                listEl.insertBefore(btn, currentChild || null);
-            }
-        });
-
-        Array.from(listEl.querySelectorAll('[data-dm-slug]')).forEach((btn) => {
-            if (!nextSlugs.has(btn.dataset.dmSlug || '')) {
-                btn.remove();
-            }
-        });
-
-        for (const slug of Array.from(dmRoomsBySlug.keys())) {
-            if (!nextSlugs.has(slug)) {
-                dmRoomsBySlug.delete(slug);
-            }
-        }
+        listEl.innerHTML = `
+            <div class="space-y-3">
+                <div>
+                    <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675]">Active</div>
+                    ${activeMarkup}
+                </div>
+                ${archivedConversations.length > 0 ? '<div class="border-t border-[#2a241a] pt-3">' + archivedMarkup + '</div>' : ''}
+            </div>
+        `;
 
         listEl.scrollTop = previousScrollTop;
+        bindRoomListInteractions();
         syncDmListRealtimeSubscriptions(normalizedRooms);
     }
 
@@ -1155,6 +1307,7 @@
         }
 
         syncDmBlockToggle();
+        syncActiveDmArchiveControl();
         setThreadEnabled(!!activeDm.myCharacterId);
         syncActiveConversationHighlight();
     }
@@ -1174,6 +1327,7 @@
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
         syncDmBlockToggle();
+        syncActiveDmArchiveControl();
         if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;
         if (inputEl) inputEl.value = '';
         setThreadFooterVisible(true);
@@ -1409,6 +1563,10 @@
         window.setCharacterBlock(activeDm.myCharacterId, activeDm.otherCharacterId, !activeDm.isBlockedByViewer);
     });
 
+    archiveActiveBtn?.addEventListener('click', () => {
+        closeActiveDmConversation();
+    });
+
     function sendDmMessage() {
         if (!activeDm.slug) return;
 
@@ -1462,6 +1620,7 @@
                             roomId: 0,
                             slug,
                             updatedAt: null,
+                            archivedAt: null,
                             displayName: name,
                             avatar: '',
                             unreadCount: 0,
@@ -1494,6 +1653,11 @@
     refreshBtn?.addEventListener('click', () => {
         fetchDmRooms({ showLoading: false });
         if (activeDm.slug) pollConversation();
+    });
+
+    convoFilterInput?.addEventListener('input', () => {
+        dmConversationFilter = convoFilterInput.value || '';
+        renderRooms(Array.from(dmRoomsBySlug.values()));
     });
 
     newDmBtn?.addEventListener('click', () => {
