@@ -621,9 +621,8 @@
             <div id="right-panel" class="w-full lg:w-80 min-h-0 bg-[#0b0b0c] text-[#d6c8ad] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden">
 
                 <div class="border-b border-[#2a241a] bg-[#101012] px-3 py-3">
-                    <div class="mb-2 flex items-center justify-between gap-3">
-                        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Room Net</div>
-                        <span id="tab-meta" class="text-[10px] text-[#8f8675]"># active / name</span>
+                    <div class="mb-2">
+                        <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Nexus</div>
                     </div>
                     <div class="grid grid-cols-2 gap-1 text-xs font-semibold">
                         <button id="tab-rooms" type="button" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200">Rooms</button>
@@ -653,30 +652,79 @@
                                     class="block w-full rounded-md border-[#332817] bg-[#101012] px-3 py-2 text-sm text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
                                 >
                             </div>
+
+                            <div class="pt-1">
+                                <div class="h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
+                            </div>
                         </div>
 
-                        <div id="room-list" class="flex-1 min-h-0 space-y-2 overflow-y-auto p-2">
-                            @foreach ($sidebarRooms as $r)
-                                @php
-                                    $unreadCount = (int) ($r->unread_count ?? 0);
-                                    $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
-                                    $isCurrentRoom = (int) $r->id === (int) $room->id;
-                                @endphp
-                                <button type="button"
-                                    data-room-id="{{ $r->id }}"
-                                    data-room-name="{{ \Illuminate\Support\Str::lower($r->name) }}"
-                                    data-room-description="{{ \Illuminate\Support\Str::lower((string) ($r->description ?? '')) }}"
-                                    onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
-                                    class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
-                                    <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
-                                    <span
-                                        data-room-unread-badge="{{ $r->id }}"
-                                        data-unread-count="{{ $unreadCount }}"
-                                        class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                                        {{ $unreadLabel }}
-                                    </span>
-                                </button>
-                            @endforeach
+                        <div id="room-list" class="flex-1 min-h-0 overflow-y-auto p-2">
+                            @php
+                                $favoriteRooms = $sidebarRooms->filter(fn ($sidebarRoom) => (bool) $sidebarRoom->is_following)->values();
+                                $allRooms = $sidebarRooms->reject(fn ($sidebarRoom) => (bool) $sidebarRoom->is_following)->values();
+                            @endphp
+
+                            @if ($favoriteRooms->isNotEmpty())
+                                <section data-room-section="favorites" class="room-list-section mb-3">
+                                    <div class="mb-2 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
+                                        <span aria-hidden="true">★</span>
+                                        <span>Favorites</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        @foreach ($favoriteRooms as $r)
+                                            @php
+                                                $unreadCount = (int) ($r->unread_count ?? 0);
+                                                $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
+                                                $isCurrentRoom = (int) $r->id === (int) $room->id;
+                                            @endphp
+                                            <button type="button"
+                                                data-room-id="{{ $r->id }}"
+                                                data-room-name="{{ \Illuminate\Support\Str::lower($r->name) }}"
+                                                data-room-description="{{ \Illuminate\Support\Str::lower((string) ($r->description ?? '')) }}"
+                                                onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
+                                                class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
+                                                <span aria-hidden="true" class="shrink-0 text-amber-300">★</span>
+                                                <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
+                                                <span
+                                                    data-room-unread-badge="{{ $r->id }}"
+                                                    data-unread-count="{{ $unreadCount }}"
+                                                    class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                                    {{ $unreadLabel }}
+                                                </span>
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                </section>
+                            @endif
+
+                            <section data-room-section="all" class="room-list-section">
+                                <div class="mb-2 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f8675]">
+                                    <span>All Rooms</span>
+                                </div>
+                                <div class="space-y-2">
+                                    @foreach ($allRooms as $r)
+                                        @php
+                                            $unreadCount = (int) ($r->unread_count ?? 0);
+                                            $unreadLabel = $unreadCount > 99 ? '99+' : (string) $unreadCount;
+                                            $isCurrentRoom = (int) $r->id === (int) $room->id;
+                                        @endphp
+                                        <button type="button"
+                                            data-room-id="{{ $r->id }}"
+                                            data-room-name="{{ \Illuminate\Support\Str::lower($r->name) }}"
+                                            data-room-description="{{ \Illuminate\Support\Str::lower((string) ($r->description ?? '')) }}"
+                                            onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
+                                            class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
+                                            <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
+                                            <span
+                                                data-room-unread-badge="{{ $r->id }}"
+                                                data-unread-count="{{ $unreadCount }}"
+                                                class="{{ $unreadCount > 0 ? '' : 'hidden' }} shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                                {{ $unreadLabel }}
+                                            </span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </section>
                         </div>
 
                         <div id="room-list-empty" class="hidden px-3 py-4 text-[#8f8675]">
@@ -873,7 +921,7 @@
         const cancelCreateRoomModalButton = document.getElementById('cancel-create-room-modal');
         const createRoomNameInput = document.getElementById('create-room-name');
 
-        const tabMeta    = document.getElementById('tab-meta');
+        const roomListSections = Array.from(document.querySelectorAll('[data-room-section]'));
         const userListEl = document.getElementById('user-list');
         const activeCountEl = document.getElementById('room-active-count');
 
@@ -926,13 +974,23 @@
             const term = roomFilterInput.value.trim().toLowerCase();
             let visibleCount = 0;
 
-            roomListItems.forEach((item) => {
-                const roomName = item.dataset.roomName || '';
-                const roomDescription = item.dataset.roomDescription || '';
-                const matches = term === '' || roomName.includes(term) || roomDescription.includes(term);
+            roomListSections.forEach((section) => {
+                const sectionItems = Array.from(section.querySelectorAll('.room-list-item'));
+                let visibleInSection = 0;
 
-                item.classList.toggle('hidden', !matches);
-                if (matches) visibleCount += 1;
+                sectionItems.forEach((item) => {
+                    const roomName = item.dataset.roomName || '';
+                    const roomDescription = item.dataset.roomDescription || '';
+                    const matches = term === '' || roomName.includes(term) || roomDescription.includes(term);
+
+                    item.classList.toggle('hidden', !matches);
+                    if (matches) {
+                        visibleCount += 1;
+                        visibleInSection += 1;
+                    }
+                });
+
+                section.classList.toggle('hidden', visibleInSection === 0);
             });
 
             roomList?.classList.toggle('hidden', visibleCount === 0);
@@ -1850,8 +1908,6 @@ function showRoomsTab() {
 
     panelRooms.classList.remove('hidden');
     panelUsers.classList.add('hidden');
-
-    if (tabMeta) tabMeta.textContent = '# active / name';
 }
 
 function showUsersTab() {
@@ -1861,7 +1917,6 @@ function showUsersTab() {
     panelRooms.classList.add('hidden');
     panelUsers.classList.remove('hidden');
 
-    if (tabMeta) tabMeta.textContent = 'character / user';
     refreshUserList();
 }
 
