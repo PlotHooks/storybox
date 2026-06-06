@@ -17,7 +17,6 @@
                             <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Context Dock</div>
                             <div class="mt-1 text-sm font-semibold text-[#f2dfb5]">Room tools</div>
                         </div>
-                        <span class="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">px</span>
                     </div>
                 </div>
                 <div class="border-b border-[#2a241a] bg-[#0b0b0c] p-2">
