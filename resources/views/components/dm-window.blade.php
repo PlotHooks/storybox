@@ -258,6 +258,7 @@
     function hideDmCharPopover() {
         if (!dmCharPopover) return;
         dmCharPopover.classList.add('hidden');
+        syncDmCharPopoverState(false);
     }
 
     function positionDmCharPopoverNear(el) {
@@ -296,10 +297,37 @@
         }
 
         dmCharPopover.classList.remove('hidden');
+        syncDmCharPopoverState(true);
         positionDmCharPopoverNear(triggerEl);
     }
 
+    let dmCharPopoverOpen = false;
+
+    function syncDmCharPopoverState(open) {
+        dmCharPopoverOpen = open;
+    }
+
     window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
+
+    document.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+        const trigger = target?.closest('.dm-char-trigger');
+        const clickedInsidePopover = dmCharPopover && event.target instanceof Node && dmCharPopover.contains(event.target);
+
+        if (trigger) {
+            event.preventDefault();
+            event.stopPropagation();
+            openDmCharPopover(trigger);
+            return;
+        }
+
+        if (!clickedInsidePopover && dmCharPopoverOpen) {
+            hideDmCharPopover();
+        }
+    });
+
+    window.addEventListener('resize', () => hideDmCharPopover());
+    window.addEventListener('scroll', () => hideDmCharPopover(), true);
 
     function isOpen() {
         return !dmWindow.classList.contains('hidden');
