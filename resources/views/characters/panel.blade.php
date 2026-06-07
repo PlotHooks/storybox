@@ -8,7 +8,7 @@
 @if ($charactersPanelAvailable)
     <div
         id="characters-window"
-        class="{{ $charactersPanelOpen ? 'flex min-h-0 flex-col' : 'hidden' }} fixed z-[10020] overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10"
+        class="fixed z-[10020] min-h-0 flex-col overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10 {{ $charactersPanelOpen ? 'flex' : 'hidden' }}"
         style="width: min(960px, calc(100vw - 3rem)); max-width: calc(100vw - 2rem); height: min(78dvh, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem); top: 96px; left: calc(50vw - min(960px, calc(100vw - 3rem)) / 2 + 24px);"
     >
         <div
@@ -135,14 +135,21 @@
                 centerWindow();
             };
 
+            const setWindowOpenState = (open) => {
+                charactersWindow.classList.toggle('hidden', !open);
+                charactersWindow.classList.toggle('flex', open);
+                charactersWindow.classList.toggle('min-h-0', open);
+                charactersWindow.classList.toggle('flex-col', open);
+            };
+
             const openWindow = () => {
-                charactersWindow.classList.remove('hidden');
+                setWindowOpenState(true);
                 ensureDefaultPosition();
                 syncUrl(true);
             };
 
             const closeWindow = () => {
-                charactersWindow.classList.add('hidden');
+                setWindowOpenState(false);
                 syncUrl(false);
             };
 
