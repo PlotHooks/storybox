@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\Character;
 use App\Models\CharacterProfile;
 use App\Models\CharacterProfileRevision;
+use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -28,6 +30,59 @@ class CharacterProfileFeatureTest extends TestCase
             ->assertSee($character->name)
             ->assertSee('Wanted for high fantasy intrigue.')
             ->assertSee('Known across the city for impossible bargains.');
+    }
+
+    public function test_user_can_view_another_users_public_character_profile(): void
+    {
+        [$owner, $character] = $this->createUserWithCharacter('Owner');
+        [$viewer] = $this->createUserWithCharacter('Viewer');
+
+        $character->ensureProfile()->update([
+            'tagline' => 'Open to cross-city intrigue.',
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('characters.profile.show', $character))
+            ->assertOk()
+            ->assertSee($character->name)
+            ->assertSee('Open to cross-city intrigue.');
+    }
+
+    public function test_user_sees_view_profile_link_for_another_users_character(): void
+    {
+        [$owner, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewer, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createPublicRoom($owner, $ownerCharacter);
+        $this->addCharacterPresence($room, $owner, $ownerCharacter);
+
+        $this->actingAs($viewer)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->assertSee('View Profile')
+            ->assertSee('/characters/${characterId}/profile', false)
+            ->assertSee((string) $ownerCharacter->id, false);
+    }
+
+    public function test_non_owner_does_not_see_edit_profile_for_another_users_character(): void
+    {
+        [$owner, $character] = $this->createUserWithCharacter('Owner');
+        [$viewer] = $this->createUserWithCharacter('Viewer');
+
+        $this->actingAs($viewer)
+            ->get(route('characters.profile.show', $character))
+            ->assertOk()
+            ->assertDontSee('Edit Profile');
+    }
+
+    public function test_owner_still_sees_edit_profile_for_their_own_character(): void
+    {
+        [$owner, $character] = $this->createUserWithCharacter('Owner');
+
+        $this->actingAs($owner)
+            ->get(route('characters.profile.show', $character))
+            ->assertOk()
+            ->assertSee('Edit Profile');
     }
 
     public function test_normal_basic_profiles_still_use_regular_storybox_layout(): void
@@ -203,7 +258,6 @@ class CharacterProfileFeatureTest extends TestCase
             ->assertDontSee('allow-same-origin', false);
     }
 
-
     public function test_advanced_profile_frame_loads_saved_custom_css_and_js(): void
     {
         [$user, $character] = $this->createUserWithCharacter('Frame Assets');
@@ -239,6 +293,30 @@ class CharacterProfileFeatureTest extends TestCase
             'user_id' => $user->id,
             'name' => $name,
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
+        ]);
+    }
+
+    private function createPublicRoom(User $user, Character $ownerCharacter): Room
+    {
+        return Room::create([
+            'name' => 'Room '.Str::random(8),
+            'slug' => 'room-'.Str::random(16),
+            'user_id' => $user->id,
+            'created_by' => $user->id,
+            'type' => Room::TYPE_PUBLIC,
+            'visibility' => Room::VISIBILITY_PUBLIC,
+            'owner_character_id' => $ownerCharacter->id,
+        ]);
+    }
+
+    private function addCharacterPresence(Room $room, User $user, Character $character): void
+    {
+        DB::table('character_presences')->insert([
+            'room_id' => $room->id,
+            'character_id' => $character->id,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 }

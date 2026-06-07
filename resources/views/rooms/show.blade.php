@@ -773,7 +773,7 @@
                 <a id="char-popover-profile"
                    href="#"
                    class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
-                    Profile
+                    View Profile
                 </a>
 
                 <button id="char-popover-dm"
@@ -1238,10 +1238,10 @@
                 popAvatar.innerHTML = avatarHtml(avatar, characterName, 'h-20 w-20', 'rounded-lg');
             }
           
-            const isMine = (userId && userId === currentUserId);
             if (popProfile) {
-                popProfile.href = (isMine && characterId) ? `/characters/${characterId}` : '#';
-                popProfile.classList.toggle('hidden', !isMine);
+                const hasCharacter = Boolean(characterId);
+                popProfile.href = hasCharacter ? `/characters/${characterId}/profile` : '#';
+                popProfile.classList.toggle('hidden', !hasCharacter);
             }
 
             // DM button only if it is not me and we have a user id
