@@ -772,6 +772,8 @@
             <div class="mt-3 flex gap-2 justify-end">
                 <a id="char-popover-profile"
                    href="#"
+                   target="_blank"
+                   rel="noreferrer noopener"
                    class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
                     View Profile
                 </a>
