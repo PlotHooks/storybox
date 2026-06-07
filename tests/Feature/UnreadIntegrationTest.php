@@ -149,6 +149,23 @@ class UnreadIntegrationTest extends TestCase
         $this->assertSame(0, (int) collect($rooms)->firstWhere('id', $room->id)['unread_count']);
     }
 
+    public function test_public_room_sidebar_exposes_updated_at_for_recent_activity_sorting(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter();
+        [$otherUser, ] = $this->createUserWithCharacter();
+        $room = $this->createRoom($otherUser);
+
+        $rooms = $this->actingAs($user)
+            ->getJson(route('rooms.sidebar', ['character_id' => $character->id]))
+            ->assertOk()
+            ->json('rooms');
+
+        $sidebarRoom = collect($rooms)->firstWhere('id', $room->id);
+
+        $this->assertIsString($sidebarRoom['updated_at'] ?? null);
+        $this->assertNotSame('', $sidebarRoom['updated_at']);
+    }
+
     public function test_creating_a_room_auto_follows_it_for_the_creator(): void
     {
         [$user, $character] = $this->createUserWithCharacter();

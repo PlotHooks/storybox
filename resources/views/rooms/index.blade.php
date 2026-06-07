@@ -15,6 +15,12 @@
                         Create a room
                     </h3>
 
+                    @if ($errors->has('room_limit'))
+                        <div class="mb-4 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                            {{ $errors->first('room_limit') }}
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('rooms.store') }}" class="space-y-4">
                         @csrf
 

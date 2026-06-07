@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 class Room extends Model
 {
@@ -34,7 +35,16 @@ class Room extends Model
         'dm_key',
         'owner_character_id',
         'visibility',
+        'last_posted_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'last_posted_at' => 'datetime',
+            'deleted_at' => 'datetime',
+        ];
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -55,6 +65,11 @@ class Room extends Model
     public function isHidden(): bool
     {
         return ($this->visibility ?? self::VISIBILITY_PUBLIC) === self::VISIBILITY_HIDDEN;
+    }
+
+    public function lastActivityAt(): Carbon
+    {
+        return ($this->last_posted_at ?? $this->created_at ?? now())->copy();
     }
 
     public static function normalizedDmPair(int $firstCharacterId, int $secondCharacterId): array

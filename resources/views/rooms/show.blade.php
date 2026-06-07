@@ -698,10 +698,21 @@
                             @endif
 
                             <section data-room-section="all" class="room-list-section">
-                                <div class="mb-2 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f8675]">
-                                    <span>All Rooms</span>
+                                <div class="mb-2 flex items-center justify-between gap-2 px-1">
+                                    <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f8675]">All Rooms</span>
+                                    <label for="all-rooms-sort" class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">
+                                        <span>Sort by</span>
+                                        <select
+                                            id="all-rooms-sort"
+                                            class="rounded border border-[#332817] bg-[#101012] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                            <option value="recent" selected>Recent Activity</option>
+                                            <option value="name">Name</option>
+                                            <option value="population">Active Population</option>
+                                        </select>
+                                    </label>
                                 </div>
-                                <div class="space-y-2">
+                                <div id="all-rooms-list" class="space-y-2">
                                     @foreach ($allRooms as $r)
                                         @php
                                             $unreadCount = (int) ($r->unread_count ?? 0);
@@ -712,6 +723,8 @@
                                             data-room-id="{{ $r->id }}"
                                             data-room-name="{{ \Illuminate\Support\Str::lower($r->name) }}"
                                             data-room-description="{{ \Illuminate\Support\Str::lower((string) ($r->description ?? '')) }}"
+                                            data-room-updated-at="{{ $r->updated_at }}"
+                                            data-room-active-users="{{ (int) ($r->active_users ?? 0) }}"
                                             onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
                                             class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
                                             <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
@@ -899,6 +912,8 @@
         const form       = document.getElementById('message-form');
         const textarea   = document.getElementById('body');
         const contentMirror = document.getElementById('content-mirror');
+        const submitButton = form?.querySelector('button[type="submit"], [type="submit"]');
+        let isSubmittingMessage = false;
 
         const switcher   = document.getElementById('character-switcher');
         const hiddenChar = document.getElementById('character-id-input');
@@ -914,7 +929,8 @@
         const roomFilterInput = document.getElementById('room-filter-input');
         const roomList = document.getElementById('room-list');
         const roomListEmpty = document.getElementById('room-list-empty');
-        const roomListItems = Array.from(document.querySelectorAll('.room-list-item'));
+        const allRoomsSortInput = document.getElementById('all-rooms-sort');
+        const allRoomsList = document.getElementById('all-rooms-list');
         const createRoomModal = document.getElementById('create-room-modal');
         const openCreateRoomModalButton = document.getElementById('open-create-room-modal');
         const closeCreateRoomModalButton = document.getElementById('close-create-room-modal');
@@ -956,6 +972,59 @@
         function clearRoomUnreadBadge(roomId) {
             const badge = document.querySelector(`[data-room-unread-badge="${roomId}"]`);
             setUnreadBadge(badge, 0);
+        }
+
+        function parseRoomSortNumber(value) {
+            const n = Number(value || 0);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function parseRoomSortDate(value) {
+            const timestamp = Date.parse(value || '');
+            return Number.isFinite(timestamp) ? timestamp : 0;
+        }
+
+        function compareRoomNames(a, b) {
+            const nameA = a.dataset.roomName || '';
+            const nameB = b.dataset.roomName || '';
+
+            if (nameA < nameB) return -1;
+            if (nameA > nameB) return 1;
+
+            return parseRoomSortNumber(a.dataset.roomId) - parseRoomSortNumber(b.dataset.roomId);
+        }
+
+        function sortAllRooms() {
+            if (!allRoomsList) return;
+
+            const mode = allRoomsSortInput?.value || 'recent';
+            const items = Array.from(allRoomsList.querySelectorAll('.room-list-item'));
+
+            items.sort((a, b) => {
+                if (mode === 'name') {
+                    return compareRoomNames(a, b);
+                }
+
+                if (mode === 'population') {
+                    const populationDelta = parseRoomSortNumber(b.dataset.roomActiveUsers) - parseRoomSortNumber(a.dataset.roomActiveUsers);
+
+                    if (populationDelta !== 0) {
+                        return populationDelta;
+                    }
+
+                    return compareRoomNames(a, b);
+                }
+
+                const recentDelta = parseRoomSortDate(b.dataset.roomUpdatedAt) - parseRoomSortDate(a.dataset.roomUpdatedAt);
+
+                if (recentDelta !== 0) {
+                    return recentDelta;
+                }
+
+                return compareRoomNames(a, b);
+            });
+
+            items.forEach((item) => allRoomsList.appendChild(item));
         }
 
         function openCreateRoomModal() {
@@ -1016,6 +1085,11 @@
             if (event.target === createRoomModal) closeCreateRoomModal();
         });
         roomFilterInput?.addEventListener('input', applyRoomFilter);
+        allRoomsSortInput?.addEventListener('change', () => {
+            sortAllRooms();
+            applyRoomFilter();
+        });
+        sortAllRooms();
         applyRoomFilter();
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
@@ -1429,10 +1503,51 @@
             }
         });
 
-        form?.addEventListener('submit', function() {
+        form?.addEventListener('submit', async function(e) {
             syncContentMirror();
             const id = getTabCharacterId();
             if (hiddenChar) hiddenChar.value = String(id);
+
+            if (isSubmittingMessage) {
+                e.preventDefault();
+                return;
+            }
+
+            const body = (textarea?.value || '').trim();
+            if (!body || !id) {
+                return;
+            }
+
+            e.preventDefault();
+            isSubmittingMessage = true;
+            if (submitButton) submitButton.disabled = true;
+
+            try {
+                await fetchJson(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        character_id: id,
+                        body,
+                    }),
+                }, 'Send message');
+
+                if (textarea) textarea.value = '';
+                syncContentMirror();
+                await fetchNewMessages();
+            } catch (error) {
+                console.error('Send message error:', error);
+                form.submit();
+                return;
+            } finally {
+                isSubmittingMessage = false;
+                if (submitButton) submitButton.disabled = false;
+            }
         });
 
         async function fetchJson(url, options, label) {

@@ -3,12 +3,44 @@
 use App\Models\Character;
 use App\Models\Room;
 use App\Services\LegacyRoomOwnerRepairService;
+use App\Services\RoomRetentionService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('retention:expire-inactive-rooms {--dry-run : Report only without writing changes} {--limit=500 : Maximum number of rooms to process}', function () {
+    $limit = max(1, (int) $this->option('limit'));
+    $result = app(RoomRetentionService::class)->expireInactiveRooms((bool) $this->option('dry-run'), $limit);
+
+    $this->info(sprintf(
+        'Inactive room expiration complete. scanned=%d matched=%d soft_deleted=%d dry_run=%s',
+        $result['scanned'],
+        $result['matched'],
+        $result['soft_deleted'],
+        $result['dry_run'] ? 'yes' : 'no',
+    ));
+
+    return self::SUCCESS;
+})->purpose('Soft-delete inactive public rooms that exceed their retention window.');
+
+Artisan::command('retention:hard-delete-expired-rooms {--dry-run : Report only without writing changes} {--limit=500 : Maximum number of rooms to process}', function () {
+    $limit = max(1, (int) $this->option('limit'));
+    $result = app(RoomRetentionService::class)->hardDeleteExpiredRooms((bool) $this->option('dry-run'), $limit);
+
+    $this->info(sprintf(
+        'Expired room hard delete complete. scanned=%d matched=%d hard_deleted=%d dry_run=%s',
+        $result['scanned'],
+        $result['matched'],
+        $result['hard_deleted'],
+        $result['dry_run'] ? 'yes' : 'no',
+    ));
+
+    return self::SUCCESS;
+})->purpose('Hard-delete soft-deleted public rooms once the recovery window has elapsed.');
 
 Artisan::command('rooms:repair-owners {--dry-run : Report only without writing changes} {--apply : Apply only unambiguous creator-based owner repairs}', function () {
     $repairService = app(LegacyRoomOwnerRepairService::class);
@@ -91,3 +123,11 @@ Artisan::command('rooms:assign-owner {room_id} {public_handle}', function () {
 
     return self::SUCCESS;
 })->purpose('Assign an owner to a public room using a public character handle.');
+
+Schedule::command('retention:expire-inactive-rooms --limit=' . (int) config('retention.rooms.default_limit', 500))
+    ->hourly()
+    ->withoutOverlapping();
+
+Schedule::command('retention:hard-delete-expired-rooms --limit=' . (int) config('retention.rooms.default_limit', 500))
+    ->daily()
+    ->withoutOverlapping();

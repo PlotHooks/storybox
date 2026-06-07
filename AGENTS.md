@@ -67,3 +67,21 @@ When given a task:
 - Soft delete and audit tracking
 
 These areas must not be changed without explicit approval.
+
+## Codespaces startup rule
+
+For this repo in Codespaces, prefer built assets over Vite HMR for reliable startup.
+
+Use this exact sequence unless the task explicitly requires `npm run dev` or HMR debugging:
+1. `pkill -f 'artisan serve' || true`
+2. `pkill -f 'vite' || true`
+3. `pkill -f 'reverb:start' || true`
+4. `rm -f public/hot`
+5. `php artisan optimize:clear`
+6. `npm run build`
+7. `php artisan serve --host=0.0.0.0 --port=8000`
+
+Rules:
+- Do not start `npm run dev` by default in Codespaces for this repo.
+- Remove `public/hot` before starting Laravel so built assets from `public/build` are used.
+- If CSS looks wrong in Codespaces, verify `public/hot` is absent before investigating routes or layouts.

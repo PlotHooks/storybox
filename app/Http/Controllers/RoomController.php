@@ -58,6 +58,8 @@ class RoomController extends Controller
             'description' => 'nullable|string|max:1000',
         ]);
 
+        app(\App\Services\RoomRetentionService::class)->ensureCanCreatePublicRoom(Auth::user());
+
         $userId = Auth::id();
 
         $room = Room::create([
@@ -345,6 +347,7 @@ class RoomController extends Controller
                 'rooms.name',
                 'rooms.description',
                 'rooms.slug',
+                'rooms.updated_at',
                 DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users'),
                 DB::raw('COALESCE(urs.is_following, 0) as is_following')
             )
@@ -591,6 +594,10 @@ class RoomController extends Controller
             'character_id' => $characterId,
             'body'         => $body,
         ]);
+
+        if ($conversation->isPublicRoom()) {
+            app(\App\Services\RoomRetentionService::class)->recordPublicRoomPost($conversation, $message->created_at);
+        }
 
         if ($conversation->type === Room::TYPE_DM) {
             $conversation->touch();
