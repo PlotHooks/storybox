@@ -1,8 +1,9 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CharacterBlockController;
 use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\CharacterProfileController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomManagementController;
 use Illuminate\Support\Facades\Route;
@@ -12,6 +13,12 @@ Route::redirect('/', '/chat');
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified', 'not_banned'])->name('dashboard');
+
+Route::get('/characters/{character}/profile', [CharacterProfileController::class, 'show'])
+    ->name('characters.profile.show');
+Route::get('/characters/{character}/profile/frame', [CharacterProfileController::class, 'frame'])
+    ->name('characters.profile.frame');
+Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
 
 Route::middleware(['auth', 'not_banned'])->group(function () {
     // Profile
@@ -24,7 +31,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     // Characters
     Route::get('/characters', [CharacterController::class, 'index'])->name('characters.index');
     Route::post('/characters', [CharacterController::class, 'store'])->name('characters.store');
-    Route::get('/characters/{character}', [CharacterController::class, 'show'])->name('characters.show');
+    Route::get('/characters/{character}/manage', [CharacterController::class, 'manage'])->name('characters.manage');
     Route::get('/characters/{character}/current-room', [CharacterController::class, 'currentRoom'])->name('characters.currentRoom');
     Route::post('/characters/{character}/style', [CharacterController::class, 'updateStyle'])->name('characters.style');
     Route::delete('/characters/{character}', [CharacterController::class, 'destroy'])->name('characters.destroy');
@@ -32,6 +39,29 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
         ->name('characters.blocks.store');
     Route::delete('/characters/{blockerCharacter}/blocks/{blockedCharacter}', [CharacterBlockController::class, 'destroy'])
         ->name('characters.blocks.destroy');
+
+    Route::get('/characters/{character}/profile/edit', [CharacterProfileController::class, 'edit'])
+        ->name('characters.profile.edit');
+    Route::match(['post', 'put', 'patch'], '/characters/{character}/profile', [CharacterProfileController::class, 'update'])
+        ->middleware('throttle:profile-update')
+        ->name('characters.profile.update');
+    Route::post('/characters/{character}/profile/preview', [CharacterProfileController::class, 'preview'])
+        ->middleware('throttle:profile-update')
+        ->name('characters.profile.preview');
+    Route::get('/characters/{character}/profile/preview/{token}', [CharacterProfileController::class, 'previewShow'])
+        ->name('characters.profile.preview.show');
+    Route::get('/characters/{character}/profile/preview/{token}/frame', [CharacterProfileController::class, 'previewFrame'])
+        ->name('characters.profile.preview.frame');
+    Route::get('/characters/{character}/profile/revisions', [CharacterProfileController::class, 'revisions'])
+        ->name('characters.profile.revisions');
+    Route::post('/characters/{character}/profile/revisions/{revision}/restore', [CharacterProfileController::class, 'restoreRevision'])
+        ->name('characters.profile.revisions.restore');
+    Route::post('/characters/{character}/profile/disable-custom', [CharacterProfileController::class, 'disableCustom'])
+        ->name('characters.profile.disable-custom');
+    Route::post('/characters/{character}/profile/enable-custom', [CharacterProfileController::class, 'enableCustom'])
+        ->name('characters.profile.enable-custom');
+    Route::post('/characters/{character}/profile/revert-default', [CharacterProfileController::class, 'revertToDefault'])
+        ->name('characters.profile.revert-default');
 
     Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
     Route::post('/chat/current-character', [RoomController::class, 'setCurrentCharacter'])->name('rooms.current-character');

@@ -77,7 +77,7 @@
 
                 <div class="rounded-lg border {{ $isPostingCharacter ? 'border-amber-500/40 bg-amber-500/5' : 'border-gray-800' }} p-3">
                     <div class="flex items-center justify-between gap-3">
-                        <div class="flex min-w-0 items-center gap-3">
+                        <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/40">
                             @if ($avatar)
                                 <img src="{{ $avatar }}"
                                      alt="{{ $char->name }} avatar"
@@ -99,7 +99,7 @@
                                 </div>
                                 <div class="mt-1 text-xs text-gray-500">{{ $char->public_handle }}</div>
                             </div>
-                        </div>
+                        </a>
 
                         <div class="flex shrink-0 items-center gap-2">
                             @if (! $isPostingCharacter)
@@ -179,8 +179,12 @@
                             </label>
                         </div>
 
-                        <div class="mt-3 flex items-center justify-between gap-3">
-                            <a href="{{ route('characters.show', $char) }}" class="text-xs text-amber-300 hover:text-amber-200">Open full profile page</a>
+                        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center gap-3 text-xs">
+                                <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-200">View profile</a>
+                                <a href="{{ route('characters.profile.edit', $char) }}" class="text-amber-300 hover:text-amber-200">Edit profile</a>
+                                <a href="{{ route('characters.manage', $char) }}" class="text-amber-300 hover:text-amber-200">Manage character</a>
+                            </div>
                             <x-primary-button>Save</x-primary-button>
                         </div>
                     </form>

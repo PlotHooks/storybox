@@ -5,6 +5,9 @@ namespace App\Models;
 use App\Models\CharacterBlock;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Character extends Model
 {
@@ -23,20 +26,35 @@ class Character extends Model
         'settings' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (self $character): void {
+            $character->profile()->create([
+                'template_type' => CharacterProfile::TEMPLATE_STORYBOX,
+                'avatar_url' => $character->externalAvatarUrl(),
+            ]);
+        });
+    }
+
     /*
      |--------------------------------------------------------------------------
      | Relationships
      |--------------------------------------------------------------------------
      */
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function messages()
+    public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(CharacterProfile::class);
     }
 
     public function blockedCharacters()
@@ -86,6 +104,17 @@ class Character extends Model
      |--------------------------------------------------------------------------
      | These prevent "undefined index" issues and give sane defaults.
      */
+
+    public function ensureProfile(): CharacterProfile
+    {
+        return $this->profile()->firstOrCreate(
+            [],
+            [
+                'template_type' => CharacterProfile::TEMPLATE_STORYBOX,
+                'avatar_url' => $this->externalAvatarUrl(),
+            ]
+        );
+    }
 
     public function style(string $key, $default = null)
     {

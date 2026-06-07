@@ -41,8 +41,6 @@ class CharacterForm
                     ]),
                 TextInput::make('slug')
                     ->required(),
-                Textarea::make('profile_html')
-                    ->columnSpanFull(),
                 Textarea::make('settings')
                     ->columnSpanFull(),
                 TextInput::make('text_color_1')

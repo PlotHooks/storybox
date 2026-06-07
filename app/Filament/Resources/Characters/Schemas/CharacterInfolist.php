@@ -19,9 +19,12 @@ class CharacterInfolist
                     ->label('External avatar URL')
                     ->placeholder('-'),
                 TextEntry::make('slug'),
-                TextEntry::make('profile_html')
-                    ->placeholder('-')
-                    ->columnSpanFull(),
+                TextEntry::make('profile.custom_profile_enabled')
+                    ->label('Custom Profile')
+                    ->formatStateUsing(fn (?bool $state): string => $state ? 'Enabled' : 'Default'),
+                IconEntry::make('profile.custom_profile_disabled_by_admin')
+                    ->label('Admin Disabled')
+                    ->boolean(),
                 TextEntry::make('settings')
                     ->placeholder('-')
                     ->columnSpanFull(),

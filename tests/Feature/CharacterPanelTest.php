@@ -67,6 +67,39 @@ class CharacterPanelTest extends TestCase
         $this->assertDatabaseMissing('characters', ['id' => $otherCharacter->id]);
     }
 
+    public function test_character_cards_link_directly_to_public_profiles_while_preserving_management_link(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Link Owner');
+
+        $response = $this->actingAs($user)
+            ->get(route('characters.index'));
+
+        $response->assertOk()
+            ->assertSee(route('characters.profile.show', $character), false)
+            ->assertSee(route('characters.manage', $character), false)
+            ->assertSee('Manage character');
+    }
+
+
+    public function test_character_show_route_redirects_to_public_profile(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Redirect Owner');
+
+        $this->get(route('characters.show', $character))
+            ->assertRedirect(route('characters.profile.show', $character));
+    }
+
+    public function test_owner_management_route_still_works(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Manager');
+
+        $this->actingAs($user)
+            ->get(route('characters.manage', $character))
+            ->assertOk()
+            ->assertSee('Character Page')
+            ->assertSee(route('characters.profile.show', $character), false);
+    }
+
     private function createUserWithCharacter(string $name): array
     {
         $user = User::factory()->create([

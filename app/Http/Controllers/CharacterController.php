@@ -98,7 +98,12 @@ class CharacterController extends Controller
 
         return $this->redirectToTarget($request, 'Character created.');
     }
-    public function show(Character $character)
+    public function show(Character $character): RedirectResponse
+    {
+        return redirect()->route('characters.profile.show', $character);
+    }
+
+    public function manage(Character $character)
     {
         abort_if($character->user_id !== auth()->id(), 403);
 
