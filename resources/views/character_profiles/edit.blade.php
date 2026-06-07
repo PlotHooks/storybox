@@ -42,10 +42,15 @@
                     <h3 class="text-lg font-semibold text-[#f2dfb5]">Basic Profile</h3>
                     <p class="mt-1 text-sm text-[#8f8675]">Public character showcase content. Images must be externally hosted URLs.</p>
 
-                    <div class="mt-5 grid gap-4 md:grid-cols-2">
+                    <div class="mt-5 grid gap-4 md:grid-cols-3">
                         <label class="block text-sm text-[#d6c8ad]">
                             Avatar URL
                             <input type="url" name="avatar_url" value="{{ old('avatar_url', $profile->avatar_url) }}" maxlength="2048" placeholder="https://example.com/avatar.png" class="mt-1 w-full rounded border border-[#332817] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5]">
+                        </label>
+
+                        <label class="block text-sm text-[#d6c8ad]">
+                            Profile Image URL
+                            <input type="url" name="profile_image_url" value="{{ old('profile_image_url', $profile->profile_image_url) }}" maxlength="2048" placeholder="https://example.com/profile-image.png" class="mt-1 w-full rounded border border-[#332817] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5]">
                         </label>
 
                         <label class="block text-sm text-[#d6c8ad]">

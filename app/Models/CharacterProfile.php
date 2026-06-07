@@ -18,6 +18,7 @@ class CharacterProfile extends Model
         'template_type',
         'tagline',
         'avatar_url',
+        'profile_image_url',
         'banner_url',
         'biography',
         'hooks',

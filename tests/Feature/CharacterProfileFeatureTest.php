@@ -113,6 +113,7 @@ class CharacterProfileFeatureTest extends TestCase
             ->post(route('characters.profile.update', $character), [
                 'template_type' => CharacterProfile::TEMPLATE_STORYBOX,
                 'tagline' => 'A careful schemer.',
+                'profile_image_url' => 'https://cdn.example.com/profile-image.png',
                 'biography' => 'Biography text',
                 'hooks' => 'Hooks text',
                 'custom_profile_enabled' => '0',
@@ -122,6 +123,7 @@ class CharacterProfileFeatureTest extends TestCase
         $this->assertDatabaseHas('character_profiles', [
             'character_id' => $character->id,
             'tagline' => 'A careful schemer.',
+            'profile_image_url' => 'https://cdn.example.com/profile-image.png',
             'biography' => 'Biography text',
             'hooks' => 'Hooks text',
         ]);
@@ -292,6 +294,51 @@ class CharacterProfileFeatureTest extends TestCase
             ->assertSee('<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Amatic+SC|Wire+One">', false)
             ->assertDontSee('@import url(https://fonts.googleapis.com/css?family=Amatic+SC|Wire+One);', false)
             ->assertSee('body { font-family: "Amatic SC", cursive; }', false);
+    }
+
+
+    public function test_default_profile_uses_dedicated_profile_image_field_for_large_panel(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Profile Image');
+
+        $character->update([
+            'avatar' => 'https://cdn.example.com/character-avatar.png',
+        ]);
+
+        $character->ensureProfile()->update([
+            'avatar_url' => 'https://cdn.example.com/profile-avatar.png',
+            'profile_image_url' => 'https://cdn.example.com/profile-large.png',
+        ]);
+
+        $response = $this->get(route('characters.profile.show', $character));
+
+        $response->assertOk();
+        $response->assertSee('src="https://cdn.example.com/profile-avatar.png"', false);
+        $response->assertSee('src="https://cdn.example.com/profile-large.png"', false);
+
+        $content = $response->getContent();
+
+        $this->assertIsString($content);
+        $this->assertStringContainsString('alt="'.$character->name.' avatar"', $content);
+        $this->assertStringContainsString('src="https://cdn.example.com/profile-large.png" alt="'.$character->name.' profile image"', $content);
+        $this->assertStringNotContainsString('src="https://cdn.example.com/profile-avatar.png" alt="'.$character->name.' profile image"', $content);
+    }
+
+    public function test_default_profile_shows_storybox_placeholder_when_profile_image_is_empty(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Profile Placeholder');
+
+        $character->ensureProfile()->update([
+            'avatar_url' => 'https://cdn.example.com/profile-avatar.png',
+            'profile_image_url' => null,
+        ]);
+
+        $response = $this->get(route('characters.profile.show', $character));
+
+        $response->assertOk();
+        $response->assertSee('src="https://cdn.example.com/profile-avatar.png"', false);
+        $response->assertSee('<title>Storybox</title>', false);
+        $response->assertDontSee('alt="'.$character->name.' profile image"', false);
     }
 
     private function createUserWithCharacter(string $name): array

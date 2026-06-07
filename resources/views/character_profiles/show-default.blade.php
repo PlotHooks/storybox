@@ -9,6 +9,7 @@
     <body class="min-h-screen bg-[#050505] text-[#e9dcc2] antialiased">
         @php
             $avatarUrl = $profile->avatar_url ?: $character->externalAvatarUrl();
+            $profileImageUrl = $profile->profile_image_url;
             $bannerUrl = $profile->banner_url;
             $externalLinks = $profile->external_links ?? [];
             $canEdit = auth()->check() && (auth()->user()->is_admin || Gate::allows('own-character', $character));
@@ -74,22 +75,17 @@
                         </div>
 
                         <aside class="space-y-6">
-                            <section class="rounded-2xl border border-[#2f2518] bg-[#120f0d] p-5">
-                                <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-[#b89f70]">Storybox</h2>
-                                <dl class="mt-4 space-y-3 text-sm">
-                                    <div>
-                                        <dt class="text-[#8f8675]">Character</dt>
-                                        <dd class="text-[#f2dfb5]">{{ $character->name }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-[#8f8675]">Handle</dt>
-                                        <dd class="text-[#f2dfb5]">{{ $character->public_handle }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-[#8f8675]">Template</dt>
-                                        <dd class="text-[#f2dfb5]">{{ ucfirst($profile->template_type ?: 'storybox') }}</dd>
-                                    </div>
-                                </dl>
+                            <section class="overflow-hidden rounded-2xl border border-[#2f2518] bg-[#120f0d]">
+                                <div class="relative aspect-[4/5] min-h-[22rem] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.14),rgba(23,17,13,0.95)_62%)]">
+                                    @if ($profileImageUrl)
+                                        <img src="{{ $profileImageUrl }}" alt="{{ $character->name }} profile image" class="h-full w-full object-cover" referrerpolicy="no-referrer">
+                                        <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0b0b0c]/70 via-transparent to-[#0b0b0c]/10"></div>
+                                    @else
+                                        <div class="flex h-full items-center justify-center p-8 text-[#f2dfb5]">
+                                            <x-storybox-logo title="Storybox" class="h-28 w-28 opacity-90" />
+                                        </div>
+                                    @endif
+                                </div>
                             </section>
 
                             <section class="rounded-2xl border border-[#2f2518] bg-[#120f0d] p-5">
