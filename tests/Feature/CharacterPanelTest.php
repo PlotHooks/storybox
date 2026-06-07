@@ -81,6 +81,20 @@ class CharacterPanelTest extends TestCase
     }
 
 
+
+    public function test_characters_index_keeps_character_settings_collapsed_by_default(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Collapsed');
+
+        $response = $this->actingAs($user)
+            ->get(route('characters.index'));
+
+        $response->assertOk()
+            ->assertSee('<details class="mt-3 rounded-lg border border-gray-800 bg-gray-950/40">', false)
+            ->assertSee('Character details and style', false)
+            ->assertDontSee('<details open', false);
+    }
+
     public function test_character_show_route_redirects_to_public_profile(): void
     {
         [$user, $character] = $this->createUserWithCharacter('Redirect Owner');

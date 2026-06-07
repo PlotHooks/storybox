@@ -117,77 +117,79 @@
                         </div>
                     </div>
 
-                    <form method="POST" action="{{ route('characters.style', $char) }}" class="mt-3 border-t border-gray-800 pt-3">
-                        @csrf
-                        <input type="hidden" name="return_to" value="{{ $returnTo }}">
+                    <details class="mt-3 rounded-lg border border-gray-800 bg-gray-950/40">
+                        <summary class="cursor-pointer list-none px-3 py-2 text-xs font-medium text-gray-300">
+                            <span>Character details and style</span>
+                        </summary>
 
-                        <div class="mb-2 text-xs text-gray-400">
-                            Character details and style.
-                        </div>
+                        <form method="POST" action="{{ route('characters.style', $char) }}" class="border-t border-gray-800 p-3">
+                            @csrf
+                            <input type="hidden" name="return_to" value="{{ $returnTo }}">
 
-                        <label class="mb-3 block text-xs text-gray-300">
-                            Name
-                            <input type="text"
-                                   name="name"
-                                   maxlength="100"
-                                   value="{{ old('name', $char->name) }}"
-                                   class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100" />
-                        </label>
-
-                        <label class="mb-3 block text-xs text-gray-300">
-                            External avatar URL
-                            <input type="url"
-                                   name="avatar"
-                                   maxlength="2048"
-                                   value="{{ old('avatar', $char->avatar) }}"
-                                   placeholder="https://example.com/avatar.png"
-                                   class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600" />
-                            <span class="mt-1 block text-[11px] text-gray-500">Use an externally hosted image URL. HTTPS is preferred.</span>
-                        </label>
-
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <label class="text-xs text-gray-300">
-                                Color 1
-                                <input type="color" name="text_color_1" value="{{ $c1 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                            <label class="mb-3 block text-xs text-gray-300">
+                                Name
+                                <input type="text"
+                                       name="name"
+                                       maxlength="100"
+                                       value="{{ old('name', $char->name) }}"
+                                       class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100" />
                             </label>
 
-                            <label class="text-xs text-gray-300">
-                                Color 2
-                                <input type="color" name="text_color_2" value="{{ $c2 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                            <label class="mb-3 block text-xs text-gray-300">
+                                External avatar URL
+                                <input type="url"
+                                       name="avatar"
+                                       maxlength="2048"
+                                       value="{{ old('avatar', $char->avatar) }}"
+                                       placeholder="https://example.com/avatar.png"
+                                       class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600" />
+                                <span class="mt-1 block text-[11px] text-gray-500">Use an externally hosted image URL. HTTPS is preferred.</span>
                             </label>
 
-                            <label class="text-xs text-gray-300">
-                                Color 3
-                                <input type="color" name="text_color_3" value="{{ $c3 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                            </label>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <label class="text-xs text-gray-300">
+                                    Color 1
+                                    <input type="color" name="text_color_1" value="{{ $c1 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                </label>
 
-                            <label class="text-xs text-gray-300">
-                                Color 4
-                                <input type="color" name="text_color_4" value="{{ $c4 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                            </label>
-                        </div>
+                                <label class="text-xs text-gray-300">
+                                    Color 2
+                                    <input type="color" name="text_color_2" value="{{ $c2 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                </label>
 
-                        <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-200">
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="fade_message" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeMsg ? 'checked' : '' }}>
-                                Fade message text
-                            </label>
+                                <label class="text-xs text-gray-300">
+                                    Color 3
+                                    <input type="color" name="text_color_3" value="{{ $c3 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                </label>
 
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="fade_name" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeName ? 'checked' : '' }}>
-                                Fade name
-                            </label>
-                        </div>
-
-                        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                            <div class="flex flex-wrap items-center gap-3 text-xs">
-                                <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-200">View profile</a>
-                                <a href="{{ route('characters.profile.edit', $char) }}" class="text-amber-300 hover:text-amber-200">Edit profile</a>
-                                <a href="{{ route('characters.manage', $char) }}" class="text-amber-300 hover:text-amber-200">Manage character</a>
+                                <label class="text-xs text-gray-300">
+                                    Color 4
+                                    <input type="color" name="text_color_4" value="{{ $c4 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                </label>
                             </div>
-                            <x-primary-button>Save</x-primary-button>
-                        </div>
-                    </form>
+
+                            <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-200">
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="fade_message" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeMsg ? 'checked' : '' }}>
+                                    Fade message text
+                                </label>
+
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="fade_name" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeName ? 'checked' : '' }}>
+                                    Fade name
+                                </label>
+                            </div>
+
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-3 text-xs">
+                                    <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-200">View profile</a>
+                                    <a href="{{ route('characters.profile.edit', $char) }}" class="text-amber-300 hover:text-amber-200">Edit profile</a>
+                                    <a href="{{ route('characters.manage', $char) }}" class="text-amber-300 hover:text-amber-200">Manage character</a>
+                                </div>
+                                <x-primary-button>Save</x-primary-button>
+                            </div>
+                        </form>
+                    </details>
                 </div>
             @empty
                 <div class="rounded border border-dashed border-gray-800 px-3 py-4 text-sm text-gray-500">
