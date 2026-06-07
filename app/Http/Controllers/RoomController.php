@@ -998,7 +998,11 @@ class RoomController extends Controller
             $rooms->selectRaw('NULL as archived_at');
         }
 
-        $rooms = $rooms->get();
+        $rooms = $rooms->get()->map(function ($room) {
+            $room->other_character_profile_url = route('characters.profile.show', ['character' => (int) $room->other_character_id]);
+
+            return $room;
+        });
 
         return response()->json(['rooms' => $rooms]);
     }
@@ -1233,12 +1237,25 @@ class RoomController extends Controller
 
         $messages = $this->conversationMessages($room, $request, false);
         $this->applyBlockedMessageFlags($messages, $characterId);
+        $messages->each(function ($message): void {
+            if ($message->relationLoaded('character') && $message->character) {
+                $message->character->profile_url = route('characters.profile.show', $message->character);
+            }
+        });
+
+        $otherCharacterId = (int) DB::table('dm_participants')
+            ->where('room_id', $room->id)
+            ->where('user_id', '!=', Auth::id())
+            ->value('character_id');
 
         return response()->json([
             'room' => [
                 'id' => $room->id,
                 'slug' => $room->slug,
                 'name' => $room->name,
+                'other_character_profile_url' => $otherCharacterId > 0
+                    ? route('characters.profile.show', ['character' => $otherCharacterId])
+                    : null,
             ],
             'messages' => $messages,
         ]);
@@ -1257,11 +1274,15 @@ class RoomController extends Controller
         $this->assertDmMessageAllowed($room);
         $this->restoreDmForUser($room->id, Auth::id());
 
-        $message = $this->createConversationMessage($room, $characterId, $request->body);
+        $message = $this->createConversationMessage($room, $characterId, $request->body)->load(['user', 'character']);
+
+        if ($message->character) {
+            $message->character->profile_url = route('characters.profile.show', $message->character);
+        }
 
         return response()->json([
             'ok' => true,
-            'message' => $message->load(['user', 'character']),
+            'message' => $message,
         ]);
     }
 

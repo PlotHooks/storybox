@@ -151,8 +151,31 @@
         class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
         title="Resize"
     ></div>
-
 </div>
+
+<div id="dm-char-popover"
+    class="hidden fixed z-[9999] w-64 rounded-lg border border-[#332817] bg-[#101012] shadow-xl">
+    <div class="p-3">
+        <div class="flex items-start gap-3">
+            <div id="dm-char-popover-avatar" class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#332817] bg-[#0b0b0c] text-2xl font-semibold text-[#8f8675]"></div>
+            <div class="min-w-0">
+                <div id="dm-char-popover-title" class="font-semibold text-[#f2dfb5] text-sm"></div>
+                <div class="text-[10px] text-[#8f8675] mt-1">ID verification</div>
+            </div>
+        </div>
+
+        <div class="mt-3 flex gap-2 justify-end">
+            <a id="dm-char-popover-profile"
+               href="#"
+               target="_blank"
+               rel="noreferrer noopener"
+               class="rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]">
+                View Profile
+            </a>
+        </div>
+    </div>
+</div>
+
 
 <script>
 (function () {
@@ -199,6 +222,10 @@
         conversationId: 0,
         lastId: 0,
         displayName: null,
+        profileUrl: '',
+        avatar: '',
+        handle: '',
+        otherUserId: 0,
         myCharacterId: 0,
         otherCharacterId: 0,
         isBlockedByViewer: false,
@@ -221,6 +248,56 @@
         loading: false,
         starting: false,
     };
+
+
+    const dmCharPopover = document.getElementById('dm-char-popover');
+    const dmCharPopoverTitle = document.getElementById('dm-char-popover-title');
+    const dmCharPopoverAvatar = document.getElementById('dm-char-popover-avatar');
+    const dmCharPopoverProfile = document.getElementById('dm-char-popover-profile');
+
+    function hideDmCharPopover() {
+        if (!dmCharPopover) return;
+        dmCharPopover.classList.add('hidden');
+    }
+
+    function positionDmCharPopoverNear(el) {
+        if (!dmCharPopover || !el) return;
+        const r = el.getBoundingClientRect();
+        let top = r.bottom + 8;
+        let left = r.left;
+        const pad = 8;
+        const w = dmCharPopover.offsetWidth || 256;
+        const h = dmCharPopover.offsetHeight || 140;
+
+        if (left + w > window.innerWidth - pad) left = window.innerWidth - w - pad;
+        if (top + h > window.innerHeight - pad) top = r.top - h - 8;
+        if (left < pad) left = pad;
+        if (top < pad) top = pad;
+
+        dmCharPopover.style.left = `${left}px`;
+        dmCharPopover.style.top = `${top}px`;
+    }
+
+    function openDmCharPopover(triggerEl) {
+        if (!dmCharPopover || !triggerEl) return;
+
+        const characterId = (triggerEl.dataset.characterId || '').trim();
+        const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
+        const characterHandle = (triggerEl.dataset.characterHandle || '').trim();
+        const avatar = (triggerEl.dataset.characterAvatar || '').trim();
+        const fallbackHandle = characterId ? `${characterName}#${shortSigil(parseInt(characterId, 10))}` : characterName;
+
+        if (dmCharPopoverTitle) dmCharPopoverTitle.textContent = characterHandle || fallbackHandle;
+        if (dmCharPopoverAvatar) dmCharPopoverAvatar.innerHTML = avatarHtml(avatar, characterName, 'h-20 w-20', 'rounded-lg');
+        if (dmCharPopoverProfile) {
+            const hasCharacter = Boolean(characterId);
+            dmCharPopoverProfile.href = hasCharacter ? `/characters/${characterId}/profile` : '#';
+            dmCharPopoverProfile.classList.toggle('hidden', !hasCharacter);
+        }
+
+        dmCharPopover.classList.remove('hidden');
+        positionDmCharPopoverNear(triggerEl);
+    }
 
     window.StoryboxChannelCharacters = window.StoryboxChannelCharacters || {};
 
@@ -262,6 +339,21 @@
         }
 
         return `<div class="flex ${sizeClass} shrink-0 items-center justify-center ${shapeClass} border border-[#332817] bg-[#0b0b0c] text-xs font-semibold text-[#8f8675]">${escapeHtml(avatarInitial(name))}</div>`;
+    }
+
+
+    function characterTriggerHtml({ characterId = 0, userId = 0, name = '', handle = '', avatar = '', contentHtml = '', extraClass = '' }) {
+        if (!characterId) return contentHtml;
+
+        return `<button
+            type="button"
+            class="dm-char-trigger ${extraClass}"
+            data-character-id="${characterId}"
+            data-user-id="${userId}"
+            data-character-name="${escapeAttr(name)}"
+            data-character-handle="${escapeAttr(handle || name)}"
+            data-character-avatar="${escapeAttr(avatar)}"
+        >${contentHtml}</button>`;
     }
 
     function setThreadEnabled(enabled) {
@@ -749,6 +841,7 @@
         const roomId = parseInt((raw.roomId ?? raw.room_id ?? 0), 10) || 0;
         const myCharacterId = parseInt((raw.myCharacterId ?? raw.my_character_id ?? 0), 10) || 0;
         const otherCharacterId = parseInt((raw.otherCharacterId ?? raw.other_character_id ?? 0), 10) || 0;
+        const profileUrl = raw.profileUrl || raw.profile_url || raw.other_character_profile_url || (otherCharacterId ? `/characters/${otherCharacterId}/profile` : '');
 
         return {
             roomId,
@@ -756,10 +849,13 @@
             updatedAt: raw.updatedAt ?? raw.updated_at ?? null,
             archivedAt: raw.archivedAt ?? raw.archived_at ?? null,
             displayName: raw.displayName || raw.other_character_name || 'DM',
+            handle: raw.handle || raw.other_character_handle || raw.other_character_name || 'DM',
             avatar: raw.avatar || raw.other_character_avatar || '',
+            profileUrl,
             unreadCount: parseUnreadCount(raw.unreadCount ?? raw.unread_count),
             myCharacterId,
             otherCharacterId,
+            otherUserId: parseInt((raw.otherUserId ?? raw.other_user_id ?? 0), 10) || 0,
             isBlockedByViewer: parseBool(raw.isBlockedByViewer ?? raw.is_blocked_by_viewer),
         };
     }
@@ -1240,13 +1336,14 @@
                 const fadeName = !!settings.fade_name;
                 const fadeMsg = !!settings.fade_message;
                 const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
-                const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
+                const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });                const userId = parseInt(m.user?.id ?? m.user_id ?? 0, 10) || 0;
+                const characterHandle = m.character?.public_handle || who;
                 const avatarMarkup = isGrouped
                     ? '<div class="w-7 shrink-0"></div>'
-                    : `<div class="w-7 shrink-0">${avatarHtml(avatar, who, 'h-7 w-7')}</div>`;
+                    : `<div class="w-7 shrink-0">${characterTriggerHtml({ characterId, userId, name: who, handle: characterHandle, avatar, contentHtml: avatarHtml(avatar, who, 'h-7 w-7'), extraClass: 'inline-flex rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40' })}</div>`;
                 const nameMarkup = isGrouped ? '' : `
                             <div class="mb-0 flex items-baseline gap-2">
-                                <span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>
+                                ${characterTriggerHtml({ characterId, userId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
                             </div>
                 `;
 
@@ -1298,12 +1395,18 @@
         activeDm.conversationId = room?.roomId || 0;
         activeDm.lastId = getMessageCache(activeDm.slug)?.lastId || 0;
         activeDm.displayName = room?.displayName || room?.slug || null;
+        activeDm.profileUrl = room?.profileUrl || '';
+        activeDm.avatar = room?.avatar || '';
+        activeDm.handle = room?.handle || room?.displayName || '';
+        activeDm.otherUserId = room?.otherUserId || 0;
         activeDm.myCharacterId = room?.myCharacterId || 0;
         activeDm.otherCharacterId = room?.otherCharacterId || 0;
         activeDm.isBlockedByViewer = !!room?.isBlockedByViewer;
 
         if (threadHeader) {
-            threadHeader.textContent = activeDm.displayName ? `DM: ${activeDm.displayName}` : 'Select a conversation.';
+            threadHeader.innerHTML = activeDm.displayName
+                ? `DM: ${activeDm.otherCharacterId ? characterTriggerHtml({ characterId: activeDm.otherCharacterId, userId: activeDm.otherUserId, name: activeDm.displayName, handle: activeDm.handle || activeDm.displayName, avatar: activeDm.avatar, contentHtml: `<span class="font-semibold text-[#f2dfb5] hover:underline">${escapeHtml(activeDm.displayName)}</span>`, extraClass: 'rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' }) : escapeHtml(activeDm.displayName)}`
+                : 'Select a conversation.';
         }
 
         syncDmBlockToggle();
@@ -1320,6 +1423,10 @@
         activeDm.conversationId = 0;
         activeDm.lastId = 0;
         activeDm.displayName = null;
+        activeDm.profileUrl = '';
+        activeDm.avatar = '';
+        activeDm.handle = '';
+        activeDm.otherUserId = 0;
         activeDm.myCharacterId = 0;
         activeDm.otherCharacterId = 0;
         activeDm.isBlockedByViewer = false;

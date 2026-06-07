@@ -277,6 +277,23 @@ class CharacterProfileFeatureTest extends TestCase
             ->assertSee('<div id="profile-root">Sandboxed</div>', false);
     }
 
+    public function test_advanced_profile_frame_emits_google_font_imports_as_stylesheet_links(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Frame Font Imports');
+
+        $character->ensureProfile()->update([
+            'custom_profile_enabled' => true,
+            'custom_html' => '<div id="profile-root">Sandboxed</div>',
+            'custom_css' => '@import url(https://fonts.googleapis.com/css?family=Amatic+SC|Wire+One); body { font-family: "Amatic SC", cursive; }',
+        ]);
+
+        $this->get(route('characters.profile.frame', $character))
+            ->assertOk()
+            ->assertSee('<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Amatic+SC|Wire+One">', false)
+            ->assertDontSee('@import url(https://fonts.googleapis.com/css?family=Amatic+SC|Wire+One);', false)
+            ->assertSee('body { font-family: "Amatic SC", cursive; }', false);
+    }
+
     private function createUserWithCharacter(string $name): array
     {
         $user = User::factory()->create([

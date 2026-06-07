@@ -8,7 +8,7 @@
 @if ($charactersPanelAvailable)
     <div
         id="characters-window"
-        class="{{ $charactersPanelOpen ? 'flex flex-col' : 'hidden' }} fixed z-[10020] overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10"
+        class="{{ $charactersPanelOpen ? 'flex min-h-0 flex-col' : 'hidden' }} fixed z-[10020] overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10"
         style="width: min(960px, calc(100vw - 3rem)); max-width: calc(100vw - 2rem); height: min(78dvh, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem); top: 96px; left: calc(50vw - min(960px, calc(100vw - 3rem)) / 2 + 24px);"
     >
         <div
@@ -38,7 +38,7 @@
             </div>
         </div>
 
-        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 text-[#d6c8ad]">
+        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 text-[#d6c8ad]">
             @include('characters._manager', ['panelMode' => true, 'characters' => $characters, 'activeId' => $activeId])
         </div>
 

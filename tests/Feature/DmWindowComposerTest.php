@@ -140,6 +140,96 @@ class DmWindowComposerTest extends TestCase
         $this->assertSame(0, Room::where('type', Room::TYPE_DM)->count());
     }
 
+
+    public function test_dm_index_exposes_public_profile_url_for_other_participant(): void
+    {
+        [$firstUser, $firstCharacter] = $this->createUserWithCharacter();
+        [$secondUser, $secondCharacter] = $this->createUserWithCharacter();
+        $room = $this->createDmRoom($firstUser, $firstCharacter, $secondUser, $secondCharacter);
+
+        $this->actingAs($firstUser)
+            ->getJson(route('dms.index'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'slug' => $room->slug,
+                'other_character_id' => $secondCharacter->id,
+                'other_character_profile_url' => route('characters.profile.show', $secondCharacter),
+            ]);
+    }
+
+    public function test_dm_messages_expose_public_profile_url_for_message_character(): void
+    {
+        [$firstUser, $firstCharacter] = $this->createUserWithCharacter();
+        [$secondUser, $secondCharacter] = $this->createUserWithCharacter();
+        $room = $this->createDmRoom($firstUser, $firstCharacter, $secondUser, $secondCharacter);
+        $message = $this->createMessage($room, $secondUser, $secondCharacter, 'Hello from the other side.');
+
+        $this->actingAs($firstUser)
+            ->getJson(route('dms.messages.index', $room->slug))
+            ->assertOk()
+            ->assertJsonPath('room.other_character_profile_url', route('characters.profile.show', $secondCharacter))
+            ->assertJsonPath('messages.0.character.profile_url', route('characters.profile.show', $secondCharacter));
+    }
+
+    public function test_dm_send_response_exposes_public_profile_url_for_sender_character(): void
+    {
+        [$firstUser, $firstCharacter] = $this->createUserWithCharacter();
+        [$secondUser, $secondCharacter] = $this->createUserWithCharacter();
+        $room = $this->createDmRoom($firstUser, $firstCharacter, $secondUser, $secondCharacter);
+
+        $this->actingAs($firstUser)
+            ->postJson(route('dms.messages.store', $room->slug), [
+                'body' => 'New DM message.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.character.profile_url', route('characters.profile.show', $firstCharacter));
+    }
+
+
+    private function createDmRoom(User $firstUser, Character $firstCharacter, User $secondUser, Character $secondCharacter): Room
+    {
+        $room = Room::create([
+            'name' => 'DM',
+            'slug' => 'dm-' . Str::random(16),
+            'user_id' => $firstUser->id,
+            'created_by' => $firstUser->id,
+            'type' => Room::TYPE_DM,
+            'visibility' => Room::VISIBILITY_PUBLIC,
+            'dm_key' => Room::normalizedDmKey($firstCharacter->id, $secondCharacter->id),
+        ]);
+
+        $now = now();
+
+        \DB::table('dm_participants')->insert([
+            [
+                'room_id' => $room->id,
+                'user_id' => $firstUser->id,
+                'character_id' => $firstCharacter->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'room_id' => $room->id,
+                'user_id' => $secondUser->id,
+                'character_id' => $secondCharacter->id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ]);
+
+        return $room;
+    }
+
+    private function createMessage(Room $room, User $user, Character $character, string $body)
+    {
+        return \App\Models\Message::create([
+            'room_id' => $room->id,
+            'user_id' => $user->id,
+            'character_id' => $character->id,
+            'body' => $body,
+        ]);
+    }
+
     private function createUserWithCharacter(?string $userName = null): array
     {
         $user = User::factory()->create([

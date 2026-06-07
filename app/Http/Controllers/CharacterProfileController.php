@@ -350,7 +350,8 @@ html, body {
 }
 CSS;
 
-        $styleBlock = '<style>'.$baseStyle.$customCss.'</style>';
+        [$stylesheetLinks, $remainingCss] = $this->extractStylesheetImports($customCss);
+        $headAssets = $stylesheetLinks.'<style>'.$baseStyle.$remainingCss.'</style>';
         $scriptBlock = $customJs !== '' ? '<script>'.$customJs.'</script>' : '';
         $trimmedHtml = ltrim($customHtml);
         $looksLikeFullDocument = preg_match('/<(?:!doctype|html|head|body)\b/i', $trimmedHtml) === 1;
@@ -362,7 +363,7 @@ CSS;
                 . '<meta charset="utf-8">'
                 . '<meta name="viewport" content="width=device-width, initial-scale=1">'
                 . '<title>'.e($character->name.' Custom Profile').'</title>'
-                . $styleBlock
+                . $headAssets
                 . '</head>'
                 . '<body>'
                 . $customHtml
@@ -374,11 +375,11 @@ CSS;
         $document = $customHtml;
 
         if (stripos($document, '<head') !== false) {
-            $document = preg_replace('/<\/head>/i', $styleBlock.'</head>', $document, 1) ?? $document;
+            $document = preg_replace('/<\/head>/i', $headAssets.'</head>', $document, 1) ?? $document;
         } elseif (stripos($document, '<html') !== false) {
-            $document = preg_replace('/<html([^>]*)>/i', '<html$1><head>'.$styleBlock.'</head>', $document, 1) ?? $document;
+            $document = preg_replace('/<html([^>]*)>/i', '<html$1><head>'.$headAssets.'</head>', $document, 1) ?? $document;
         } else {
-            $document = $styleBlock.$document;
+            $document = $headAssets.$document;
         }
 
         if ($scriptBlock !== '') {
@@ -390,6 +391,29 @@ CSS;
         }
 
         return $document;
+    }
+
+    private function extractStylesheetImports(string $customCss): array
+    {
+        $links = [];
+        $remainingCss = preg_replace_callback(
+            '/^\s*@import\s+url\(\s*(["\']?)(https?:\/\/[^)"\'\s]+)\1\s*\)\s*;?/im',
+            function (array $matches) use (&$links): string {
+                $url = $matches[2] ?? '';
+                $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+                if (! in_array($scheme, ['http', 'https'], true)) {
+                    return $matches[0];
+                }
+
+                $links[] = '<link rel="stylesheet" href="'.e($url).'">';
+
+                return '';
+            },
+            $customCss,
+        );
+
+        return [implode('', $links), $remainingCss ?? $customCss];
     }
 
     private function editorExternalLinks(CharacterProfile $profile): array

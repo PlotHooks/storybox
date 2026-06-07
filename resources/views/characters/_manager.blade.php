@@ -21,7 +21,7 @@
     </div>
 @endif
 
-<div class="grid grid-cols-1 gap-6 {{ $panelMode ? 'xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : 'lg:grid-cols-2' }}">
+<div class="grid min-h-0 grid-cols-1 items-start gap-6 {{ $panelMode ? 'xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : 'lg:grid-cols-2' }}">
     <div class="rounded-lg border border-gray-800 bg-gray-900 p-4">
         <h3 class="mb-3 text-lg font-semibold text-gray-100">Create Character</h3>
 
@@ -58,10 +58,10 @@
         </form>
     </div>
 
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-4">
+    <div class="min-h-0 rounded-lg border border-gray-800 bg-gray-900 p-4">
         <h3 class="mb-3 text-lg font-semibold text-gray-100">Your Characters</h3>
 
-        <div class="space-y-4">
+        <div class="min-h-0 space-y-4">
             @forelse ($characters as $char)
                 @php
                     $s = $char->settings ?? [];
