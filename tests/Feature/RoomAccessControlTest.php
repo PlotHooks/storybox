@@ -170,21 +170,21 @@ class RoomAccessControlTest extends TestCase
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
             ->assertSee('Follow Room')
-            ->assertSee('Room Settings');
+            ->assertSee('data-context-tool="settings"', false);
 
         $this->actingAs($moderatorUser)
             ->withSession(['active_character_id' => $moderatorCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
             ->assertSee('Follow Room')
-            ->assertSee('Room Settings');
+            ->assertSee('data-context-tool="settings"', false);
 
         $this->actingAs($viewerUser)
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
             ->assertSee('Follow Room')
-            ->assertDontSee('Room Settings');
+            ->assertDontSee('data-context-tool="settings"', false);
 
         $this->actingAs($ownerUser)
             ->get(route('dms.messages.index', $dmRoom->slug))

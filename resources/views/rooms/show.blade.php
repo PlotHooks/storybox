@@ -19,18 +19,38 @@
                         </div>
                     </div>
                 </div>
-                <div class="border-b border-[#2a241a] bg-[#0b0b0c] p-2">
-                    <div class="grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
-                        <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
-                        <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
-                        <button type="button" data-context-tool="rules" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Rules</button>
-                        <button type="button" data-context-tool="character" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Character Info</button>
-                        @if ($room->isPublicRoom())
+                <div class="border-b border-[#2a241a] bg-[#0b0b0c] p-2 space-y-2">
+                    <div>
+                        <div class="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Room Tools</div>
+                        <div class="mt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
+                            <a href="{{ route('rooms.profile.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Profile</a>
+                            <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
+                            <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
+                            <button
+                                type="button"
+                                disabled
+                                aria-disabled="true"
+                                class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70"
+                            >
+                                Notice Board
+                            </button>
+                        </div>
+                    </div>
+                    @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
+                        <div>
+                            <div class="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Owner Tools</div>
+                            <div class="mt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
+                                <button type="button" data-context-tool="settings" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Settings</button>
+                            </div>
+                        </div>
+                    @endif
+                    @if ($room->isPublicRoom())
+                        <div class="pt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
                             <button type="button" data-context-tool="follow" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">{{ $isFollowingRoom ? '✓ Follow Room' : 'Follow Room' }}</button>
-                        @endif
-                        @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
-                            <button type="button" data-context-tool="settings" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Settings</button>
-                        @endif
+                        </div>
+                    @endif
+                    <div class="px-1 text-[10px] text-[#6f675b]">
+                        Notice Board: Coming Soon
                     </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-[#d6c8ad]">
@@ -69,11 +89,8 @@
                     <div data-context-panel="notes" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Pinned Notes are coming soon.
                     </div>
-                    <div data-context-panel="rules" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Room Rules are coming soon.
-                    </div>
-                    <div data-context-panel="character" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Character Info is coming soon.
+                    <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
+                        Notice Board is coming soon.
                     </div>
                     @if ($room->isPublicRoom())
                         <div data-context-panel="follow" class="context-tool-panel hidden rounded-md border border-[#332817] bg-[#101012] p-3">
@@ -150,6 +167,7 @@
                                             @endforeach
                                         </select>
                                     </div>
+
                                     <button
                                         type="submit"
                                         class="inline-flex items-center rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50"

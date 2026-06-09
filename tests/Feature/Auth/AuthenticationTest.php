@@ -17,6 +17,15 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_login_screen_offers_a_registration_path_when_registration_route_exists(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertOk();
+        $response->assertSee(route('register', absolute: false));
+        $response->assertSee('Create an account');
+    }
+
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
         $user = User::factory()->create();

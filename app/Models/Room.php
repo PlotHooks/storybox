@@ -24,6 +24,9 @@ class Room extends Model
     public const VISIBILITY_PUBLIC = 'public';
     public const VISIBILITY_HIDDEN = 'hidden';
 
+    public const PROFILE_MODE_STANDARD = 'standard';
+    public const PROFILE_MODE_ADVANCED = 'advanced';
+
     // rooms table is the conversation model.
     protected $fillable = [
         'name',
@@ -35,6 +38,14 @@ class Room extends Model
         'dm_key',
         'owner_character_id',
         'visibility',
+        'profile_banner_url',
+        'profile_summary',
+        'profile_joining_information',
+        'profile_rules',
+        'profile_mode',
+        'profile_custom_html',
+        'profile_custom_css',
+        'profile_custom_js',
         'last_posted_at',
     ];
 
@@ -65,6 +76,20 @@ class Room extends Model
     public function isHidden(): bool
     {
         return ($this->visibility ?? self::VISIBILITY_PUBLIC) === self::VISIBILITY_HIDDEN;
+    }
+
+    public function profileMode(): string
+    {
+        $mode = (string) ($this->profile_mode ?? self::PROFILE_MODE_STANDARD);
+
+        return in_array($mode, [self::PROFILE_MODE_STANDARD, self::PROFILE_MODE_ADVANCED], true)
+            ? $mode
+            : self::PROFILE_MODE_STANDARD;
+    }
+
+    public function usesAdvancedProfile(): bool
+    {
+        return $this->profileMode() === self::PROFILE_MODE_ADVANCED;
     }
 
     public function lastActivityAt(): Carbon

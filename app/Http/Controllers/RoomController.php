@@ -12,7 +12,9 @@ use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -176,6 +178,148 @@ class RoomController extends Controller
             'roomBlacklist',
             'isFollowingRoom'
         ));
+    }
+
+    public function profile(Room $room): View
+    {
+        [$activeCharacterId] = $this->activeCharacterSelectionForConversation($room);
+        $activeCharacter = $this->ownedCharacterById($activeCharacterId);
+
+        abort_unless($room->isPublicRoom(), 404);
+        abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+
+        $canManageRoom = false;
+
+        if ($activeCharacter) {
+            $canManageRoom = $this->roomAccess->canManageRoom(Auth::user(), $room, $activeCharacter);
+        }
+
+        return $this->renderProfilePage($room, $canManageRoom);
+    }
+
+    public function profileFrame(Room $room): Response
+    {
+        [$activeCharacterId] = $this->activeCharacterSelectionForConversation($room);
+        $activeCharacter = $this->ownedCharacterById($activeCharacterId);
+
+        abort_unless($room->isPublicRoom(), 404);
+        abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+        abort_unless($room->usesAdvancedProfile(), 404);
+
+        return $this->frameResponse(
+            view('rooms.profile-custom-frame', [
+                'customDocument' => $this->buildCustomDocument(
+                    $room,
+                    $room->profile_custom_html,
+                    $room->profile_custom_css,
+                    $room->profile_custom_js,
+                ),
+            ])
+        );
+    }
+
+    private function renderProfilePage(Room $room, bool $canManageRoom): View
+    {
+        if ($room->usesAdvancedProfile()) {
+            return view('rooms.profile-show-advanced', [
+                'room' => $room,
+                'canManageRoom' => $canManageRoom,
+            ]);
+        }
+
+        return view('rooms.profile-show', [
+            'room' => $room,
+            'canManageRoom' => $canManageRoom,
+        ]);
+    }
+
+    private function frameResponse(View $view): Response
+    {
+        return response($view)
+            ->header('Referrer-Policy', 'no-referrer')
+            ->header('X-Content-Type-Options', 'nosniff');
+    }
+
+    private function buildCustomDocument(Room $room, ?string $customHtml, ?string $customCss, ?string $customJs): string
+    {
+        $customHtml = $customHtml ?? '';
+        $customCss = $customCss ?? '';
+        $customJs = $customJs ?? '';
+
+        $baseStyle = <<<'CSS'
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    background: transparent;
+}
+CSS;
+
+        [$stylesheetLinks, $remainingCss] = $this->extractStylesheetImports($customCss);
+        $headAssets = $stylesheetLinks.'<style>'.$baseStyle.$remainingCss.'</style>';
+        $scriptBlock = $customJs !== '' ? '<script>'.$customJs.'</script>' : '';
+        $trimmedHtml = ltrim($customHtml);
+        $looksLikeFullDocument = preg_match('/<(?:!doctype|html|head|body)\b/i', $trimmedHtml) === 1;
+
+        if (! $looksLikeFullDocument) {
+            return '<!DOCTYPE html>'
+                . '<html lang="'.e(str_replace('_', '-', app()->getLocale())).'">'
+                . '<head>'
+                . '<meta charset="utf-8">'
+                . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+                . '<title>'.e($room->name.' Custom Profile').'</title>'
+                . $headAssets
+                . '</head>'
+                . '<body>'
+                . $customHtml
+                . $scriptBlock
+                . '</body>'
+                . '</html>';
+        }
+
+        $document = $customHtml;
+
+        if (stripos($document, '<head') !== false) {
+            $document = preg_replace('/<\/head>/i', $headAssets.'</head>', $document, 1) ?? $document;
+        } elseif (stripos($document, '<html') !== false) {
+            $document = preg_replace('/<html([^>]*)>/i', '<html$1><head>'.$headAssets.'</head>', $document, 1) ?? $document;
+        } else {
+            $document = $headAssets.$document;
+        }
+
+        if ($scriptBlock !== '') {
+            if (stripos($document, '</body>') !== false) {
+                $document = preg_replace('/<\/body>/i', $scriptBlock.'</body>', $document, 1) ?? $document;
+            } else {
+                $document .= $scriptBlock;
+            }
+        }
+
+        return $document;
+    }
+
+    private function extractStylesheetImports(string $customCss): array
+    {
+        $links = [];
+        $remainingCss = preg_replace_callback(
+            '/^\s*@import\s+url\(\s*(["\']?)(https?:\/\/[^)"\'\s]+)\1\s*\)\s*;?/im',
+            function (array $matches) use (&$links): string {
+                $url = $matches[2] ?? '';
+                $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+                if (! in_array($scheme, ['http', 'https'], true)) {
+                    return $matches[0];
+                }
+
+                $links[] = '<link rel="stylesheet" href="'.e($url).'">';
+
+                return '';
+            },
+            $customCss,
+        );
+
+        return [implode('', $links), $remainingCss ?? $customCss];
     }
 
     private function assertCharacterOwnedByUser(int $characterId): void

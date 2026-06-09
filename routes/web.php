@@ -73,6 +73,10 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms/{room:slug}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');
     Route::put('/rooms/{room:slug}/follow', [RoomController::class, 'follow'])->name('rooms.follow');
+    Route::get('/rooms/{room:slug}/profile', [RoomController::class, 'profile'])->name('rooms.profile.show');
+    Route::get('/rooms/{room:slug}/profile/frame', [RoomController::class, 'profileFrame'])->name('rooms.profile.frame');
+    Route::get('/rooms/{room:slug}/profile/edit', [RoomManagementController::class, 'editProfile'])->name('rooms.profile.edit');
+    Route::match(['put', 'patch'], '/rooms/{room:slug}/profile', [RoomManagementController::class, 'updateProfile'])->name('rooms.profile.update');
     Route::patch('/rooms/{room:slug}', [RoomManagementController::class, 'update'])->name('rooms.update');
     Route::delete('/rooms/{room:slug}', [RoomManagementController::class, 'destroy'])->name('rooms.destroy');
     Route::post('/rooms/{room:slug}/whitelist', [RoomManagementController::class, 'addWhitelist'])->name('rooms.whitelist.store');

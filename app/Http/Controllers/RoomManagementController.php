@@ -44,6 +44,60 @@ class RoomManagementController extends Controller
         ]);
     }
 
+    public function editProfile(Request $request, Room $room)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->activeOwnedCharacterFromSession($request);
+        abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
+
+        return view('rooms.profile-edit', [
+            'room' => $room,
+            'activeCharacterId' => $actor->id,
+        ]);
+    }
+
+    public function updateProfile(Request $request, Room $room)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->ownedCharacterFromRequest($request);
+        abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
+
+        $validated = $request->validate([
+            'profile_banner_url' => ['nullable', 'url:http,https', 'max:2048'],
+            'profile_summary' => ['nullable', 'string', 'max:4000'],
+            'profile_joining_information' => ['nullable', 'string', 'max:4000'],
+            'profile_rules' => ['nullable', 'string', 'max:4000'],
+            'profile_mode' => ['nullable', 'string', 'in:' . Room::PROFILE_MODE_STANDARD . ',' . Room::PROFILE_MODE_ADVANCED],
+            'profile_custom_html' => ['nullable', 'string'],
+            'profile_custom_css' => ['nullable', 'string'],
+            'profile_custom_js' => ['nullable', 'string'],
+        ]);
+
+        $room->fill([
+            'profile_banner_url' => $this->nullableString($validated['profile_banner_url'] ?? null),
+            'profile_summary' => $this->nullableString($validated['profile_summary'] ?? null),
+            'profile_joining_information' => $this->nullableString($validated['profile_joining_information'] ?? null),
+            'profile_rules' => $this->nullableString($validated['profile_rules'] ?? null),
+            'profile_mode' => $validated['profile_mode'] ?? Room::PROFILE_MODE_STANDARD,
+            'profile_custom_html' => $this->nullableString($validated['profile_custom_html'] ?? null),
+            'profile_custom_css' => $this->nullableString($validated['profile_custom_css'] ?? null),
+            'profile_custom_js' => $this->nullableString($validated['profile_custom_js'] ?? null),
+        ])->save();
+
+        if (! $request->expectsJson()) {
+            return redirect()
+                ->route('rooms.profile.show', $room->slug)
+                ->with('status', 'Room profile updated.');
+        }
+
+        return response()->json([
+            'ok' => true,
+            'room' => $room->fresh(),
+        ]);
+    }
+
     public function addWhitelist(Request $request, Room $room)
     {
         return $this->upsertAccessEntry($request, $room, RoomAccessEntry::TYPE_WHITELIST);
@@ -197,6 +251,13 @@ class RoomManagementController extends Controller
         );
     }
 
+    private function nullableString(mixed $value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return $value === '' ? null : $value;
+    }
+
     private function assertTargetCanBeManaged(Request $request, Room $room, Character $actor, Character $target): void
     {
         if ((int) $room->owner_character_id === (int) $target->id) {
@@ -224,6 +285,17 @@ class RoomManagementController extends Controller
     private function abortIfNotManagedPublicRoom(Room $room): void
     {
         abort_if(! $room->isPublicRoom(), 404);
+    }
+
+    private function activeOwnedCharacterFromSession(Request $request): Character
+    {
+        $characterId = (int) $request->session()->get('active_character_id', 0);
+        abort_if($characterId <= 0, 403);
+
+        $character = Character::findOrFail($characterId);
+        abort_if((int) $character->user_id !== (int) $request->user()->id, 403);
+
+        return $character;
     }
 
     private function targetCharacterFromRequest(Request $request): Character
