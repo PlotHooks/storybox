@@ -14,7 +14,7 @@
         <a href="{{ route('characters.profile.revisions', $character) }}" class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]">Revision History</a>
     </x-slot>
 
-    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8" x-data="{ mode: '{{ $selectedCharacterProfileMode }}' }">
+    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         @if (session('status'))
             <div class="mb-4 rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{{ session('status') }}</div>
         @endif
@@ -35,10 +35,10 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('characters.profile.update', $character) }}" class="space-y-6" id="character-profile-form">
+        <form method="POST" action="{{ route('characters.profile.update', $character) }}" class="space-y-6" id="character-profile-form" data-profile-mode-form>
             @csrf
             <input type="hidden" name="template_type" value="{{ old('template_type', $profile->template_type ?: \App\Models\CharacterProfile::TEMPLATE_STORYBOX) }}">
-            <input type="hidden" x-bind:name="mode === 'advanced' ? 'custom_profile_enabled' : null" value="1">
+            <input type="hidden" name="custom_profile_enabled" value="1" data-advanced-flag {{ $selectedCharacterProfileMode === 'advanced' ? '' : 'disabled' }}>
 
             <section class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6">
                 <h3 class="text-lg font-semibold text-[#f2dfb5]">Profile Mode</h3>
@@ -46,7 +46,7 @@
 
                 <div class="mt-5 grid gap-3 sm:grid-cols-2">
                     <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-[#332817] bg-[#141416] p-4 text-sm text-[#d6c8ad]">
-                        <input type="radio" name="profile_mode_ui" value="standard" x-model="mode" class="mt-1 border-[#5a431f] bg-[#141416] text-amber-500 focus:ring-amber-500">
+                        <input type="radio" name="profile_mode_ui" value="standard" data-profile-mode-toggle class="mt-1 border-[#5a431f] bg-[#141416] text-amber-500 focus:ring-amber-500" {{ $selectedCharacterProfileMode === 'standard' ? 'checked' : '' }}>
                         <span>
                             <span class="block font-semibold text-[#f2dfb5]">Standard Profile</span>
                             <span class="mt-1 block text-xs leading-relaxed text-[#8f8675]">Uses Storybox fields like images, biography, hooks, and external links.</span>
@@ -54,7 +54,7 @@
                     </label>
 
                     <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-[#332817] bg-[#141416] p-4 text-sm text-[#d6c8ad]">
-                        <input type="radio" name="profile_mode_ui" value="advanced" x-model="mode" class="mt-1 border-[#5a431f] bg-[#141416] text-amber-500 focus:ring-amber-500">
+                        <input type="radio" name="profile_mode_ui" value="advanced" data-profile-mode-toggle class="mt-1 border-[#5a431f] bg-[#141416] text-amber-500 focus:ring-amber-500" {{ $selectedCharacterProfileMode === 'advanced' ? 'checked' : '' }}>
                         <span>
                             <span class="block font-semibold text-[#f2dfb5]">Advanced Profile</span>
                             <span class="mt-1 block text-xs leading-relaxed text-[#8f8675]">Edits custom HTML, CSS, and JavaScript that render inside the sandboxed profile iframe.</span>
@@ -63,7 +63,7 @@
                 </div>
             </section>
 
-            <section x-show="mode === 'standard'" class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6">
+            <section data-profile-mode-section="standard" class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6" {{ $selectedCharacterProfileMode === 'standard' ? '' : 'hidden' }}>
                 <h3 class="text-lg font-semibold text-[#f2dfb5]">Standard Profile</h3>
                 <p class="mt-1 text-sm text-[#8f8675]">Public character showcase content. Images must be externally hosted URLs.</p>
 
@@ -120,7 +120,7 @@
                 </div>
             </section>
 
-            <section x-show="mode === 'advanced'" class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6">
+            <section data-profile-mode-section="advanced" class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6" {{ $selectedCharacterProfileMode === 'advanced' ? '' : 'hidden' }}>
                 <h3 class="text-lg font-semibold text-[#f2dfb5]">Advanced Profile</h3>
                 <p class="mt-1 text-sm text-[#8f8675]">Custom HTML, CSS, and JavaScript are rendered only inside a sandboxed iframe.</p>
 
@@ -149,4 +149,43 @@
             </div>
         </form>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.querySelector('[data-profile-mode-form]');
+            if (!form) {
+                return;
+            }
+
+            const radios = Array.from(form.querySelectorAll('[data-profile-mode-toggle]'));
+            const sections = Array.from(form.querySelectorAll('[data-profile-mode-section]'));
+            const advancedFlag = form.querySelector('[data-advanced-flag]');
+
+            const applyMode = function (mode) {
+                sections.forEach(function (section) {
+                    section.hidden = section.getAttribute('data-profile-mode-section') !== mode;
+                });
+
+                if (advancedFlag) {
+                    advancedFlag.disabled = mode !== 'advanced';
+                }
+            };
+
+            const selected = function () {
+                const active = radios.find(function (radio) {
+                    return radio.checked;
+                });
+
+                return active ? active.value : 'standard';
+            };
+
+            radios.forEach(function (radio) {
+                radio.addEventListener('change', function () {
+                    applyMode(selected());
+                });
+            });
+
+            applyMode(selected());
+        });
+    </script>
 </x-profile-edit-layout>
