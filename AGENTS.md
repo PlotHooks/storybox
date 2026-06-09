@@ -68,6 +68,39 @@ When given a task:
 
 These areas must not be changed without explicit approval.
 
+## Investigation permissions
+
+During investigation mode, freely perform read-only repository analysis without requesting approval.
+
+Examples include:
+- ls
+- find
+- grep / rg
+- cat
+- git status
+- git diff
+- reading logs
+- inspecting routes
+- inspecting migrations
+- inspecting models
+- php artisan route:list
+- php artisan migrate:status
+- php artisan config:show
+- running read-only diagnostic commands
+
+The purpose of investigation mode is to understand the current system before proposing changes.
+
+Approval is required before:
+- editing files
+- creating files
+- deleting files
+- running migrations
+- installing packages
+- changing configuration
+- committing
+- pushing
+- deploying
+
 ## Codespaces startup rule
 
 For this repo in Codespaces, prefer built assets over Vite HMR for reliable startup.

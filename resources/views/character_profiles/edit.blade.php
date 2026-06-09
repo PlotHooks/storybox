@@ -141,7 +141,7 @@
             </section>
 
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <a href="{{ route('characters.manage', $character) }}" class="text-sm text-[#b89f70] hover:text-[#f2dfb5]">Back to Character Management</a>
+                <a href="{{ route('characters.manage', $character) }}" data-close-or-fallback data-fallback-url="{{ route('characters.manage', $character) }}" class="text-sm text-[#b89f70] hover:text-[#f2dfb5]">Back to Character Management</a>
                 <div class="flex flex-wrap gap-3">
                     <button type="submit" formaction="{{ route('characters.profile.preview', $character) }}" formtarget="_blank" class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-4 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]">Preview</button>
                     <button type="submit" class="inline-flex items-center rounded border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/20">Save</button>

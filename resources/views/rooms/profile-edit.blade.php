@@ -3,11 +3,11 @@
 <x-profile-edit-layout
     title="Edit Room Profile"
     :subtitle="$room->name"
-    :close-href="route('rooms.show', ['room' => $room->slug, 'tool' => 'settings'])"
+    :close-href="route('rooms.show', $room->slug)"
 >
     <x-slot name="actions">
         <a href="{{ route('rooms.profile.show', $room->slug) }}" class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]">View Room Profile</a>
-        <a href="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}" class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]">Back to Room</a>
+        <a href="{{ route('rooms.show', $room->slug) }}" data-close-or-fallback data-fallback-url="{{ route('rooms.show', $room->slug) }}" class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]">Back to Room</a>
     </x-slot>
 
     <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">

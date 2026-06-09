@@ -32,7 +32,8 @@
                             {{ $actions ?? '' }}
                             <button
                                 type="button"
-                                onclick="if (window.opener || window.history.length <= 1) { window.close(); } if (!window.closed) { window.location.href = '{{ $closeHref }}'; }"
+                                data-close-or-fallback
+                                data-fallback-url="{{ $closeHref }}"
                                 class="inline-flex items-center rounded border border-[#5a431f] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5] hover:bg-[#191511]"
                             >
                                 Close
@@ -46,5 +47,28 @@
                 {{ $slot }}
             </main>
         </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('[data-close-or-fallback]').forEach(function (element) {
+                    element.addEventListener('click', function (event) {
+                        const fallbackUrl = element.getAttribute('data-fallback-url');
+
+                        if (! fallbackUrl) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        window.close();
+
+                        window.setTimeout(function () {
+                            if (! window.closed) {
+                                window.location.href = fallbackUrl;
+                            }
+                        }, 150);
+                    });
+                });
+            });
+        </script>
     </body>
 </html>
