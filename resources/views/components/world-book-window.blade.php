@@ -4,10 +4,10 @@
 
 <div
     id="world-book-window"
-    class="hidden fixed z-50 bg-[#0b0b0c] border border-[#2a241a] rounded-md shadow-2xl flex flex-col overflow-hidden ring-1 ring-amber-500/10"
-    style="width: min(1680px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); left: 24px; top: 24px;"
+    class="hidden fixed z-50 bg-[#0b0b0c] border rounded-md shadow-[0_28px_72px_rgba(0,0,0,0.62)] flex flex-col overflow-hidden ring-1 ring-amber-500/10"
+    style="width: min(1680px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); left: 24px; top: 24px; border-width: 4px; border-color: #3a2d1b;"
 >
-    <div id="world-book-drag-handle" class="cursor-move flex items-center justify-between px-3 py-2 border-b border-[#2a241a] bg-[#101012]">
+    <div id="world-book-drag-handle" class="cursor-move flex items-center justify-between px-3 py-2 border-b border-[#3a2d1b] bg-[#111114] shadow-[inset_0_-1px_0_rgba(245,158,11,0.04)]">
         <div>
             <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Room Canon</div>
             <div class="text-sm text-[#f2dfb5] font-semibold">World Book</div>
@@ -32,8 +32,8 @@
         </div>
     </div>
 
-    <div class="flex-1 min-h-0 flex overflow-hidden">
-        <div class="w-72 border-r border-[#2a241a] bg-[#0b0b0c] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
+    <div class="flex-1 min-h-0 grid overflow-hidden" style="grid-template-columns: 13rem 20rem minmax(0, 1fr);">
+        <div class="min-w-0 border-r border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
             <div class="p-3 border-b border-[#2a241a] space-y-2">
                 <button
                     id="world-book-new-entry-btn"
@@ -46,21 +46,41 @@
                     Loading
                 </div>
             </div>
-            <div id="world-book-category-list" class="border-b border-[#2a241a] p-2 space-y-1 overflow-y-auto max-h-48"></div>
-            <div id="world-book-entry-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+            <div class="border-b border-[#2a241a] p-3 space-y-2">
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Search</div>
+                <label class="sr-only" for="world-book-search-input">Search world book</label>
+                <input
+                    id="world-book-search-input"
+                    type="text"
+                    placeholder="Search title, body, tags"
+                    class="block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-[11px] text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
+                >
+            </div>
+            <div class="min-h-0 flex-1 overflow-y-auto p-2">
+                <div class="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Categories</div>
+                <div id="world-book-category-list" class="space-y-1"></div>
+            </div>
+        </div>
+
+        <div class="min-w-0 border-r border-[#332817] bg-[#0d0d0f] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
+            <div class="px-3 py-3 border-b border-[#2a241a] bg-[#101012]">
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Entries</div>
+                <div class="mt-1 text-[11px] text-[#8f8675]">Browse matching lore entries.</div>
+            </div>
+            <div id="world-book-entry-list" class="min-h-0 flex-1 overflow-y-auto p-2 space-y-2">
                 <div class="text-[#8f8675]">Loading...</div>
             </div>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div class="px-4 py-3 border-b border-[#2a241a] bg-[#101012] flex items-center justify-between gap-3">
+        <div class="min-w-0 flex flex-col overflow-hidden bg-[#080809]">
+            <div class="px-4 py-3 border-b border-[#332817] bg-[#101012] flex items-center justify-between gap-3 shadow-[inset_0_-1px_0_rgba(245,158,11,0.03)]">
                 <div class="min-w-0">
                     <div id="world-book-title" class="truncate text-sm font-semibold text-[#f2dfb5]">World Book</div>
                     <div id="world-book-subtitle" class="mt-1 text-[11px] text-[#8f8675]">Published room reference and pending submissions.</div>
                 </div>
                 <div id="world-book-actions" class="shrink-0 flex items-center gap-2"></div>
             </div>
-            <div id="world-book-body" class="flex-1 min-h-0 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.035),transparent_24rem)] p-4 text-sm text-[#d6c8ad]">
+            <div id="world-book-body" class="flex-1 min-h-0 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.03),transparent_24rem)] p-5 text-sm text-[#d6c8ad]">
                 <div class="text-[#8f8675]">Loading...</div>
             </div>
         </div>
@@ -85,6 +105,7 @@
     const refreshBtn = document.getElementById('world-book-refresh-btn');
     const closeBtn = document.getElementById('world-book-close-btn');
     const newEntryBtn = document.getElementById('world-book-new-entry-btn');
+    const searchInput = document.getElementById('world-book-search-input');
     const dragHandle = document.getElementById('world-book-drag-handle');
     const resizeHandle = document.getElementById('world-book-resize-handle');
 
@@ -93,19 +114,27 @@
     const WINDOW_MAX_WIDTH = 1680;
     const WINDOW_MAX_HEIGHT = 900;
     const VIEWPORT_PADDING = 16;
+    const SEARCH_DEBOUNCE_MS = 120;
+    const PENDING_CATEGORY_KEY = '__pending__';
 
     const state = {
         categories: [],
+        allEntriesCategory: { key: null, label: 'All Entries', icon: '📚' },
+        pendingCategory: { key: PENDING_CATEGORY_KEY, label: 'Pending Submissions', icon: '⏳' },
         entries: [],
+        pendingQueue: [],
         permissions: {
             can_submit: false,
             can_manage: false,
         },
         selectedCategory: null,
         selectedEntryId: null,
+        searchTerm: '',
         mode: 'view',
         formMode: 'create',
     };
+
+    let searchDebounceTimer = null;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -132,8 +161,45 @@
         return state.entries.find((entry) => entry.id === state.selectedEntryId) || null;
     }
 
+    function normalizeSearchTerm(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function entryMatchesSearch(entry) {
+        const term = normalizeSearchTerm(state.searchTerm);
+        if (!term) return true;
+        return String(entry.search_text || '').toLowerCase().includes(term);
+    }
+
+    function isPendingCategorySelected() {
+        return state.selectedCategory === PENDING_CATEGORY_KEY;
+    }
+
     function visibleEntries() {
-        return state.entries.filter((entry) => !state.selectedCategory || entry.category === state.selectedCategory);
+        if (isPendingCategorySelected()) {
+            return state.entries.filter((entry) => entry.has_pending_draft && entryMatchesSearch(entry));
+        }
+
+        return state.entries.filter((entry) => {
+            const matchesCategory = !state.selectedCategory || entry.category === state.selectedCategory;
+            return matchesCategory && entryMatchesSearch(entry);
+        });
+    }
+
+    function visiblePendingQueue() {
+        return state.pendingQueue.filter((entry) => entryMatchesSearch(entry));
+    }
+
+    function tagsHtml(tags) {
+        if (!Array.isArray(tags) || tags.length === 0) {
+            return '';
+        }
+
+        return `
+            <div class="mt-3 flex flex-wrap gap-2">
+                ${tags.map((tag) => `<span class="rounded-full border border-[#5a431f] bg-[#141416] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-amber-200">${escapeHtml(tag)}</span>`).join('')}
+            </div>
+        `;
     }
 
     function updateStatusPill() {
@@ -153,18 +219,26 @@
     }
 
     function selectDefaultEntry() {
-        if (currentEntry()) return;
+        if (currentEntry() && visibleEntries().some((entry) => entry.id === state.selectedEntryId)) {
+            return;
+        }
 
         const firstVisible = visibleEntries()[0];
         state.selectedEntryId = firstVisible ? firstVisible.id : null;
     }
 
     function renderCategories() {
-        const items = [{ key: null, label: 'All' }, ...state.categories];
+        const items = [state.allEntriesCategory, ...state.categories];
+
+        if (state.permissions.can_manage) {
+            items.push(state.pendingCategory);
+        }
 
         categoriesEl.innerHTML = items.map((category) => {
             const active = category.key === state.selectedCategory;
-            const count = state.entries.filter((entry) => category.key === null || entry.category === category.key).length;
+            const count = category.key === PENDING_CATEGORY_KEY
+                ? state.entries.filter((entry) => entry.has_pending_draft).length
+                : state.entries.filter((entry) => category.key === null || entry.category === category.key).length;
 
             return `
                 <button
@@ -174,7 +248,7 @@
                         ? 'w-full rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] font-semibold text-amber-100'
                         : 'w-full rounded border border-[#332817] bg-[#101012] px-3 py-2 text-left text-[11px] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]'}"
                 >
-                    <span class="block">${escapeHtml(category.label)}</span>
+                    <span class="flex items-center gap-2"><span>${escapeHtml(category.icon || '')}</span><span>${escapeHtml(category.label)}</span></span>
                     <span class="mt-0.5 block text-[10px] text-[#8f8675]">${count} entr${count === 1 ? 'y' : 'ies'}</span>
                 </button>
             `;
@@ -198,7 +272,7 @@
         const items = visibleEntries();
 
         if (items.length === 0) {
-            entryListEl.innerHTML = `<div class="rounded border border-dashed border-[#332817] bg-[#101012] px-3 py-3 text-[11px] text-[#8f8675]">No entries in this category yet.</div>`;
+            entryListEl.innerHTML = '<div class="rounded border border-dashed border-[#332817] bg-[#101012] px-3 py-3 text-[11px] text-[#8f8675]">No entries match the current filters.</div>';
             return;
         }
 
@@ -218,8 +292,9 @@
                 >
                     <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
-                            <div class="truncate text-[11px] font-semibold text-[#f2dfb5]">${escapeHtml(entry.title || 'Untitled')}</div>
+                            <div class="flex items-center gap-2 text-[11px] font-semibold text-[#f2dfb5]"><span>${escapeHtml(entry.category_icon || '')}</span><span class="truncate">${escapeHtml(entry.title || 'Untitled')}</span></div>
                             <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.category_label)}</div>
+                            ${Array.isArray(entry.tags) && entry.tags.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1">${entry.tags.slice(0, 3).map((tag) => `<span class="rounded-full border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-[#8f8675]">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
                         </div>
                         <span class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(status)}</span>
                     </div>
@@ -243,6 +318,16 @@
             buttons.push('<button type="button" id="world-book-cancel-form" class="rounded border border-[#332817] bg-[#0b0b0c] px-3 py-1.5 text-xs text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Cancel</button>');
             actionsEl.innerHTML = buttons.join('');
             document.getElementById('world-book-cancel-form')?.addEventListener('click', () => {
+                state.mode = 'view';
+                render();
+            });
+            return;
+        }
+
+        if (state.mode === 'reject' && entry) {
+            buttons.push('<button type="button" id="world-book-cancel-reject" class="rounded border border-[#332817] bg-[#0b0b0c] px-3 py-1.5 text-xs text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Cancel</button>');
+            actionsEl.innerHTML = buttons.join('');
+            document.getElementById('world-book-cancel-reject')?.addEventListener('click', () => {
                 state.mode = 'view';
                 render();
             });
@@ -275,8 +360,57 @@
             render();
         });
         document.getElementById('world-book-approve-btn')?.addEventListener('click', () => approveEntry(entry.id));
-        document.getElementById('world-book-reject-btn')?.addEventListener('click', () => rejectEntry(entry.id));
+        document.getElementById('world-book-reject-btn')?.addEventListener('click', () => {
+            state.mode = 'reject';
+            render();
+        });
         document.getElementById('world-book-delete-btn')?.addEventListener('click', () => deleteEntry(entry.id));
+    }
+
+    function renderRejectForm(entry) {
+        titleEl.textContent = `Reject ${entry.pending?.title || entry.title || 'Submission'}`;
+        subtitleEl.textContent = 'Optional rejection notes are visible only to the submitter and room staff.';
+
+        bodyEl.innerHTML = `
+            <form id="world-book-reject-form" class="space-y-4">
+                <div class="rounded border border-[#332817] bg-[#101012] p-4">
+                    <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Reviewing</div>
+                    <div class="mt-3 text-sm font-semibold text-[#f2dfb5]">${escapeHtml(entry.pending?.title || entry.title || 'Untitled')}</div>
+                    <div class="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.pending?.category_label || entry.category_label)}</div>
+                    ${tagsHtml(entry.pending?.tags || entry.tags || [])}
+                    <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending?.body || entry.body || '')}</div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-rejection-note">Reason</label>
+                    <textarea id="world-book-rejection-note" name="rejection_note" rows="5" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500" placeholder="Conflicts with established canon.">${escapeHtml(entry.rejection_note || '')}</textarea>
+                </div>
+                <div class="flex items-center justify-end gap-3">
+                    <button type="submit" class="inline-flex items-center rounded border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/20">Reject Submission</button>
+                </div>
+                <div id="world-book-reject-error" class="hidden rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200"></div>
+            </form>
+        `;
+
+        renderActions(entry);
+
+        document.getElementById('world-book-reject-form')?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const errorEl = document.getElementById('world-book-reject-error');
+            const payload = {
+                rejection_note: form.rejection_note.value.trim(),
+            };
+
+            try {
+                errorEl?.classList.add('hidden');
+                await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/${entry.id}/reject`, 'POST', payload);
+                state.mode = 'view';
+                await loadWorldBook(true);
+            } catch (error) {
+                errorEl.textContent = error.message || 'Could not reject entry.';
+                errorEl.classList.remove('hidden');
+            }
+        });
     }
 
     function renderEntryView(entry) {
@@ -289,13 +423,14 @@
         }
 
         titleEl.textContent = entry.title || 'Untitled';
-        subtitleEl.textContent = `${entry.category_label} • ${entry.author_character?.name || 'Unknown author'} • Created ${formatDate(entry.created_at)}`;
+        subtitleEl.textContent = `${entry.category_icon || ''} ${entry.category_label} • ${entry.author_character?.name || 'Unknown author'} • Created ${formatDate(entry.created_at)}`;
 
         const publishedHtml = entry.published ? `
             <section class="space-y-4">
                 ${entry.published.image_url ? `<img src="${escapeHtml(entry.published.image_url)}" alt="" class="max-h-72 w-full rounded border border-[#332817] object-cover">` : ''}
                 <div class="rounded border border-[#332817] bg-[#101012] p-4">
-                    <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Published Canon</div>
+                    <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400"><span>${escapeHtml(entry.published.category_icon || '')}</span><span>Published Canon</span></div>
+                    ${tagsHtml(entry.published.tags || [])}
                     <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.published.body)}</div>
                 </div>
             </section>
@@ -304,13 +439,22 @@
         const pendingHtml = entry.pending ? `
             <section class="mt-4 rounded border ${entry.has_published_content ? 'border-amber-500/30 bg-amber-500/10' : 'border-[#332817] bg-[#101012]'} p-4">
                 <div class="flex items-center justify-between gap-2">
-                    <div class="text-[10px] font-semibold uppercase tracking-[0.16em] ${entry.has_published_content ? 'text-amber-200' : 'text-[#8f8675]'}">Pending Draft</div>
+                    <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] ${entry.has_published_content ? 'text-amber-200' : 'text-[#8f8675]'}"><span>${escapeHtml(entry.pending.category_icon || '')}</span><span>Pending Draft</span></div>
                     <div class="text-[10px] text-[#8f8675]">${entry.status === 'rejected' ? 'Rejected' : 'Awaiting review'}</div>
                 </div>
                 <div class="mt-3 text-sm font-semibold text-[#f2dfb5]">${escapeHtml(entry.pending.title)}</div>
                 <div class="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.pending.category_label)}</div>
                 ${entry.pending.image_url ? `<img src="${escapeHtml(entry.pending.image_url)}" alt="" class="mt-3 max-h-64 w-full rounded border border-[#332817] object-cover">` : ''}
+                ${tagsHtml(entry.pending.tags || [])}
                 <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>
+            </section>
+        ` : '';
+
+        const rejectionHtml = entry.rejection_note ? `
+            <section class="rounded border border-red-500/30 bg-red-500/10 p-4">
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-200">Rejection Note</div>
+                <div class="mt-3 whitespace-pre-wrap leading-relaxed text-red-100">${escapeHtml(entry.rejection_note)}</div>
+                ${entry.rejected_at ? `<div class="mt-2 text-[10px] text-red-200/80">Reviewed ${escapeHtml(formatDate(entry.rejected_at))}</div>` : ''}
             </section>
         ` : '';
 
@@ -320,10 +464,12 @@
                 ${!entry.published && entry.pending ? `
                     <section class="rounded border border-[#332817] bg-[#101012] p-4">
                         <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Submission</div>
+                        ${tagsHtml(entry.pending.tags || [])}
                         <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>
                     </section>
                 ` : ''}
                 ${pendingHtml}
+                ${rejectionHtml}
             </div>
         `;
 
@@ -348,12 +494,16 @@
                 <div>
                     <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-category">Category</label>
                     <select id="world-book-form-category" name="category" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
-                        ${state.categories.map((category) => `<option value="${escapeHtml(category.key)}" ${source?.category === category.key ? 'selected' : ''}>${escapeHtml(category.label)}</option>`).join('')}
+                        ${state.categories.map((category) => `<option value="${escapeHtml(category.key)}" ${source?.category === category.key ? 'selected' : ''}>${escapeHtml(category.icon || '')} ${escapeHtml(category.label)}</option>`).join('')}
                     </select>
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-image-url">Image URL</label>
                     <input id="world-book-form-image-url" name="image_url" type="url" maxlength="2048" value="${escapeHtml(source?.image_url || '')}" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-tags">Tags</label>
+                    <input id="world-book-form-tags" name="tags_input" type="text" maxlength="1000" value="${escapeHtml(Array.isArray(source?.tags) ? source.tags.join(', ') : '')}" placeholder="coastal, trade, moon, pirates" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>
                     <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-body">Body</label>
@@ -382,6 +532,7 @@
                 title: form.title.value.trim(),
                 category: form.category.value,
                 image_url: form.image_url.value.trim(),
+                tags_input: form.tags_input.value.trim(),
                 body: form.body.value.trim(),
                 publish: form.publish ? form.publish.checked : false,
             };
@@ -414,6 +565,11 @@
 
         if (state.mode === 'form') {
             renderForm(entry);
+            return;
+        }
+
+        if (state.mode === 'reject' && entry) {
+            renderRejectForm(entry);
             return;
         }
 
@@ -462,7 +618,9 @@
             }
 
             state.categories = Array.isArray(data.categories) ? data.categories : [];
+            state.allEntriesCategory = data.all_entries_category || state.allEntriesCategory;
             state.entries = Array.isArray(data.entries) ? data.entries : [];
+            state.pendingQueue = Array.isArray(data.pending_queue) ? data.pending_queue : [];
             state.permissions = data.permissions || state.permissions;
 
             if (!visibleEntries().some((entry) => entry.id === state.selectedEntryId)) {
@@ -481,11 +639,6 @@
 
     async function approveEntry(entryId) {
         await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/${entryId}/approve`, 'POST', {});
-        await loadWorldBook(true);
-    }
-
-    async function rejectEntry(entryId) {
-        await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/${entryId}/reject`, 'POST', {});
         await loadWorldBook(true);
     }
 
@@ -588,6 +741,15 @@
         state.formMode = 'create';
         state.mode = 'form';
         render();
+    });
+    searchInput?.addEventListener('input', () => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = window.setTimeout(() => {
+            state.searchTerm = searchInput.value;
+            state.selectedEntryId = null;
+            state.mode = 'view';
+            render();
+        }, SEARCH_DEBOUNCE_MS);
     });
 
     window.addEventListener('open-world-book-window', openWorldBook);

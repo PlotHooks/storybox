@@ -32,38 +32,71 @@ class WorldBookEntry extends Model
         'category',
         'image_url',
         'body',
+        'tags',
         'draft_title',
         'draft_category',
         'draft_image_url',
         'draft_body',
+        'draft_tags',
         'published_at',
         'reviewed_at',
+        'rejection_note',
+        'rejected_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'tags' => 'array',
+            'draft_tags' => 'array',
             'published_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'deleted_at' => 'datetime',
+        ];
+    }
+
+    public static function categoryMeta(): array
+    {
+        return [
+            self::CATEGORY_LOCATION => ['label' => 'Location', 'icon' => '📍'],
+            self::CATEGORY_FACTION => ['label' => 'Faction', 'icon' => '⚔'],
+            self::CATEGORY_NPC => ['label' => 'NPC', 'icon' => '👤'],
+            self::CATEGORY_LORE => ['label' => 'Lore', 'icon' => '📜'],
+            self::CATEGORY_TIMELINE_EVENT => ['label' => 'Timeline Event', 'icon' => '🕒'],
+            self::CATEGORY_CUSTOM => ['label' => 'Custom', 'icon' => '🏷'],
         ];
     }
 
     public static function categories(): array
     {
-        return [
-            self::CATEGORY_LOCATION => 'Location',
-            self::CATEGORY_FACTION => 'Faction',
-            self::CATEGORY_NPC => 'NPC',
-            self::CATEGORY_LORE => 'Lore',
-            self::CATEGORY_TIMELINE_EVENT => 'Timeline Event',
-            self::CATEGORY_CUSTOM => 'Custom',
-        ];
+        return collect(self::categoryMeta())
+            ->map(fn (array $meta) => $meta['label'])
+            ->all();
     }
 
     public static function categoryLabel(?string $category): string
     {
-        return self::categories()[$category] ?? 'Custom';
+        return self::categoryMeta()[$category]['label'] ?? 'Custom';
+    }
+
+    public static function categoryIcon(?string $category): string
+    {
+        return self::categoryMeta()[$category]['icon'] ?? '🏷';
+    }
+
+    public static function normalizeTags(array|string|null $tags): array
+    {
+        $values = is_array($tags)
+            ? $tags
+            : preg_split('/[\n,]+/', (string) ($tags ?? ''));
+
+        return collect($values)
+            ->map(fn ($tag) => is_string($tag) ? trim(mb_strtolower($tag)) : '')
+            ->filter(fn (string $tag) => $tag !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function room(): BelongsTo

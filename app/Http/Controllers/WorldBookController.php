@@ -34,8 +34,27 @@ class WorldBookController extends Controller
             ->orderByRaw('COALESCE(title, draft_title) asc')
             ->get()
             ->filter(fn (WorldBookEntry $entry) => $this->entryVisibleToViewer($entry, $viewerCharacter, $canManage))
-            ->values()
-            ->map(fn (WorldBookEntry $entry) => $this->serializeEntry($entry, $viewerCharacter, $canManage));
+            ->values();
+
+        $serialized = $entries
+            ->map(fn (WorldBookEntry $entry) => $this->serializeEntry($entry, $viewerCharacter, $canManage))
+            ->values();
+
+        $pendingQueue = $canManage
+            ? $serialized
+                ->filter(fn (array $entry) => $entry['has_pending_draft'])
+                ->values()
+                ->map(fn (array $entry) => [
+                    'id' => $entry['id'],
+                    'title' => $entry['pending']['title'] ?? $entry['title'],
+                    'category' => $entry['pending']['category'] ?? $entry['category'],
+                    'category_label' => $entry['pending']['category_label'] ?? $entry['category_label'],
+                    'category_icon' => $entry['pending']['category_icon'] ?? $entry['category_icon'],
+                    'author_character' => $entry['author_character'],
+                    'updated_at' => $entry['updated_at'],
+                    'status' => $entry['status'],
+                ])
+            : [];
 
         return response()->json([
             'room' => [
@@ -43,15 +62,25 @@ class WorldBookController extends Controller
                 'slug' => $room->slug,
                 'name' => $room->name,
             ],
-            'categories' => collect(WorldBookEntry::categories())
-                ->map(fn (string $label, string $key) => ['key' => $key, 'label' => $label])
+            'categories' => collect(WorldBookEntry::categoryMeta())
+                ->map(fn (array $meta, string $key) => [
+                    'key' => $key,
+                    'label' => $meta['label'],
+                    'icon' => $meta['icon'],
+                ])
                 ->values(),
+            'all_entries_category' => [
+                'key' => null,
+                'label' => 'All Entries',
+                'icon' => '📚',
+            ],
             'permissions' => [
                 'can_submit' => $viewerCharacter !== null,
                 'can_manage' => $canManage,
                 'active_character_id' => $viewerCharacter?->id,
             ],
-            'entries' => $entries,
+            'pending_queue' => $pendingQueue,
+            'entries' => $serialized,
         ]);
     }
 
@@ -75,9 +104,12 @@ class WorldBookController extends Controller
                 'category' => $payload['category'],
                 'image_url' => $payload['image_url'],
                 'body' => $payload['body'],
+                'tags' => $payload['tags'],
                 'published_at' => now(),
                 'reviewed_by_character_id' => $actor->id,
                 'reviewed_at' => now(),
+                'rejection_note' => null,
+                'rejected_at' => null,
             ]);
         } else {
             $entry->fill([
@@ -86,6 +118,9 @@ class WorldBookController extends Controller
                 'draft_category' => $payload['category'],
                 'draft_image_url' => $payload['image_url'],
                 'draft_body' => $payload['body'],
+                'draft_tags' => $payload['tags'],
+                'rejection_note' => null,
+                'rejected_at' => null,
             ]);
         }
 
@@ -114,13 +149,17 @@ class WorldBookController extends Controller
                     'category' => $payload['category'],
                     'image_url' => $payload['image_url'],
                     'body' => $payload['body'],
+                    'tags' => $payload['tags'],
                     'draft_title' => null,
                     'draft_category' => null,
                     'draft_image_url' => null,
                     'draft_body' => null,
+                    'draft_tags' => null,
                     'published_at' => $entry->published_at ?? now(),
                     'reviewed_by_character_id' => $actor->id,
                     'reviewed_at' => now(),
+                    'rejection_note' => null,
+                    'rejected_at' => null,
                 ])->save();
             } else {
                 $entry->fill([
@@ -129,13 +168,16 @@ class WorldBookController extends Controller
                     'draft_category' => $payload['category'],
                     'draft_image_url' => $payload['image_url'],
                     'draft_body' => $payload['body'],
+                    'draft_tags' => $payload['tags'],
+                    'rejection_note' => null,
+                    'rejected_at' => null,
                 ])->save();
             }
         } else {
             abort_unless((int) $entry->author_character_id === (int) $actor->id, 403);
 
             if (! $entry->hasPublishedContent()) {
-                abort_unless($entry->status === WorldBookEntry::STATUS_PENDING, 403);
+                abort_unless($entry->status === WorldBookEntry::STATUS_PENDING || $entry->status === WorldBookEntry::STATUS_REJECTED, 403);
             }
 
             $entry->fill([
@@ -144,6 +186,9 @@ class WorldBookController extends Controller
                 'draft_category' => $payload['category'],
                 'draft_image_url' => $payload['image_url'],
                 'draft_body' => $payload['body'],
+                'draft_tags' => $payload['tags'],
+                'rejection_note' => null,
+                'rejected_at' => null,
             ])->save();
         }
 
@@ -168,13 +213,17 @@ class WorldBookController extends Controller
             'category' => $entry->draft_category,
             'image_url' => $entry->draft_image_url,
             'body' => $entry->draft_body,
+            'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
             'draft_title' => null,
             'draft_category' => null,
             'draft_image_url' => null,
             'draft_body' => null,
+            'draft_tags' => null,
             'published_at' => $entry->published_at ?? now(),
             'reviewed_by_character_id' => $actor->id,
             'reviewed_at' => now(),
+            'rejection_note' => null,
+            'rejected_at' => null,
         ])->save();
 
         return response()->json([
@@ -191,6 +240,12 @@ class WorldBookController extends Controller
         $actor = $this->actorCharacterForRoom($request, $room);
         abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
 
+        $validated = $request->validate([
+            'rejection_note' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $rejectionNote = $this->nullableString($validated['rejection_note'] ?? null);
+
         if ($entry->hasPublishedContent()) {
             $entry->fill([
                 'status' => WorldBookEntry::STATUS_PUBLISHED,
@@ -198,14 +253,19 @@ class WorldBookController extends Controller
                 'draft_category' => null,
                 'draft_image_url' => null,
                 'draft_body' => null,
+                'draft_tags' => null,
                 'reviewed_by_character_id' => $actor->id,
                 'reviewed_at' => now(),
+                'rejection_note' => $rejectionNote,
+                'rejected_at' => now(),
             ])->save();
         } else {
             $entry->fill([
                 'status' => WorldBookEntry::STATUS_REJECTED,
                 'reviewed_by_character_id' => $actor->id,
                 'reviewed_at' => now(),
+                'rejection_note' => $rejectionNote,
+                'rejected_at' => now(),
             ])->save();
         }
 
@@ -235,6 +295,9 @@ class WorldBookController extends Controller
             'category' => ['required', 'string', 'in:' . implode(',', array_keys(WorldBookEntry::categories()))],
             'image_url' => ['nullable', 'url:http,https', 'max:2048'],
             'body' => ['required', 'string', 'max:20000'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['nullable', 'string', 'max:50'],
+            'tags_input' => ['nullable', 'string', 'max:1000'],
         ]);
 
         return [
@@ -242,6 +305,7 @@ class WorldBookController extends Controller
             'category' => $validated['category'],
             'image_url' => $this->nullableString($validated['image_url'] ?? null),
             'body' => trim($validated['body']),
+            'tags' => WorldBookEntry::normalizeTags($validated['tags'] ?? ($validated['tags_input'] ?? [])),
         ];
     }
 
@@ -265,17 +329,23 @@ class WorldBookController extends Controller
         $isAuthor = $viewerCharacter !== null
             && (int) $entry->author_character_id === (int) $viewerCharacter->id;
         $canSeeDraft = $canManage || $isAuthor;
+        $canSeeRejectionNote = $canManage || $isAuthor;
         $listCategory = $entry->category ?? ($canSeeDraft ? $entry->draft_category : null);
         $listTitle = $entry->title ?? ($canSeeDraft ? $entry->draft_title : null);
+        $listTags = $entry->hasPublishedContent()
+            ? WorldBookEntry::normalizeTags($entry->tags ?? [])
+            : ($canSeeDraft ? WorldBookEntry::normalizeTags($entry->draft_tags ?? []) : []);
 
         return [
             'id' => $entry->id,
             'status' => $entry->status,
             'category' => $listCategory,
             'category_label' => WorldBookEntry::categoryLabel($listCategory),
+            'category_icon' => WorldBookEntry::categoryIcon($listCategory),
             'title' => $listTitle,
             'body' => $entry->hasPublishedContent() ? $entry->body : ($canSeeDraft ? $entry->draft_body : null),
             'image_url' => $entry->hasPublishedContent() ? $entry->image_url : ($canSeeDraft ? $entry->draft_image_url : null),
+            'tags' => $listTags,
             'has_published_content' => $entry->hasPublishedContent(),
             'has_pending_draft' => $entry->hasPendingDraft(),
             'author_character' => [
@@ -291,23 +361,47 @@ class WorldBookController extends Controller
                 'title' => $entry->title,
                 'category' => $entry->category,
                 'category_label' => WorldBookEntry::categoryLabel($entry->category),
+                'category_icon' => WorldBookEntry::categoryIcon($entry->category),
                 'image_url' => $entry->image_url,
                 'body' => $entry->body,
+                'tags' => WorldBookEntry::normalizeTags($entry->tags ?? []),
             ] : null,
             'pending' => $canSeeDraft && $entry->hasPendingDraft() ? [
                 'title' => $entry->draft_title,
                 'category' => $entry->draft_category,
                 'category_label' => WorldBookEntry::categoryLabel($entry->draft_category),
+                'category_icon' => WorldBookEntry::categoryIcon($entry->draft_category),
                 'image_url' => $entry->draft_image_url,
                 'body' => $entry->draft_body,
+                'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
             ] : null,
+            'rejection_note' => $canSeeRejectionNote ? $entry->rejection_note : null,
+            'rejected_at' => $canSeeRejectionNote ? optional($entry->rejected_at)->toIso8601String() : null,
             'viewer_can_edit' => $canManage || $isAuthor,
             'viewer_can_manage' => $canManage,
+            'search_text' => $this->searchTextForEntry($entry, $canSeeDraft),
             'created_at' => optional($entry->created_at)->toIso8601String(),
             'updated_at' => optional($entry->updated_at)->toIso8601String(),
             'published_at' => optional($entry->published_at)->toIso8601String(),
             'reviewed_at' => optional($entry->reviewed_at)->toIso8601String(),
         ];
+    }
+
+    private function searchTextForEntry(WorldBookEntry $entry, bool $canSeeDraft): string
+    {
+        $segments = [
+            $entry->title,
+            $entry->body,
+            implode(' ', WorldBookEntry::normalizeTags($entry->tags ?? [])),
+        ];
+
+        if ($canSeeDraft) {
+            $segments[] = $entry->draft_title;
+            $segments[] = $entry->draft_body;
+            $segments[] = implode(' ', WorldBookEntry::normalizeTags($entry->draft_tags ?? []));
+        }
+
+        return trim(implode(' ', array_filter($segments, fn ($value) => is_string($value) && trim($value) !== '')));
     }
 
     private function viewerCharacterForRoom(Room $room): ?Character
