@@ -6,6 +6,7 @@ use App\Http\Controllers\CharacterProfileController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomManagementController;
+use App\Http\Controllers\WorldBookController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/chat');
@@ -85,6 +86,12 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::delete('/rooms/{room:slug}/blacklist/{character}', [RoomManagementController::class, 'removeBlacklist'])->name('rooms.blacklist.destroy');
     Route::post('/rooms/{room:slug}/moderators', [RoomManagementController::class, 'addModerator'])->name('rooms.moderators.store');
     Route::delete('/rooms/{room:slug}/moderators/{character}', [RoomManagementController::class, 'removeModerator'])->name('rooms.moderators.destroy');
+    Route::get('/rooms/{room:slug}/world-book', [WorldBookController::class, 'index'])->name('rooms.world-book.index');
+    Route::post('/rooms/{room:slug}/world-book', [WorldBookController::class, 'store'])->name('rooms.world-book.store');
+    Route::patch('/rooms/{room:slug}/world-book/{entry}', [WorldBookController::class, 'update'])->name('rooms.world-book.update');
+    Route::post('/rooms/{room:slug}/world-book/{entry}/approve', [WorldBookController::class, 'approve'])->name('rooms.world-book.approve');
+    Route::post('/rooms/{room:slug}/world-book/{entry}/reject', [WorldBookController::class, 'reject'])->name('rooms.world-book.reject');
+    Route::delete('/rooms/{room:slug}/world-book/{entry}', [WorldBookController::class, 'destroy'])->name('rooms.world-book.destroy');
 
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
 

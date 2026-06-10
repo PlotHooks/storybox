@@ -24,7 +24,11 @@
                         <div class="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Room Tools</div>
                         <div class="mt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
                             <a href="{{ route('rooms.profile.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Profile</a>
-                            <button type="button" data-context-tool="world" class="context-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
+                            @if ($room->isPublicRoom())
+                                <button type="button" id="open-world-book-btn" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
+                            @else
+                                <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">World Book</button>
+                            @endif
                             <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
                             <button
                                 type="button"
@@ -71,21 +75,6 @@
                         </div>
                     @endif
 
-                    <div data-context-panel="world" class="context-tool-panel rounded-md border border-[#332817] bg-[#101012] p-3">
-                        <div class="flex items-center justify-between gap-2">
-                            <h3 class="text-sm font-semibold text-[#f2dfb5]">World Book</h3>
-                            <span class="text-[10px] uppercase tracking-[0.18em] text-[#8f8675]">Draft</span>
-                        </div>
-                        <p class="mt-2 leading-relaxed text-[#8f8675]">
-                            Shared lore, locations, NPC notes, and timeline anchors will live here.
-                        </p>
-                        <div class="mt-3 space-y-2">
-                            <div class="rounded border border-[#2a241a] bg-[#0b0b0c] p-2">
-                                <div class="text-[11px] font-semibold text-amber-300">Sample entry</div>
-                                <p class="mt-1 leading-relaxed text-[#8f8675]">A short room-specific note can be pinned for quick reference during play.</p>
-                            </div>
-                        </div>
-                    </div>
                     <div data-context-panel="notes" class="context-tool-panel hidden rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Pinned Notes are coming soon.
                     </div>
@@ -1112,9 +1101,13 @@
         sortAllRooms();
         applyRoomFilter();
 
+        document.getElementById('open-world-book-btn')?.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('open-world-book-window'));
+        });
+
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
         const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));
-        const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : 'world'));
+        const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : ($room->isPublicRoom() ? 'follow' : 'notes')));
         function showContextTool(tool) {
             contextToolButtons.forEach((button) => {
                 const isActiveTool = button.dataset.contextTool === tool;
@@ -2067,4 +2060,8 @@ setInterval(() => {
 
         if (container) container.scrollTop = container.scrollHeight;
     </script>
+
+    @if ($room->isPublicRoom())
+        <x-world-book-window :room="$room" />
+    @endif
 </x-app-layout>
