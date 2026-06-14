@@ -6,6 +6,7 @@ use App\Models\Character;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Models\UserRoomState;
+use App\Models\RoomNotice;
 use App\Models\WorldBookEntry;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -160,6 +161,11 @@ class Room extends Model
     public function worldBookEntries(): HasMany
     {
         return $this->hasMany(WorldBookEntry::class);
+    }
+
+    public function roomNotices(): HasMany
+    {
+        return $this->hasMany(RoomNotice::class);
     }
 
     /*

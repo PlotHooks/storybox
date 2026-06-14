@@ -3,6 +3,7 @@
 use App\Http\Controllers\CharacterBlockController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\CharacterProfileController;
+use App\Http\Controllers\NoticeBoardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomManagementController;
@@ -92,6 +93,10 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms/{room:slug}/world-book/{entry}/approve', [WorldBookController::class, 'approve'])->name('rooms.world-book.approve');
     Route::post('/rooms/{room:slug}/world-book/{entry}/reject', [WorldBookController::class, 'reject'])->name('rooms.world-book.reject');
     Route::delete('/rooms/{room:slug}/world-book/{entry}', [WorldBookController::class, 'destroy'])->name('rooms.world-book.destroy');
+    Route::get('/rooms/{room:slug}/notice-board', [NoticeBoardController::class, 'index'])->name('rooms.notice-board.index');
+    Route::post('/rooms/{room:slug}/notice-board', [NoticeBoardController::class, 'store'])->name('rooms.notice-board.store');
+    Route::patch('/rooms/{room:slug}/notice-board/{notice}', [NoticeBoardController::class, 'update'])->name('rooms.notice-board.update');
+    Route::delete('/rooms/{room:slug}/notice-board/{notice}', [NoticeBoardController::class, 'destroy'])->name('rooms.notice-board.destroy');
 
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
 
