@@ -829,6 +829,7 @@
         centerWindow();
         windowEl.classList.remove('hidden');
         setWindowOpenState(true);
+        window.dispatchEvent(new CustomEvent('room-tool-opened', { detail: { tool: 'world_book' } }));
         loadWorldBook(true);
     }
 

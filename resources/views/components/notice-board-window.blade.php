@@ -533,6 +533,7 @@
         windowEl.classList.remove('hidden');
         windowEl.style.zIndex = '60';
         setWindowOpenState(true);
+        window.dispatchEvent(new CustomEvent('room-tool-opened', { detail: { tool: 'notice_board' } }));
         fetchBoard().then(render).catch(() => {
             formBodyEl.innerHTML = '<div class="text-red-300">Failed to load the notice board.</div>';
         });

@@ -12,6 +12,7 @@ use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
+use App\Services\RoomToolIndicatorService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -164,6 +165,10 @@ class RoomController extends Controller
                 ->values();
         }
 
+        $roomToolIndicators = $room->isPublicRoom()
+            ? app(RoomToolIndicatorService::class)->indicatorsFor(Auth::user(), $room)
+            : [];
+
         return view('rooms.show', compact(
             'room',
             'messages',
@@ -176,7 +181,8 @@ class RoomController extends Controller
             'roomModerators',
             'roomWhitelist',
             'roomBlacklist',
-            'isFollowingRoom'
+            'isFollowingRoom',
+            'roomToolIndicators'
         ));
     }
 

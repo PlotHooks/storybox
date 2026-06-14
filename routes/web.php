@@ -4,7 +4,9 @@ use App\Http\Controllers\CharacterBlockController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\CharacterProfileController;
 use App\Http\Controllers\NoticeBoardController;
+use App\Http\Controllers\PinnedNotesController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RoomToolReadController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomManagementController;
 use App\Http\Controllers\WorldBookController;
@@ -98,6 +100,11 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms/{room:slug}/notice-board', [NoticeBoardController::class, 'store'])->name('rooms.notice-board.store');
     Route::patch('/rooms/{room:slug}/notice-board/{notice}', [NoticeBoardController::class, 'update'])->name('rooms.notice-board.update');
     Route::delete('/rooms/{room:slug}/notice-board/{notice}', [NoticeBoardController::class, 'destroy'])->name('rooms.notice-board.destroy');
+    Route::get('/rooms/{room:slug}/pinned-notes', [PinnedNotesController::class, 'index'])->name('rooms.pinned-notes.index');
+    Route::post('/rooms/{room:slug}/pinned-notes', [PinnedNotesController::class, 'store'])->name('rooms.pinned-notes.store');
+    Route::patch('/rooms/{room:slug}/pinned-notes/{note}', [PinnedNotesController::class, 'update'])->name('rooms.pinned-notes.update');
+    Route::delete('/rooms/{room:slug}/pinned-notes/{note}', [PinnedNotesController::class, 'destroy'])->name('rooms.pinned-notes.destroy');
+    Route::post('/rooms/{room:slug}/tool-reads/{tool}', [RoomToolReadController::class, 'store'])->name('rooms.tool-reads.store');
 
     Route::get('/rooms/sidebar/json', [RoomController::class, 'sidebar'])->name('rooms.sidebar');
 

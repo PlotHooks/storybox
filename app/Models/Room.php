@@ -7,6 +7,7 @@ use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Models\UserRoomState;
 use App\Models\RoomNotice;
+use App\Models\RoomPinnedNote;
 use App\Models\WorldBookEntry;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -166,6 +167,11 @@ class Room extends Model
     public function roomNotices(): HasMany
     {
         return $this->hasMany(RoomNotice::class);
+    }
+
+    public function roomPinnedNotes(): HasMany
+    {
+        return $this->hasMany(RoomPinnedNote::class);
     }
 
     /*
