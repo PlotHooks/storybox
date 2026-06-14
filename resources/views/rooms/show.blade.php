@@ -25,13 +25,13 @@
                         <div class="mt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
                             <a href="{{ route('rooms.profile.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Profile</a>
                             @if ($room->isPublicRoom())
-                                <button type="button" id="open-world-book-btn" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">World Book</button>
+                                <button type="button" id="open-world-book-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">World Book</button>
                             @else
                                 <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">World Book</button>
                             @endif
                             <button type="button" data-context-tool="notes" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Pinned Notes</button>
                             @if ($room->isPublicRoom())
-                                <button type="button" id="open-notice-board-btn" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">Notice Board</button>
+                                <button type="button" id="open-notice-board-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Notice Board</button>
                             @else
                                 <button
                                     type="button"
@@ -1105,12 +1105,30 @@
         sortAllRooms();
         applyRoomFilter();
 
-        document.getElementById('open-world-book-btn')?.addEventListener('click', () => {
+        const worldBookToolButton = document.getElementById('open-world-book-btn');
+        const noticeBoardToolButton = document.getElementById('open-notice-board-btn');
+
+        function setRoomWindowToolActive(button, isActive) {
+            if (!button) return;
+            button.className = isActive
+                ? 'room-window-tool-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left text-amber-200 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]'
+                : 'room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]';
+        }
+
+        worldBookToolButton?.addEventListener('click', () => {
             window.dispatchEvent(new CustomEvent('open-world-book-window'));
         });
 
-        document.getElementById('open-notice-board-btn')?.addEventListener('click', () => {
+        noticeBoardToolButton?.addEventListener('click', () => {
             window.dispatchEvent(new CustomEvent('open-notice-board-window'));
+        });
+
+        window.addEventListener('world-book-window-state', (event) => {
+            setRoomWindowToolActive(worldBookToolButton, !!event.detail?.open);
+        });
+
+        window.addEventListener('notice-board-window-state', (event) => {
+            setRoomWindowToolActive(noticeBoardToolButton, !!event.detail?.open);
         });
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));

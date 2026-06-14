@@ -523,9 +523,16 @@
             : 'w-full rounded border border-dashed border-[#332817] bg-[#101012] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f675b] cursor-not-allowed opacity-70';
     }
 
+    function setWindowOpenState(isOpen) {
+        window.dispatchEvent(new CustomEvent('notice-board-window-state', {
+            detail: { open: isOpen },
+        }));
+    }
+
     function openWindow() {
         windowEl.classList.remove('hidden');
         windowEl.style.zIndex = '60';
+        setWindowOpenState(true);
         fetchBoard().then(render).catch(() => {
             formBodyEl.innerHTML = '<div class="text-red-300">Failed to load the notice board.</div>';
         });
@@ -533,6 +540,7 @@
 
     function closeWindow() {
         windowEl.classList.add('hidden');
+        setWindowOpenState(false);
     }
 
     function clampWindowToViewport() {

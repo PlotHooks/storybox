@@ -729,14 +729,26 @@
         setWindowGeometry(position);
     }
 
+    function setWindowOpenState(isOpen) {
+        window.dispatchEvent(new CustomEvent('world-book-window-state', {
+            detail: { open: isOpen },
+        }));
+    }
+
+    function closeWorldBook() {
+        windowEl.classList.add('hidden');
+        setWindowOpenState(false);
+    }
+
     function openWorldBook() {
         centerWindow();
         windowEl.classList.remove('hidden');
+        setWindowOpenState(true);
         loadWorldBook(true);
     }
 
     refreshBtn?.addEventListener('click', () => loadWorldBook(true));
-    closeBtn?.addEventListener('click', () => windowEl.classList.add('hidden'));
+    closeBtn?.addEventListener('click', closeWorldBook);
     newEntryBtn?.addEventListener('click', () => {
         state.formMode = 'create';
         state.mode = 'form';
