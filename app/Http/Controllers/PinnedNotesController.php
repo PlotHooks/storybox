@@ -169,8 +169,10 @@ class PinnedNotesController extends Controller
             'accent_color_label' => RoomPinnedNote::accentColorLabel($note->accent_color),
             'author_character' => [
                 'id' => $note->authorCharacter?->id,
+                'user_id' => $note->authorCharacter?->user_id,
                 'name' => $note->authorCharacter?->name,
                 'handle' => $note->authorCharacter?->public_handle,
+                'avatar' => $note->authorCharacter?->externalAvatarUrl(),
             ],
             'viewer_can_edit' => $canManage,
             'viewer_can_manage' => $canManage,

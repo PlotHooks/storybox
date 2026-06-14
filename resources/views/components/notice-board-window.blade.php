@@ -291,6 +291,27 @@
         });
     }
 
+    function characterTriggerHtml(character, nameClass = '', fallbackName = 'Unknown') {
+        const characterId = parseInt(character?.id || 0, 10) || 0;
+        const userId = parseInt(character?.user_id || 0, 10) || 0;
+        const name = String(character?.name || fallbackName || 'Unknown').trim() || 'Unknown';
+        const handle = String(character?.handle || '').trim();
+        const avatar = String(character?.avatar || '').trim();
+
+        if (!characterId) {
+            return `<span class="${nameClass}">${escapeHtml(name)}</span>`;
+        }
+
+        return `<button type="button"
+            class="char-trigger ${nameClass} rounded-sm text-left hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            data-character-id="${characterId}"
+            data-user-id="${userId || ''}"
+            data-character-name="${escapeHtml(name)}"
+            data-character-handle="${escapeHtml(handle)}"
+            data-character-avatar="${escapeHtml(avatar)}"
+        >${escapeHtml(name)}</button>`;
+    }
+
     function renderCardList() {
         const items = visibleNotices();
 
@@ -323,7 +344,7 @@
                         ${notice.expires_at ? `<div><span class="text-[#7f7568]">Expires:</span> ${escapeHtml(formatDate(notice.expires_at))}</div>` : ''}
                     </div>
                     <div class="mt-4 border-t border-[#2d271f] pt-3 text-[11px] text-[#8f8675]">
-                        <div class="font-semibold text-[#e8d2a0]">Posted by ${escapeHtml(notice.author_character?.name || 'Unknown')}</div>
+                        <div class="font-semibold text-[#e8d2a0]">Posted by ${characterTriggerHtml(notice.author_character, 'text-[#e8d2a0] font-semibold', 'Unknown')}</div>
                         <div class="mt-1 text-[11px] text-[#8f8675]">Posted ${escapeHtml(relativeDate(notice.created_at) || formatDate(notice.created_at))} <span class="px-1 text-[#6f675a]">•</span> Updated ${escapeHtml(relativeDate(notice.updated_at) || formatDate(notice.updated_at))}</div>
                     </div>
                     ${(notice.viewer_can_edit) ? `

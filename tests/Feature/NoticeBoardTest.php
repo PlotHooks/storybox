@@ -57,6 +57,8 @@ class NoticeBoardTest extends TestCase
             ->assertJsonPath('notices.0.id', $activeNotice->id)
             ->assertJsonPath('notices.1.id', $closedNotice->id)
             ->assertJsonPath('notices.0.author_character.name', 'Owner')
+            ->assertJsonPath('notices.0.author_character.user_id', $ownerUser->id)
+            ->assertJsonPath('notices.0.author_character.avatar', null)
             ->assertJsonPath('notices.0.accent_color', RoomNotice::ACCENT_BLUE)
             ->assertJsonPath('notices.0.accent_color_label', 'Blue');
 
@@ -83,6 +85,7 @@ class NoticeBoardTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('notice.author_character.name', 'Leaf')
+            ->assertJsonPath('notice.author_character.user_id', $participantUser->id)
             ->assertJsonPath('notice.status', RoomNotice::STATUS_ACTIVE)
             ->assertJsonPath('notice.accent_color', RoomNotice::ACCENT_RED);
 

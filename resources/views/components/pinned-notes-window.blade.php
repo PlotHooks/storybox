@@ -204,12 +204,30 @@
         return accentTone(note.accent_color) || categoryTone(note.category);
     }
 
+    function characterTriggerHtml(character, nameClass = '', fallbackName = 'Unknown') {
+        const characterId = parseInt(character?.id || 0, 10) || 0;
+        const userId = parseInt(character?.user_id || 0, 10) || 0;
+        const name = String(character?.name || fallbackName || 'Unknown').trim() || 'Unknown';
+        const handle = String(character?.handle || '').trim();
+        const avatar = String(character?.avatar || '').trim();
+
+        if (!characterId) {
+            return `<span class="${nameClass}">${escapeHtml(name)}</span>`;
+        }
+
+        return `<button type="button"
+            class="char-trigger ${nameClass} rounded-sm text-left hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            data-character-id="${characterId}"
+            data-user-id="${userId || ''}"
+            data-character-name="${escapeHtml(name)}"
+            data-character-handle="${escapeHtml(handle)}"
+            data-character-avatar="${escapeHtml(avatar)}"
+        >${escapeHtml(name)}</button>`;
+    }
+
     function metadataRow(note) {
         const items = [];
 
-        if (note.author_character?.name) {
-            items.push(`By ${escapeHtml(note.author_character.name)}`);
-        }
 
         if (note.created_at) {
             items.push(`Created ${escapeHtml(formatDate(note.created_at))}`);
@@ -297,7 +315,7 @@
                     <div class="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
                         ${expiresBadge}
                     </div>
-                    <div class="mt-4 border-t border-white/5 pt-3 text-[10px] leading-relaxed text-slate-500">${metadataRow(note)}</div>
+                    <div class="mt-4 border-t border-white/5 pt-3 text-[10px] leading-relaxed text-slate-500"><div class="font-semibold text-slate-300">Posted by ${characterTriggerHtml(note.author_character, 'text-slate-300 font-semibold', 'Unknown')}</div><div class="mt-1">${metadataRow(note)}</div></div>
                     ${actionButtons}
                 </article>
             `;

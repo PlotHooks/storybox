@@ -184,8 +184,10 @@ class NoticeBoardController extends Controller
             'accent_color_label' => RoomNotice::accentColorLabel($notice->accent_color),
             'author_character' => [
                 'id' => $notice->authorCharacter?->id,
+                'user_id' => $notice->authorCharacter?->user_id,
                 'name' => $notice->authorCharacter?->name,
                 'handle' => $notice->authorCharacter?->public_handle,
+                'avatar' => $notice->authorCharacter?->externalAvatarUrl(),
             ],
             'viewer_can_edit' => $canManage || $isAuthor,
             'viewer_can_manage' => $canManage,

@@ -48,6 +48,8 @@ class PinnedNotesTest extends TestCase
             ->assertJsonPath('permissions.can_manage', false)
             ->assertJsonPath('notes.0.id', $activeNote->id)
             ->assertJsonPath('notes.0.author_character.name', 'Owner')
+            ->assertJsonPath('notes.0.author_character.user_id', $ownerUser->id)
+            ->assertJsonPath('notes.0.author_character.avatar', null)
             ->assertJsonPath('notes.0.accent_color', RoomPinnedNote::ACCENT_BLUE)
             ->assertJsonPath('notes.0.accent_color_label', 'Blue')
             ->assertJsonCount(8, 'accent_colors');
@@ -74,6 +76,7 @@ class PinnedNotesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('note.status', RoomPinnedNote::STATUS_ACTIVE)
             ->assertJsonPath('note.author_character.name', 'Owner')
+            ->assertJsonPath('note.author_character.user_id', $ownerUser->id)
             ->assertJsonPath('note.accent_color', RoomPinnedNote::ACCENT_GREEN);
 
         $this->assertDatabaseHas('room_pinned_notes', [
