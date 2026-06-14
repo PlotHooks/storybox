@@ -26,7 +26,7 @@ class RoomProfileTest extends TestCase
             ->assertSee('This room profile has not been configured yet.')
             ->assertDontSee('Summary')
             ->assertDontSee('Joining Information')
-            ->assertDontSee('Rules')
+            ->assertDontSee('>Rules<', false)
             ->assertDontSee('Edit Profile');
     }
 
@@ -40,7 +40,12 @@ class RoomProfileTest extends TestCase
             'profile_banner_url' => 'https://cdn.example.com/room-banner.png',
             'profile_summary' => "A tense political salon for city intrigue.\nBring a character with opinions.",
             'profile_joining_information' => '',
-            'profile_rules' => "Stay in tone.\nRespect scene boundaries.",
+        ]);
+
+        $room->roomRules()->create([
+            'title' => 'Stay in tone',
+            'body' => 'Respect scene boundaries.',
+            'sort_order' => 1,
         ]);
 
         $this->actingAs($viewerUser)
@@ -51,7 +56,7 @@ class RoomProfileTest extends TestCase
             ->assertSee($room->name)
             ->assertSee('A tense political salon for city intrigue.')
             ->assertSee('Bring a character with opinions.')
-            ->assertSee('Stay in tone.')
+            ->assertSee('Stay in tone')
             ->assertSee('Respect scene boundaries.')
             ->assertDontSee('Joining Information');
     }
@@ -76,7 +81,7 @@ class RoomProfileTest extends TestCase
             ->assertOk()
             ->assertSee(route('rooms.profile.frame', $room->slug))
             ->assertDontSee('Joining Information')
-            ->assertDontSee('Rules')
+            ->assertDontSee('>Rules<', false)
             ->assertSee('Back to Room');
 
         $this->actingAs($viewerUser)
@@ -123,7 +128,8 @@ class RoomProfileTest extends TestCase
             ->assertOk()
             ->assertSee('Edit Room Profile')
             ->assertSee('Advanced Profile')
-            ->assertSee('Custom HTML');
+            ->assertSee('Custom HTML')
+            ->assertSee('Rules tool');
 
         $this->actingAs($moderatorUser)
             ->withSession(['active_character_id' => $moderatorCharacter->id])
@@ -155,7 +161,6 @@ class RoomProfileTest extends TestCase
             'profile_banner_url' => 'https://cdn.example.com/profile-banner.png',
             'profile_summary' => 'Owner summary',
             'profile_joining_information' => 'Join with a courtly character.',
-            'profile_rules' => 'No godmodding.',
             'profile_mode' => Room::PROFILE_MODE_ADVANCED,
             'profile_custom_html' => '<section>Custom room profile</section>',
             'profile_custom_css' => 'body { color: #fff; }',
@@ -192,7 +197,6 @@ class RoomProfileTest extends TestCase
             'profile_banner_url' => 'https://cdn.example.com/profile-banner.png',
             'profile_summary' => 'Admin summary',
             'profile_joining_information' => 'Join with a courtly character.',
-            'profile_rules' => 'No godmodding.',
             'profile_mode' => Room::PROFILE_MODE_ADVANCED,
             'profile_custom_html' => '<section>Custom room profile</section>',
             'profile_custom_css' => 'body { color: #fff; }',

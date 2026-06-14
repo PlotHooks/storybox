@@ -73,14 +73,14 @@
                         <div class="mt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
                             <a href="{{ route('rooms.profile.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room Profile</a>
                             @if ($room->isPublicRoom())
+                                <button type="button" id="open-rules-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Rules</button>
+                            @else
+                                <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Rules</button>
+                            @endif
+                            @if ($room->isPublicRoom())
                                 <button type="button" id="open-world-book-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]{{ !empty($roomToolIndicators['world_book']) ? ' room-tool-update-glow' : '' }}">World Book</button>
                             @else
                                 <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">World Book</button>
-                            @endif
-                            @if ($room->isPublicRoom())
-                                <button type="button" id="open-pinned-notes-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]{{ !empty($roomToolIndicators['pinned_notes']) ? ' room-tool-update-glow' : '' }}">Pinned Notes</button>
-                            @else
-                                <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Pinned Notes</button>
                             @endif
                             @if ($room->isPublicRoom())
                                 <button type="button" id="open-notice-board-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]{{ !empty($roomToolIndicators['notice_board']) ? ' room-tool-update-glow' : '' }}">Notice Board</button>
@@ -93,6 +93,11 @@
                                 >
                                     Notice Board
                                 </button>
+                            @endif
+                            @if ($room->isPublicRoom())
+                                <button type="button" id="open-pinned-notes-btn" class="room-window-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]{{ !empty($roomToolIndicators['pinned_notes']) ? ' room-tool-update-glow' : '' }}">Pinned Notes</button>
+                            @else
+                                <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Pinned Notes</button>
                             @endif
                         </div>
                     </div>
@@ -110,7 +115,7 @@
                         </div>
                     @endif
                     <div class="px-1 text-[10px] text-[#6f675b]">
-                        Notice Board: Live
+                        Rules govern the room. Pinned Notes highlight what is currently important.
                     </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-[#d6c8ad]">
@@ -131,10 +136,13 @@
                         </div>
                     @endif
                     <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
+                        Rules opens as a floating room window for official governance. Room Profile renders the same rules automatically.
+                    </div>
+                    <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
                         Notice Board opens as a floating room window for hooks, jobs, rumors, and events.
                     </div>
                     <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Pinned Notes opens as a floating room window for official room information.
+                        Pinned Notes opens as a floating room window for what is currently important.
                     </div>
                     @if ($room->isPublicRoom())
                         <div data-context-panel="follow" class="context-tool-panel hidden rounded-md border border-[#332817] bg-[#101012] p-3">
@@ -1156,20 +1164,24 @@
         sortAllRooms();
         applyRoomFilter();
 
+        const rulesToolButton = document.getElementById('open-rules-btn');
         const worldBookToolButton = document.getElementById('open-world-book-btn');
         const pinnedNotesToolButton = document.getElementById('open-pinned-notes-btn');
         const noticeBoardToolButton = document.getElementById('open-notice-board-btn');
         const roomToolButtons = {
+            rules: rulesToolButton,
             world_book: worldBookToolButton,
             pinned_notes: pinnedNotesToolButton,
             notice_board: noticeBoardToolButton,
         };
         const roomToolIndicatorState = Object.assign({
+            rules: false,
             world_book: false,
             pinned_notes: false,
             notice_board: false,
         }, @json($roomToolIndicators ?? []));
         const roomToolOpenState = {
+            rules: false,
             world_book: false,
             pinned_notes: false,
             notice_board: false,
@@ -1228,6 +1240,10 @@
 
         Object.keys(roomToolButtons).forEach(renderRoomWindowToolButton);
 
+        rulesToolButton?.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('open-rules-window'));
+        });
+
         worldBookToolButton?.addEventListener('click', () => {
             window.dispatchEvent(new CustomEvent('open-world-book-window'));
         });
@@ -1244,6 +1260,10 @@
             const tool = event.detail?.tool;
             if (!tool || !(tool in roomToolButtons)) return;
             markRoomToolSeen(tool);
+        });
+
+        window.addEventListener('rules-window-state', (event) => {
+            setRoomWindowToolOpenState('rules', !!event.detail?.open);
         });
 
         window.addEventListener('world-book-window-state', (event) => {
@@ -2215,6 +2235,7 @@ setInterval(() => {
     </script>
 
     @if ($room->isPublicRoom())
+        <x-rules-window :room="$room" />
         <x-world-book-window :room="$room" />
         <x-pinned-notes-window :room="$room" />
         <x-notice-board-window :room="$room" />

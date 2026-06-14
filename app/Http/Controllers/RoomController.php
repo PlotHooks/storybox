@@ -233,6 +233,8 @@ class RoomController extends Controller
             ]);
         }
 
+        $room->loadMissing('roomRules');
+
         return view('rooms.profile-show', [
             'room' => $room,
             'canManageRoom' => $canManageRoom,

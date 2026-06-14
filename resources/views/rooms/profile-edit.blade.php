@@ -39,7 +39,7 @@
                         <input type="radio" name="profile_mode" value="{{ \App\Models\Room::PROFILE_MODE_STANDARD }}" data-profile-mode-toggle class="mt-1 border-[#5a431f] bg-[#141416] text-amber-500 focus:ring-amber-500" {{ $selectedProfileMode === \App\Models\Room::PROFILE_MODE_STANDARD ? 'checked' : '' }}>
                         <span>
                             <span class="block font-semibold text-[#f2dfb5]">Standard Profile</span>
-                            <span class="mt-1 block text-xs leading-relaxed text-[#8f8675]">Uses the existing banner, summary, joining information, and rules layout.</span>
+                            <span class="mt-1 block text-xs leading-relaxed text-[#8f8675]">Uses the existing banner, summary, joining information, and official Rules tool output.</span>
                         </span>
                     </label>
 
@@ -89,15 +89,9 @@
                     >{{ old('profile_joining_information', $room->profile_joining_information) }}</textarea>
                 </label>
 
-                <label class="mt-4 block text-sm text-[#d6c8ad]">
-                    Rules
-                    <textarea
-                        name="profile_rules"
-                        rows="8"
-                        maxlength="4000"
-                        class="mt-1 w-full rounded border border-[#332817] bg-[#141416] px-3 py-2 text-sm text-[#f2dfb5]"
-                    >{{ old('profile_rules', $room->profile_rules) }}</textarea>
-                </label>
+                <div class="mt-4 rounded-xl border border-dashed border-[#4b3a20] bg-[#111113] px-4 py-3 text-sm text-[#cbb891]">
+                    Official room rules now come from the in-room <span class="font-semibold text-[#f2dfb5]">Rules</span> tool. Manage them there so the Room Profile and Rules window stay in sync.
+                </div>
             </section>
 
             <section data-profile-mode-section="{{ \App\Models\Room::PROFILE_MODE_ADVANCED }}" class="rounded-2xl border border-[#2a241a] bg-[#0b0b0c] p-6" {{ $selectedProfileMode === \App\Models\Room::PROFILE_MODE_ADVANCED ? '' : 'hidden' }}>

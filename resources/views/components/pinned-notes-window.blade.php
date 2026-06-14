@@ -4,69 +4,69 @@
 
 <div
     id="pinned-notes-window"
-    class="hidden fixed z-50 bg-[#0b0d10] border rounded-md shadow-[0_28px_72px_rgba(0,0,0,0.62)] flex flex-col overflow-hidden ring-1 ring-slate-200/10"
-    style="width: min(1480px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); left: 28px; top: 28px; border-width: 3px; border-color: #273241;"
+    class="hidden fixed z-50 bg-[#0b0b0c] border rounded-md shadow-[0_28px_72px_rgba(0,0,0,0.62)] flex flex-col overflow-hidden ring-1 ring-amber-500/10"
+    style="width: min(1480px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); left: 28px; top: 28px; border-width: 4px; border-color: #3a2d1b;"
 >
-    <div id="pinned-notes-drag-handle" class="cursor-move flex items-center justify-between px-3 py-2 border-b border-[#273241] bg-[#11161d] shadow-[inset_0_-1px_0_rgba(148,163,184,0.05)]">
+    <div id="pinned-notes-drag-handle" class="cursor-move flex items-center justify-between px-3 py-2 border-b border-[#3a2d1b] bg-[#111114] shadow-[inset_0_-1px_0_rgba(245,158,11,0.04)]">
         <div>
-            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Room Reference</div>
-            <div class="text-sm text-slate-100 font-semibold">Pinned Notes</div>
+            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Room Reference</div>
+            <div class="text-sm text-[#f2dfb5] font-semibold">Pinned Notes</div>
         </div>
         <div class="flex items-center gap-2">
-            <button id="pinned-notes-refresh-btn" type="button" class="rounded border border-[#334155] bg-[#0b0d10] px-2 py-1 text-slate-400 hover:border-slate-300/40 hover:bg-[#141a22] hover:text-slate-100 text-sm" title="Refresh">↻</button>
-            <button id="pinned-notes-close-btn" type="button" class="rounded border border-[#334155] bg-[#0b0d10] px-2 py-1 text-slate-400 hover:border-slate-300/40 hover:bg-[#141a22] hover:text-slate-100 text-sm" title="Close">✕</button>
+            <button id="pinned-notes-refresh-btn" type="button" class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] text-sm" title="Refresh">↻</button>
+            <button id="pinned-notes-close-btn" type="button" class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] text-sm" title="Close">✕</button>
         </div>
     </div>
 
     <div class="flex-1 min-h-0 grid overflow-hidden" style="grid-template-columns: 15rem minmax(0, 1fr);">
-        <div class="min-w-0 border-r border-[#273241] bg-[#0d1117] text-xs text-slate-300 flex flex-col overflow-hidden">
-            <div class="p-3 border-b border-[#1f2937] space-y-2">
-                <button id="pinned-notes-new-btn" type="button" class="w-full rounded border border-slate-300/25 bg-slate-200/5 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-100 hover:bg-slate-200/10 focus:outline-none focus:ring-2 focus:ring-slate-300/30">+ New Note</button>
-                <div id="pinned-notes-status-pill" class="text-[10px] uppercase tracking-[0.18em] text-slate-500">Loading</div>
+        <div class="min-w-0 border-r border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
+            <div class="p-3 border-b border-[#2a241a] space-y-2">
+                <button id="pinned-notes-new-btn" type="button" class="w-full rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50">+ New Note</button>
+                <div id="pinned-notes-status-pill" class="text-[10px] uppercase tracking-[0.18em] text-[#8f8675]">Loading</div>
             </div>
-            <div class="border-b border-[#1f2937] p-3 space-y-2">
-                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Search</div>
+            <div class="border-b border-[#2a241a] p-3 space-y-2">
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Search</div>
                 <label class="sr-only" for="pinned-notes-search-input">Search pinned notes</label>
-                <input id="pinned-notes-search-input" type="text" placeholder="Search title or body" class="block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-slate-300 focus:ring-slate-300">
-                <label class="flex items-center gap-2 text-[11px] text-slate-400">
-                    <input id="pinned-notes-show-archived" type="checkbox" class="rounded border-[#334155] bg-[#0b0d10] text-slate-300 focus:ring-slate-300">
+                <input id="pinned-notes-search-input" type="text" placeholder="Search title or body" class="block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-[11px] text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500">
+                <label class="flex items-center gap-2 text-[11px] text-[#8f8675]">
+                    <input id="pinned-notes-show-archived" type="checkbox" class="rounded border-[#332817] bg-[#0b0b0c] text-amber-500 focus:ring-amber-500">
                     <span>Show archived</span>
                 </label>
             </div>
             <div class="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
-                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Categories</div>
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Categories</div>
                 <div id="pinned-notes-category-list" class="space-y-1"></div>
             </div>
         </div>
 
-        <div id="pinned-notes-main-shell" class="min-w-0 bg-[#0b0f14] grid overflow-hidden" style="grid-template-columns: minmax(0, 1fr);">
+        <div id="pinned-notes-main-shell" class="min-w-0 bg-[#0c0c0e] grid overflow-hidden" style="grid-template-columns: minmax(0, 1fr);">
             <div class="min-w-0 flex flex-col overflow-hidden">
-                <div class="border-b border-[#1f2937] bg-[linear-gradient(135deg,rgba(148,163,184,0.10),transparent_42%),linear-gradient(180deg,#11161d,#0b0f14)] px-4 py-4">
+                <div class="border-b border-[#2a241a] bg-[linear-gradient(135deg,rgba(245,158,11,0.08),transparent_45%),linear-gradient(180deg,#101012,#0d0d0f)] px-4 py-4">
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0">
-                            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Official Notes</div>
-                            <div class="mt-1 text-lg font-semibold text-slate-100">Owner and staff room guidance</div>
-                            <div class="mt-1 text-[12px] text-slate-400">Announcements, plot state, recaps, and event information.</div>
+                            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Official Notes</div>
+                            <div class="mt-1 text-lg font-semibold text-[#f2dfb5]">Owner and staff room guidance</div>
+                            <div class="mt-1 text-[12px] text-[#8f8675]">Announcements, plot state, recaps, and event information.</div>
                         </div>
-                        <div id="pinned-notes-board-summary" class="shrink-0 rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-right text-[11px] text-slate-400">Loading</div>
+                        <div id="pinned-notes-board-summary" class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-right text-[11px] text-[#8f8675]">Loading</div>
                     </div>
                 </div>
                 <div id="pinned-notes-card-board" class="min-h-0 flex-1 overflow-y-auto p-4">
                     <div id="pinned-notes-card-list" class="grid content-start justify-start gap-3" style="grid-template-columns: repeat(auto-fill, minmax(300px, 360px));">
-                        <div class="text-slate-400">Loading...</div>
+                        <div class="text-[#8f8675]">Loading...</div>
                     </div>
                 </div>
             </div>
 
-            <div id="pinned-notes-form-panel" class="hidden min-w-0 flex-col overflow-hidden border-l border-[#273241] bg-[#090c10]">
-                <div class="px-4 py-3 border-b border-[#273241] bg-[#11161d] flex items-center justify-between gap-3 shadow-[inset_0_-1px_0_rgba(148,163,184,0.04)]">
+            <div id="pinned-notes-form-panel" class="hidden min-w-0 flex-col overflow-hidden border-l border-[#332817] bg-[#080809]">
+                <div class="px-4 py-3 border-b border-[#332817] bg-[#101012] flex items-center justify-between gap-3 shadow-[inset_0_-1px_0_rgba(245,158,11,0.03)]">
                     <div class="min-w-0">
-                        <div id="pinned-notes-form-title" class="truncate text-sm font-semibold text-slate-100">New Pinned Note</div>
-                        <div id="pinned-notes-form-subtitle" class="mt-1 text-[11px] text-slate-400">Visible to everyone with room access.</div>
+                        <div id="pinned-notes-form-title" class="truncate text-sm font-semibold text-[#f2dfb5]">New Pinned Note</div>
+                        <div id="pinned-notes-form-subtitle" class="mt-1 text-[11px] text-[#8f8675]">Visible to everyone with room access.</div>
                     </div>
-                    <button id="pinned-notes-form-close-btn" type="button" class="rounded border border-[#334155] bg-[#0b0d10] px-2 py-1 text-slate-400 hover:border-slate-300/40 hover:text-slate-100 text-sm">✕</button>
+                    <button id="pinned-notes-form-close-btn" type="button" class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5] text-sm">✕</button>
                 </div>
-                <div id="pinned-notes-form-body" class="flex-1 min-h-0 overflow-y-auto bg-[#080b0f] bg-[radial-gradient(circle_at_top_right,rgba(148,163,184,0.06),transparent_24rem)] p-5 text-sm text-slate-300"></div>
+                <div id="pinned-notes-form-body" class="flex-1 min-h-0 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.03),transparent_24rem)] p-5 text-sm text-[#d6c8ad]"></div>
             </div>
         </div>
     </div>
@@ -166,7 +166,7 @@
 
     function buildTone({ borderColor, stripColor, ringColor, glowColor, pillBorderColor, pillBgColor, pillTextColor, titleColor }) {
         return {
-            cardStyle: `border-color: ${borderColor}; box-shadow: inset 0 0 0 1px ${ringColor}, 0 10px 26px rgba(0,0,0,0.18); background: linear-gradient(180deg, ${glowColor}, transparent 62%), #11161d;`,
+            cardStyle: `border-color: ${borderColor}; box-shadow: inset 0 0 0 1px ${ringColor}, 0 10px 26px rgba(0,0,0,0.18); background: linear-gradient(180deg, ${glowColor}, transparent 62%), #101012;`,
             stripStyle: `background: linear-gradient(180deg, ${stripColor}, rgba(255,255,255,0));`,
             pillStyle: `border-color: ${pillBorderColor}; background-color: ${pillBgColor}; color: ${pillTextColor};`,
             titleStyle: `color: ${titleColor};`,
@@ -255,9 +255,9 @@
             }).length;
 
             return `
-                <button type="button" data-pinned-note-category="${category.key ?? ''}" class="${active ? 'w-full rounded border border-slate-300/30 bg-slate-200/10 px-3 py-2 text-left text-[11px] font-semibold text-slate-100' : 'w-full rounded border border-[#334155] bg-[#11161d] px-3 py-2 text-left text-[11px] text-slate-300 hover:border-slate-300/30 hover:text-slate-100'}">
+                <button type="button" data-pinned-note-category="${category.key ?? ''}" class="${active ? 'w-full rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] font-semibold text-amber-100' : 'w-full rounded border border-[#332817] bg-[#101012] px-3 py-2 text-left text-[11px] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]'}">
                     <span class="flex items-center gap-2"><span>${escapeHtml(category.icon || '')}</span><span>${escapeHtml(category.label)}</span></span>
-                    <span class="mt-0.5 block text-[10px] text-slate-500">${count} note${count === 1 ? '' : 's'}</span>
+                    <span class="mt-0.5 block text-[10px] text-[#8f8675]">${count} note${count === 1 ? '' : 's'}</span>
                 </button>
             `;
         }).join('');
@@ -275,7 +275,7 @@
 
         if (notes.length === 0) {
             cardListEl.innerHTML = `
-                <div class="rounded border border-dashed border-[#334155] bg-[#0d1117] p-5 text-sm text-slate-400">
+                <div class="rounded border border-dashed border-[#332817] bg-[#101012] p-5 text-sm text-[#8f8675]">
                     No pinned notes match the current filters.
                 </div>
             `;
@@ -285,22 +285,22 @@
         cardListEl.innerHTML = notes.map((note) => {
             const tone = effectiveNoteTone(note);
             const statusBadge = note.status === 'archived'
-                ? '<span class="rounded-full border border-slate-500/30 bg-slate-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">Archived</span>'
+                ? '<span class="rounded-full border border-[#5a431f] bg-[#141416] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d6c8ad]">Archived</span>'
                 : `<span class="rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]" style="${tone.pillStyle}">Active</span>`;
             const expiresBadge = note.expires_at
-                ? `<span class="rounded-full border border-[#334155] bg-[#0b0d10] px-2 py-1 text-[10px] text-slate-300">Expires ${escapeHtml(formatDate(note.expires_at))}</span>`
+                ? `<span class="rounded-full border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[10px] text-[#d6c8ad]">Expires ${escapeHtml(formatDate(note.expires_at))}</span>`
                 : '';
             const actionButtons = note.viewer_can_manage
                 ? `
                     <div class="mt-4 flex items-center gap-2">
-                        <button type="button" data-pinned-notes-edit="${note.id}" class="rounded border border-[#475569] bg-[#0b0d10] px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-slate-200/30 hover:text-white">Edit</button>
+                        <button type="button" data-pinned-notes-edit="${note.id}" class="rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-[11px] font-semibold text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]">Edit</button>
                         <button type="button" data-pinned-notes-delete="${note.id}" class="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/20">Delete</button>
                     </div>
                 `
                 : '';
 
             return `
-                <article class="rounded-md border border-l-4 p-4 text-sm text-slate-300" style="${tone.cardStyle}">
+                <article class="rounded-md border border-l-4 p-4 text-sm text-[#d6c8ad]" style="${tone.cardStyle}">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
@@ -311,11 +311,11 @@
                         </div>
                         <div class="shrink-0 text-lg">${escapeHtml(note.category_icon || '📌')}</div>
                     </div>
-                    <div class="mt-3 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-200">${escapeHtml(note.body)}</div>
-                    <div class="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                    <div class="mt-3 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#e5d9bf]">${escapeHtml(note.body)}</div>
+                    <div class="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-[#8f8675]">
                         ${expiresBadge}
                     </div>
-                    <div class="mt-4 border-t border-white/5 pt-3 text-[10px] leading-relaxed text-slate-500"><div class="font-semibold text-slate-300">Posted by ${characterTriggerHtml(note.author_character, 'text-slate-300 font-semibold', 'Unknown')}</div><div class="mt-1">${metadataRow(note)}</div></div>
+                    <div class="mt-4 border-t border-white/5 pt-3 text-[10px] leading-relaxed text-[#8f8675]"><div class="font-semibold text-[#d6c8ad]">Posted by ${characterTriggerHtml(note.author_character, 'text-[#d6c8ad] font-semibold', 'Unknown')}</div><div class="mt-1">${metadataRow(note)}</div></div>
                     ${actionButtons}
                 </article>
             `;
@@ -349,7 +349,7 @@
         const archivedCount = state.notes.filter((note) => note.status === 'archived').length;
 
         boardSummaryEl.innerHTML = `
-            <div class="font-semibold text-slate-200">${visibleCount} visible</div>
+            <div class="font-semibold text-[#f2dfb5]">${visibleCount} visible</div>
             <div class="mt-1">${activeCount} active • ${archivedCount} archived</div>
         `;
 
@@ -397,42 +397,42 @@
         formBodyEl.innerHTML = `
             <form id="pinned-notes-form" class="space-y-4">
                 <div>
-                    <label for="pinned-notes-title" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Title</label>
-                    <input id="pinned-notes-title" name="title" type="text" maxlength="255" value="${escapeHtml(isEdit ? note.title : '')}" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">
+                    <label for="pinned-notes-title" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Title</label>
+                    <input id="pinned-notes-title" name="title" type="text" maxlength="255" value="${escapeHtml(isEdit ? note.title : '')}" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>
-                    <label for="pinned-notes-category" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Category</label>
-                    <select id="pinned-notes-category" name="category" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">
+                    <label for="pinned-notes-category" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Category</label>
+                    <select id="pinned-notes-category" name="category" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">
                         ${categoryOptions}
                     </select>
                 </div>
                 <div>
-                    <label for="pinned-notes-accent-color" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Accent Color</label>
-                    <select id="pinned-notes-accent-color" name="accent_color" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">
+                    <label for="pinned-notes-accent-color" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Accent Color</label>
+                    <select id="pinned-notes-accent-color" name="accent_color" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">
                         <option value="default" ${isEdit && !note.accent_color ? 'selected' : ''}>Default (Category)</option>
                         ${accentColorOptions}
                     </select>
-                    <div class="mt-1 text-[10px] text-slate-500">Optional controlled accent for the card frame and labels.</div>
+                    <div class="mt-1 text-[10px] text-[#8f8675]">Optional controlled accent for the card frame and labels.</div>
                 </div>
                 <div>
-                    <label for="pinned-notes-body" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Body</label>
-                    <textarea id="pinned-notes-body" name="body" rows="10" maxlength="20000" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">${escapeHtml(isEdit ? note.body : '')}</textarea>
+                    <label for="pinned-notes-body" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Body</label>
+                    <textarea id="pinned-notes-body" name="body" rows="10" maxlength="20000" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">${escapeHtml(isEdit ? note.body : '')}</textarea>
                 </div>
                 <div>
-                    <label for="pinned-notes-expires-at" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Expiration Date</label>
-                    <input id="pinned-notes-expires-at" name="expires_at" type="date" value="${isEdit && note.expires_at ? escapeHtml(String(note.expires_at).slice(0, 10)) : ''}" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">
+                    <label for="pinned-notes-expires-at" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Expiration Date</label>
+                    <input id="pinned-notes-expires-at" name="expires_at" type="date" value="${isEdit && note.expires_at ? escapeHtml(String(note.expires_at).slice(0, 10)) : ''}" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 ${isEdit ? `
                     <div>
-                        <label for="pinned-notes-status" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Status</label>
-                        <select id="pinned-notes-status" name="status" class="mt-1 block w-full rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-sm text-slate-100 focus:border-slate-300 focus:ring-slate-300">
+                        <label for="pinned-notes-status" class="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8f8675]">Status</label>
+                        <select id="pinned-notes-status" name="status" class="mt-1 block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-sm text-[#f2dfb5] focus:border-amber-500 focus:ring-amber-500">
                             ${statusOptions}
                         </select>
                     </div>
                 ` : ''}
                 <div class="flex items-center gap-2 pt-2">
-                    <button type="submit" class="rounded border border-slate-300/30 bg-slate-100/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-100 hover:bg-slate-100/15">Save</button>
-                    <button type="button" id="pinned-notes-cancel-btn" class="rounded border border-[#334155] bg-[#0b0d10] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300 hover:text-slate-100">Cancel</button>
+                    <button type="submit" class="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-100 hover:bg-amber-500/20">Save</button>
+                    <button type="button" id="pinned-notes-cancel-btn" class="rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]">Cancel</button>
                 </div>
             </form>
         `;
@@ -537,8 +537,8 @@
 
         newBtn.disabled = !state.permissions.can_create;
         newBtn.className = state.permissions.can_create
-            ? 'w-full rounded border border-slate-300/25 bg-slate-200/5 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-100 hover:bg-slate-200/10 focus:outline-none focus:ring-2 focus:ring-slate-300/30'
-            : 'w-full rounded border border-dashed border-[#334155] bg-[#11161d] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 cursor-not-allowed opacity-70';
+            ? 'w-full rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50'
+            : 'w-full rounded border border-dashed border-[#332817] bg-[#101012] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f675b] cursor-not-allowed opacity-70';
     }
 
     function setWindowOpenState(isOpen) {

@@ -5,9 +5,10 @@ namespace App\Models;
 use App\Models\Character;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
-use App\Models\UserRoomState;
 use App\Models\RoomNotice;
 use App\Models\RoomPinnedNote;
+use App\Models\RoomRule;
+use App\Models\UserRoomState;
 use App\Models\WorldBookEntry;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -172,6 +173,13 @@ class Room extends Model
     public function roomPinnedNotes(): HasMany
     {
         return $this->hasMany(RoomPinnedNote::class);
+    }
+
+    public function roomRules(): HasMany
+    {
+        return $this->hasMany(RoomRule::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 
     /*
