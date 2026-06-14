@@ -379,6 +379,163 @@ class WorldBookTest extends TestCase
             ->assertJsonCount(0, 'entries');
     }
 
+    public function test_index_orders_entries_by_category_then_sort_order_then_title(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $faction = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'White Hat Testers',
+            'category' => WorldBookEntry::CATEGORY_FACTION,
+            'body' => 'Faction body.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $locationB = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Wormwood',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Location body.',
+            'sort_order' => 2,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $locationA = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'The World',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Location body.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+        $this->assertSame([
+            $faction->id,
+            $locationA->id,
+            $locationB->id,
+        ], collect($response->json('entries'))->pluck('id')->all());
+    }
+
+    public function test_manager_can_move_published_entries_within_the_same_category_only(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $first = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'The World',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'First location.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $second = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Wormwood',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Second location.',
+            'sort_order' => 2,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $otherCategory = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Captain Valther',
+            'category' => WorldBookEntry::CATEGORY_NPC,
+            'body' => 'NPC body.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.move', [$room->slug, $second]), [
+                'direction' => 'up',
+            ])
+            ->assertOk();
+
+        $first->refresh();
+        $second->refresh();
+        $otherCategory->refresh();
+
+        $this->assertSame(2, $first->sort_order);
+        $this->assertSame(1, $second->sort_order);
+        $this->assertSame(1, $otherCategory->sort_order);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+        $this->assertSame([
+            $second->id,
+            $first->id,
+            $otherCategory->id,
+        ], collect($response->json('entries'))->pluck('id')->all());
+    }
+
+    public function test_non_manager_cannot_move_world_book_entries(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $entry = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'The World',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Location body.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.world-book.move', [$room->slug, $entry]), [
+                'direction' => 'down',
+            ])
+            ->assertForbidden();
+    }
+
+
     private function createUserWithCharacter(string $name = 'Character'): array
     {
         $user = User::factory()->create();

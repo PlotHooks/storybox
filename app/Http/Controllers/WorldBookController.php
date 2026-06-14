@@ -9,6 +9,7 @@ use App\Services\RoomAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class WorldBookController extends Controller
 {
@@ -31,6 +32,7 @@ class WorldBookController extends Controller
             ->where('room_id', $room->id)
             ->with(['authorCharacter', 'reviewedByCharacter'])
             ->orderByRaw('COALESCE(category, draft_category) asc')
+            ->orderByRaw('COALESCE(sort_order, 2147483647) asc')
             ->orderByRaw('COALESCE(title, draft_title) asc')
             ->get()
             ->filter(fn (WorldBookEntry $entry) => $this->entryVisibleToViewer($entry, $viewerCharacter, $canManage))
@@ -111,6 +113,7 @@ class WorldBookController extends Controller
                 'rejection_note' => null,
                 'rejected_at' => null,
             ]);
+            $entry->sort_order = $this->nextSortOrderForCategory($room->id, $payload['category']);
         } else {
             $entry->fill([
                 'status' => WorldBookEntry::STATUS_PENDING,
@@ -140,6 +143,8 @@ class WorldBookController extends Controller
         $actor = $this->actorCharacterForRoom($request, $room);
         $canManage = $this->roomAccess->canManageRoom($request->user(), $room, $actor);
         $payload = $this->validatedPayload($request);
+        $previousPublishedCategory = $entry->category;
+        $hadPublishedContent = $entry->hasPublishedContent();
 
         if ($canManage) {
             if ($request->boolean('publish')) {
@@ -160,7 +165,10 @@ class WorldBookController extends Controller
                     'reviewed_at' => now(),
                     'rejection_note' => null,
                     'rejected_at' => null,
-                ])->save();
+                ]);
+                $this->applyPublishedSortOrder($entry, $room->id, $payload['category'], $previousPublishedCategory, $hadPublishedContent);
+                $entry->save();
+                $this->reindexIfCategoryChanged($room->id, $previousPublishedCategory, $entry->category, $hadPublishedContent);
             } else {
                 $entry->fill([
                     'status' => WorldBookEntry::STATUS_PENDING,
@@ -207,10 +215,14 @@ class WorldBookController extends Controller
         abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
         abort_unless($entry->hasPendingDraft(), 422);
 
+        $previousPublishedCategory = $entry->category;
+        $hadPublishedContent = $entry->hasPublishedContent();
+        $approvedCategory = $entry->draft_category;
+
         $entry->fill([
             'status' => WorldBookEntry::STATUS_PUBLISHED,
             'title' => $entry->draft_title,
-            'category' => $entry->draft_category,
+            'category' => $approvedCategory,
             'image_url' => $entry->draft_image_url,
             'body' => $entry->draft_body,
             'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
@@ -224,7 +236,10 @@ class WorldBookController extends Controller
             'reviewed_at' => now(),
             'rejection_note' => null,
             'rejected_at' => null,
-        ])->save();
+        ]);
+        $this->applyPublishedSortOrder($entry, $room->id, $approvedCategory, $previousPublishedCategory, $hadPublishedContent);
+        $entry->save();
+        $this->reindexIfCategoryChanged($room->id, $previousPublishedCategory, $entry->category, $hadPublishedContent);
 
         return response()->json([
             'ok' => true,
@@ -283,9 +298,63 @@ class WorldBookController extends Controller
         $actor = $this->actorCharacterForRoom($request, $room);
         abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
 
+        $publishedCategory = $entry->hasPublishedContent() ? $entry->category : null;
+
         $entry->delete();
 
+        if ($publishedCategory !== null) {
+            $this->reindexCategory($room->id, $publishedCategory);
+        }
+
         return response()->json(['ok' => true]);
+    }
+
+    public function move(Request $request, Room $room, WorldBookEntry $entry): JsonResponse
+    {
+        $this->abortIfNotPublicRoom($room);
+        $this->assertEntryBelongsToRoom($room, $entry);
+
+        $actor = $this->actorCharacterForRoom($request, $room);
+        abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
+        abort_unless($entry->hasPublishedContent() && $entry->category !== null, 422);
+
+        $validated = $request->validate([
+            'direction' => ['required', 'string', 'in:up,down'],
+        ]);
+
+        $category = $entry->category;
+        $entries = WorldBookEntry::query()
+            ->where('room_id', $room->id)
+            ->where('category', $category)
+            ->whereNotNull('published_at')
+            ->whereNull('deleted_at')
+            ->orderByRaw('COALESCE(sort_order, 2147483647) asc')
+            ->orderBy('title')
+            ->get();
+
+        $currentIndex = $entries->search(fn (WorldBookEntry $item) => (int) $item->id === (int) $entry->id);
+        abort_unless($currentIndex !== false, 404);
+
+        $targetIndex = $validated['direction'] === 'up' ? $currentIndex - 1 : $currentIndex + 1;
+        abort_if($targetIndex < 0 || $targetIndex >= $entries->count(), 422);
+
+        $ordered = $entries->values()->all();
+        $moved = $ordered[$currentIndex];
+        array_splice($ordered, $currentIndex, 1);
+        array_splice($ordered, $targetIndex, 0, [$moved]);
+
+        DB::transaction(function () use ($ordered) {
+            foreach ($ordered as $index => $item) {
+                WorldBookEntry::query()
+                    ->whereKey($item->id)
+                    ->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        return response()->json([
+            'ok' => true,
+            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter']), $actor, true),
+        ]);
     }
 
     private function validatedPayload(Request $request): array
@@ -330,8 +399,8 @@ class WorldBookController extends Controller
             && (int) $entry->author_character_id === (int) $viewerCharacter->id;
         $canSeeDraft = $canManage || $isAuthor;
         $canSeeRejectionNote = $canManage || $isAuthor;
-        $listCategory = $entry->category ?? ($canSeeDraft ? $entry->draft_category : null);
-        $listTitle = $entry->title ?? ($canSeeDraft ? $entry->draft_title : null);
+        $listCategory = $entry->effectiveCategory($canSeeDraft);
+        $listTitle = $entry->effectiveTitle($canSeeDraft);
         $listTags = $entry->hasPublishedContent()
             ? WorldBookEntry::normalizeTags($entry->tags ?? [])
             : ($canSeeDraft ? WorldBookEntry::normalizeTags($entry->draft_tags ?? []) : []);
@@ -339,6 +408,7 @@ class WorldBookController extends Controller
         return [
             'id' => $entry->id,
             'status' => $entry->status,
+            'sort_order' => $entry->sort_order,
             'category' => $listCategory,
             'category_label' => WorldBookEntry::categoryLabel($listCategory),
             'category_icon' => WorldBookEntry::categoryIcon($listCategory),
@@ -365,6 +435,7 @@ class WorldBookController extends Controller
                 'image_url' => $entry->image_url,
                 'body' => $entry->body,
                 'tags' => WorldBookEntry::normalizeTags($entry->tags ?? []),
+                'sort_order' => $entry->sort_order,
             ] : null,
             'pending' => $canSeeDraft && $entry->hasPendingDraft() ? [
                 'title' => $entry->draft_title,
@@ -402,6 +473,53 @@ class WorldBookController extends Controller
         }
 
         return trim(implode(' ', array_filter($segments, fn ($value) => is_string($value) && trim($value) !== '')));
+    }
+
+    private function nextSortOrderForCategory(int $roomId, string $category): int
+    {
+        return ((int) WorldBookEntry::query()
+            ->where('room_id', $roomId)
+            ->where('category', $category)
+            ->whereNotNull('published_at')
+            ->max('sort_order')) + 1;
+    }
+
+    private function applyPublishedSortOrder(WorldBookEntry $entry, int $roomId, string $newCategory, ?string $previousPublishedCategory, bool $hadPublishedContent): void
+    {
+        if ($hadPublishedContent && $previousPublishedCategory === $newCategory && $entry->sort_order !== null) {
+            return;
+        }
+
+        $entry->sort_order = $this->nextSortOrderForCategory($roomId, $newCategory);
+    }
+
+    private function reindexIfCategoryChanged(int $roomId, ?string $previousPublishedCategory, ?string $newPublishedCategory, bool $hadPublishedContent): void
+    {
+        if (! $hadPublishedContent || $previousPublishedCategory === null || $previousPublishedCategory === $newPublishedCategory) {
+            return;
+        }
+
+        $this->reindexCategory($roomId, $previousPublishedCategory);
+    }
+
+    private function reindexCategory(int $roomId, string $category): void
+    {
+        $entries = WorldBookEntry::query()
+            ->where('room_id', $roomId)
+            ->where('category', $category)
+            ->whereNotNull('published_at')
+            ->whereNull('deleted_at')
+            ->orderByRaw('COALESCE(sort_order, 2147483647) asc')
+            ->orderBy('title')
+            ->get();
+
+        DB::transaction(function () use ($entries) {
+            foreach ($entries as $index => $item) {
+                WorldBookEntry::query()
+                    ->whereKey($item->id)
+                    ->update(['sort_order' => $index + 1]);
+            }
+        });
     }
 
     private function viewerCharacterForRoom(Room $room): ?Character

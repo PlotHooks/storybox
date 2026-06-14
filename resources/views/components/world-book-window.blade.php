@@ -190,6 +190,55 @@
         return state.pendingQueue.filter((entry) => entryMatchesSearch(entry));
     }
 
+    function groupedVisibleEntries() {
+        const items = visibleEntries();
+        const grouped = new Map();
+
+        items.forEach((entry) => {
+            const key = entry.category || '__uncategorized__';
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    key,
+                    label: entry.category_label || 'Uncategorized',
+                    icon: entry.category_icon || '🏷',
+                    entries: [],
+                });
+            }
+            grouped.get(key).entries.push(entry);
+        });
+
+        const categoryOrder = new Map(state.categories.map((category, index) => [category.key, index]));
+
+        return Array.from(grouped.values()).sort((left, right) => {
+            const leftOrder = categoryOrder.has(left.key) ? categoryOrder.get(left.key) : Number.MAX_SAFE_INTEGER;
+            const rightOrder = categoryOrder.has(right.key) ? categoryOrder.get(right.key) : Number.MAX_SAFE_INTEGER;
+
+            if (leftOrder !== rightOrder) {
+                return leftOrder - rightOrder;
+            }
+
+            return left.label.localeCompare(right.label);
+        });
+    }
+
+    function sortablePublishedEntriesInCategory(categoryKey) {
+        return state.entries.filter((entry) => entry.has_published_content && entry.category === categoryKey);
+    }
+
+    function moveStateForEntry(entry) {
+        if (!entry?.viewer_can_manage || !entry.has_published_content || !entry.category) {
+            return { canMoveUp: false, canMoveDown: false };
+        }
+
+        const entries = sortablePublishedEntriesInCategory(entry.category);
+        const index = entries.findIndex((item) => item.id === entry.id);
+
+        return {
+            canMoveUp: index > 0,
+            canMoveDown: index !== -1 && index < entries.length - 1,
+        };
+    }
+
     function tagsHtml(tags) {
         if (!Array.isArray(tags) || tags.length === 0) {
             return '';
@@ -276,37 +325,73 @@
             return;
         }
 
-        entryListEl.innerHTML = items.map((entry) => {
+        function entryRowHtml(entry) {
             const active = entry.id === state.selectedEntryId && state.mode === 'view';
             const status = entry.has_published_content && entry.has_pending_draft
                 ? 'Published + Pending'
                 : entry.status.replace('_', ' ');
+            const moveState = moveStateForEntry(entry);
 
             return `
-                <button
-                    type="button"
-                    data-world-book-entry="${entry.id}"
-                    class="${active
-                        ? 'w-full rounded border border-amber-500/40 bg-amber-500/10 p-3 text-left shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]'
-                        : 'w-full rounded border border-[#332817] bg-[#101012] p-3 text-left hover:border-amber-500/40 hover:bg-[#141416]'}"
-                >
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2 text-[11px] font-semibold text-[#f2dfb5]"><span>${escapeHtml(entry.category_icon || '')}</span><span class="truncate">${escapeHtml(entry.title || 'Untitled')}</span></div>
-                            <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.category_label)}</div>
-                            ${Array.isArray(entry.tags) && entry.tags.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1">${entry.tags.slice(0, 3).map((tag) => `<span class="rounded-full border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-[#8f8675]">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
-                        </div>
-                        <span class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(status)}</span>
+                <div class="${active
+                    ? 'rounded border border-amber-500/40 bg-amber-500/10 p-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]'
+                    : 'rounded border border-[#332817] bg-[#101012] p-3'}">
+                    <div class="flex items-start gap-2">
+                        <button
+                            type="button"
+                            data-world-book-entry="${entry.id}"
+                            class="min-w-0 flex-1 text-left ${active ? '' : 'hover:text-[#f2dfb5]'}"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 text-[11px] font-semibold text-[#f2dfb5]"><span>${escapeHtml(entry.category_icon || '')}</span><span class="truncate">${escapeHtml(entry.title || 'Untitled')}</span></div>
+                                    <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.category_label)}</div>
+                                    ${Array.isArray(entry.tags) && entry.tags.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1">${entry.tags.slice(0, 3).map((tag) => `<span class="rounded-full border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-[#8f8675]">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+                                </div>
+                                <span class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(status)}</span>
+                            </div>
+                        </button>
+                        ${entry.viewer_can_manage && entry.has_published_content ? `
+                            <div class="shrink-0 flex flex-col gap-1">
+                                <button type="button" data-world-book-move="up" data-world-book-move-entry="${entry.id}" ${moveState.canMoveUp ? '' : 'disabled'} class="rounded border px-1.5 py-0.5 text-[10px] ${moveState.canMoveUp ? 'border-[#332817] bg-[#0b0b0c] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]' : 'border-[#2a241a] bg-[#0b0b0c] text-[#5d5549] cursor-not-allowed opacity-60'}">↑</button>
+                                <button type="button" data-world-book-move="down" data-world-book-move-entry="${entry.id}" ${moveState.canMoveDown ? '' : 'disabled'} class="rounded border px-1.5 py-0.5 text-[10px] ${moveState.canMoveDown ? 'border-[#332817] bg-[#0b0b0c] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]' : 'border-[#2a241a] bg-[#0b0b0c] text-[#5d5549] cursor-not-allowed opacity-60'}">↓</button>
+                            </div>
+                        ` : ''}
                     </div>
-                </button>
+                </div>
             `;
-        }).join('');
+        }
+
+        if (!state.selectedCategory && !isPendingCategorySelected()) {
+            entryListEl.innerHTML = groupedVisibleEntries().map((section) => `
+                <section class="space-y-2">
+                    <div class="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">${escapeHtml(section.icon || '')} ${escapeHtml(section.label)}</div>
+                    <div class="space-y-2">${section.entries.map((entry) => entryRowHtml(entry)).join('')}</div>
+                </section>
+            `).join('');
+        } else {
+            entryListEl.innerHTML = items.map((entry) => entryRowHtml(entry)).join('');
+        }
 
         entryListEl.querySelectorAll('[data-world-book-entry]').forEach((button) => {
             button.addEventListener('click', () => {
                 state.selectedEntryId = parseInt(button.dataset.worldBookEntry || '0', 10) || null;
                 state.mode = 'view';
                 render();
+            });
+        });
+
+        entryListEl.querySelectorAll('[data-world-book-move-entry]').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const entryId = parseInt(button.dataset.worldBookMoveEntry || '0', 10) || null;
+                const direction = button.dataset.worldBookMove || '';
+                if (!entryId || !direction || button.hasAttribute('disabled')) {
+                    return;
+                }
+
+                await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/${entryId}/move`, 'POST', { direction });
+                await loadWorldBook(true);
             });
         });
     }

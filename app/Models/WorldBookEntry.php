@@ -28,6 +28,7 @@ class WorldBookEntry extends Model
         'author_character_id',
         'reviewed_by_character_id',
         'status',
+        'sort_order',
         'title',
         'category',
         'image_url',
@@ -49,6 +50,7 @@ class WorldBookEntry extends Model
         return [
             'tags' => 'array',
             'draft_tags' => 'array',
+            'sort_order' => 'integer',
             'published_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'rejected_at' => 'datetime',
@@ -127,5 +129,16 @@ class WorldBookEntry extends Model
         return $this->draft_title !== null
             && $this->draft_category !== null
             && $this->draft_body !== null;
+    }
+
+
+    public function effectiveCategory(bool $canSeeDraft = true): ?string
+    {
+        return $this->category ?? ($canSeeDraft ? $this->draft_category : null);
+    }
+
+    public function effectiveTitle(bool $canSeeDraft = true): ?string
+    {
+        return $this->title ?? ($canSeeDraft ? $this->draft_title : null);
     }
 }

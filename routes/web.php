@@ -90,6 +90,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/rooms/{room:slug}/world-book', [WorldBookController::class, 'index'])->name('rooms.world-book.index');
     Route::post('/rooms/{room:slug}/world-book', [WorldBookController::class, 'store'])->name('rooms.world-book.store');
     Route::patch('/rooms/{room:slug}/world-book/{entry}', [WorldBookController::class, 'update'])->name('rooms.world-book.update');
+    Route::post('/rooms/{room:slug}/world-book/{entry}/move', [WorldBookController::class, 'move'])->name('rooms.world-book.move');
     Route::post('/rooms/{room:slug}/world-book/{entry}/approve', [WorldBookController::class, 'approve'])->name('rooms.world-book.approve');
     Route::post('/rooms/{room:slug}/world-book/{entry}/reject', [WorldBookController::class, 'reject'])->name('rooms.world-book.reject');
     Route::delete('/rooms/{room:slug}/world-book/{entry}', [WorldBookController::class, 'destroy'])->name('rooms.world-book.destroy');
