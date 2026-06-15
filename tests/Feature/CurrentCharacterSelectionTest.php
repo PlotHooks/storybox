@@ -75,6 +75,22 @@ class CurrentCharacterSelectionTest extends TestCase
             ->assertSee('Posting as reset to '.$firstCharacter->name.' for this room.');
     }
 
+    public function test_inactive_current_character_falls_back_to_first_active_available_character_for_room(): void
+    {
+        [$owner, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewer, $firstCharacter] = $this->createUserWithCharacter('Viewer');
+        $inactiveCharacter = $this->createCharacter($viewer, 'Inactive Character', false);
+        $room = $this->createRoom($owner, $ownerCharacter, 'Sanctum');
+
+        $this->actingAs($viewer)
+            ->withSession(['active_character_id' => $inactiveCharacter->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->assertSee('value="'.$firstCharacter->id.'" selected', false)
+            ->assertDontSee('value="'.$inactiveCharacter->id.'"', false)
+            ->assertSee('Posting as reset to '.$firstCharacter->name.' for this room.');
+    }
+
     private function createUserWithCharacter(string $name): array
     {
         $user = User::factory()->create([
@@ -85,12 +101,13 @@ class CurrentCharacterSelectionTest extends TestCase
         return [$user, $this->createCharacter($user, $name.' Character')];
     }
 
-    private function createCharacter(User $user, string $name): Character
+    private function createCharacter(User $user, string $name, bool $isActive = true): Character
     {
         return Character::create([
             'user_id' => $user->id,
             'name' => $name,
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
+            'is_active' => $isActive,
         ]);
     }
 

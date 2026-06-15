@@ -81,6 +81,58 @@ class CharacterPanelTest extends TestCase
     }
 
 
+    public function test_character_panel_groups_active_and_inactive_characters(): void
+    {
+        [$user, $activeCharacter] = $this->createUserWithCharacter('Active');
+        $inactiveCharacter = $this->createCharacter($user, 'Inactive Character', false);
+
+        $response = $this->actingAs($user)
+            ->get(route('characters.index'));
+
+        $response->assertOk()
+            ->assertSee('Active Characters')
+            ->assertSee('Inactive Characters')
+            ->assertSeeInOrder([
+                'Active Characters',
+                $activeCharacter->name,
+                'Inactive Characters',
+                $inactiveCharacter->name,
+            ], false);
+    }
+
+    public function test_character_panel_toggle_updates_character_active_state(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Toggle Owner');
+
+        $this->actingAs($user)
+            ->from(route('characters.index'))
+            ->patch(route('characters.toggle-active', $character), [
+                'is_active' => '0',
+                'return_to' => route('characters.index'),
+            ])
+            ->assertRedirect(route('characters.index'));
+
+        $this->assertDatabaseHas('characters', [
+            'id' => $character->id,
+            'is_active' => 0,
+        ]);
+    }
+
+    public function test_room_posting_dropdown_only_shows_active_characters(): void
+    {
+        [$user, $activeCharacter] = $this->createUserWithCharacter('Active');
+        $inactiveCharacter = $this->createCharacter($user, 'Inactive Character', false);
+        $room = $this->createRoom($user, $activeCharacter, 'Tavern');
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $activeCharacter->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->assertSee('value="'.$activeCharacter->id.'" selected', false)
+            ->assertDontSee('value="'.$inactiveCharacter->id.'"', false);
+    }
+
+
 
     public function test_characters_index_keeps_character_settings_collapsed_by_default(): void
     {
@@ -124,12 +176,13 @@ class CharacterPanelTest extends TestCase
         return [$user, $this->createCharacter($user, $name . ' Character')];
     }
 
-    private function createCharacter(User $user, string $name): Character
+    private function createCharacter(User $user, string $name, bool $isActive = true): Character
     {
         return Character::create([
             'user_id' => $user->id,
             'name' => $name,
             'slug' => Str::slug($name) . '-' . Str::lower(Str::random(6)),
+            'is_active' => $isActive,
         ]);
     }
 

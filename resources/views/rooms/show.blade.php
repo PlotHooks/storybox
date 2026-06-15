@@ -440,7 +440,7 @@
                     </div>
 
                     @php
-                        $characters = Auth::user()->characters;
+                        $characters = Auth::user()->characters->where('is_active', true)->values();
                         $isAdminBlade = (bool) (Auth::user()->is_admin ?? false);
                         $viewerCharacterId = $characters->contains('id', (int) $activeCharacterId)
                             ? (int) $activeCharacterId

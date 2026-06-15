@@ -19,10 +19,12 @@ class Character extends Model
         'slug',
         'avatar',
         'profile_html',
+        'is_active',
         'settings',
     ];
 
     protected $casts = [
+        'is_active' => 'boolean',
         'settings' => 'array',
     ];
 

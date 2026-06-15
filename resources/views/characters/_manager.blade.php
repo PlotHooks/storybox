@@ -3,6 +3,7 @@
     $returnTo = request()->routeIs('rooms.*')
         ? request()->fullUrlWithQuery(['characters' => 1])
         : route('characters.index');
+    [$activeCharacters, $inactiveCharacters] = $characters->partition(fn ($character) => (bool) $character->is_active);
 @endphp
 
 @if (session('status'))
@@ -62,140 +63,180 @@
         <h3 class="mb-3 text-lg font-semibold text-gray-100">Your Characters</h3>
 
         <div class="min-h-0 space-y-4">
-            @forelse ($characters as $char)
-                @php
-                    $s = $char->settings ?? [];
-                    $c1 = $s['text_color_1'] ?? '#D8F3FF';
-                    $c2 = $s['text_color_2'] ?? '#000000';
-                    $c3 = $s['text_color_3'] ?? '#000000';
-                    $c4 = $s['text_color_4'] ?? '#000000';
-                    $fadeMsg = (bool) ($s['fade_message'] ?? false);
-                    $fadeName = (bool) ($s['fade_name'] ?? false);
-                    $avatar = $char->externalAvatarUrl();
-                    $isPostingCharacter = (int) $activeId === (int) $char->id;
-                @endphp
-
-                <div class="rounded-lg border {{ $isPostingCharacter ? 'border-amber-500/40 bg-amber-500/5' : 'border-gray-800' }} p-3">
-                    <div class="flex items-center justify-between gap-3">
-                        <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/40">
-                            @if ($avatar)
-                                <img src="{{ $avatar }}"
-                                     alt="{{ $char->name }} avatar"
-                                     loading="lazy"
-                                     referrerpolicy="no-referrer"
-                                     class="h-14 w-14 shrink-0 rounded-lg object-cover">
-                            @else
-                                <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-800 bg-gray-950 text-lg font-semibold text-gray-500">
-                                    {{ strtoupper(substr($char->name, 0, 1)) }}
-                                </div>
-                            @endif
-
-                            <div class="min-w-0">
-                                <div class="truncate text-gray-100 font-semibold">
-                                    {{ $char->name }}
-                                    @if ($isPostingCharacter)
-                                        <span class="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">Posting now</span>
-                                    @endif
-                                </div>
-                                <div class="mt-1 text-xs text-gray-500">{{ $char->public_handle }}</div>
-                            </div>
-                        </a>
-
-                        <div class="flex shrink-0 items-center gap-2">
-                            @if (! $isPostingCharacter)
-                                <form method="POST" action="{{ route('characters.destroy', $char) }}" onsubmit="return confirm('Delete this character? This also removes their messages, presence, DM participation, and related room links.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="return_to" value="{{ $returnTo }}">
-                                    <button type="submit" class="inline-flex items-center rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500/40">
-                                        Delete
-                                    </button>
-                                </form>
-                            @else
-                                <span class="text-[11px] text-gray-500">Switch in chat to delete</span>
-                            @endif
-                        </div>
-                    </div>
-
-                    <details class="mt-3 rounded-lg border border-gray-800 bg-gray-950/40">
-                        <summary class="cursor-pointer list-none px-3 py-2 text-xs font-medium text-gray-300">
-                            <span>Character details and style</span>
-                        </summary>
-
-                        <form method="POST" action="{{ route('characters.style', $char) }}" class="border-t border-gray-800 p-3">
-                            @csrf
-                            <input type="hidden" name="return_to" value="{{ $returnTo }}">
-
-                            <label class="mb-3 block text-xs text-gray-300">
-                                Name
-                                <input type="text"
-                                       name="name"
-                                       maxlength="100"
-                                       value="{{ old('name', $char->name) }}"
-                                       class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100" />
-                            </label>
-
-                            <label class="mb-3 block text-xs text-gray-300">
-                                External avatar URL
-                                <input type="url"
-                                       name="avatar"
-                                       maxlength="2048"
-                                       value="{{ old('avatar', $char->avatar) }}"
-                                       placeholder="https://example.com/avatar.png"
-                                       class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600" />
-                                <span class="mt-1 block text-[11px] text-gray-500">Use an externally hosted image URL. HTTPS is preferred.</span>
-                            </label>
-
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <label class="text-xs text-gray-300">
-                                    Color 1
-                                    <input type="color" name="text_color_1" value="{{ $c1 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                                </label>
-
-                                <label class="text-xs text-gray-300">
-                                    Color 2
-                                    <input type="color" name="text_color_2" value="{{ $c2 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                                </label>
-
-                                <label class="text-xs text-gray-300">
-                                    Color 3
-                                    <input type="color" name="text_color_3" value="{{ $c3 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                                </label>
-
-                                <label class="text-xs text-gray-300">
-                                    Color 4
-                                    <input type="color" name="text_color_4" value="{{ $c4 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
-                                </label>
-                            </div>
-
-                            <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-200">
-                                <label class="inline-flex items-center gap-2">
-                                    <input type="checkbox" name="fade_message" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeMsg ? 'checked' : '' }}>
-                                    Fade message text
-                                </label>
-
-                                <label class="inline-flex items-center gap-2">
-                                    <input type="checkbox" name="fade_name" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeName ? 'checked' : '' }}>
-                                    Fade name
-                                </label>
-                            </div>
-
-                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-                                <div class="flex flex-wrap items-center gap-3 text-xs">
-                                    <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-200">View profile</a>
-                                    <a href="{{ route('characters.profile.edit', $char) }}" class="text-amber-300 hover:text-amber-200">Edit profile</a>
-                                    <a href="{{ route('characters.manage', $char) }}" class="text-amber-300 hover:text-amber-200">Manage character</a>
-                                </div>
-                                <x-primary-button>Save</x-primary-button>
-                            </div>
-                        </form>
-                    </details>
-                </div>
-            @empty
+            @if ($characters->isEmpty())
                 <div class="rounded border border-dashed border-gray-800 px-3 py-4 text-sm text-gray-500">
                     No characters yet.
                 </div>
-            @endforelse
+            @else
+                @foreach ([
+                    'Active Characters' => $activeCharacters,
+                    'Inactive Characters' => $inactiveCharacters,
+                ] as $groupLabel => $groupCharacters)
+                    @continue($groupCharacters->isEmpty())
+
+                    <section class="space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <h4 class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">{{ $groupLabel }}</h4>
+                            <span class="text-[11px] text-gray-500">{{ $groupCharacters->count() }}</span>
+                        </div>
+
+                        @foreach ($groupCharacters as $char)
+                            @php
+                                $s = $char->settings ?? [];
+                                $c1 = $s['text_color_1'] ?? '#D8F3FF';
+                                $c2 = $s['text_color_2'] ?? '#000000';
+                                $c3 = $s['text_color_3'] ?? '#000000';
+                                $c4 = $s['text_color_4'] ?? '#000000';
+                                $fadeMsg = (bool) ($s['fade_message'] ?? false);
+                                $fadeName = (bool) ($s['fade_name'] ?? false);
+                                $avatar = $char->externalAvatarUrl();
+                                $isPostingCharacter = (int) $activeId === (int) $char->id;
+                            @endphp
+
+                            <div class="rounded-lg border {{ $isPostingCharacter ? 'border-amber-500/40 bg-amber-500/5' : 'border-gray-800' }} p-3">
+                                <div class="flex items-center justify-between gap-3">
+                                    <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/40">
+                                        @if ($avatar)
+                                            <img src="{{ $avatar }}"
+                                                 alt="{{ $char->name }} avatar"
+                                                 loading="lazy"
+                                                 referrerpolicy="no-referrer"
+                                                 class="h-14 w-14 shrink-0 rounded-lg object-cover">
+                                        @else
+                                            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-800 bg-gray-950 text-lg font-semibold text-gray-500">
+                                                {{ strtoupper(substr($char->name, 0, 1)) }}
+                                            </div>
+                                        @endif
+
+                                        <div class="min-w-0">
+                                            <div class="truncate text-gray-100 font-semibold">
+                                                {{ $char->name }}
+                                                @if ($isPostingCharacter)
+                                                    <span class="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">Posting now</span>
+                                                @endif
+                                            </div>
+                                            <div class="mt-1 text-xs text-gray-500">{{ $char->public_handle }}</div>
+                                        </div>
+                                    </a>
+
+                                    <div class="flex shrink-0 items-center gap-3">
+                                        <form method="POST" action="{{ route('characters.toggle-active', $char) }}" class="shrink-0">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="return_to" value="{{ $returnTo }}">
+                                            <input type="hidden" name="is_active" value="0">
+                                            <label class="inline-flex cursor-pointer items-center gap-2 text-[11px] font-medium text-gray-400">
+                                                <span>{{ $char->is_active ? 'Active' : 'Inactive' }}</span>
+                                                <span class="relative inline-flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="is_active"
+                                                        value="1"
+                                                        class="peer sr-only"
+                                                        {{ $char->is_active ? 'checked' : '' }}
+                                                        onchange="this.form.submit()"
+                                                    >
+                                                    <span class="h-6 w-11 rounded-full border border-gray-700 bg-gray-800 transition peer-checked:border-emerald-500/60 peer-checked:bg-emerald-500/30"></span>
+                                                    <span class="pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                                </span>
+                                            </label>
+                                        </form>
+
+                                        <div class="flex shrink-0 items-center gap-2">
+                                            @if (! $isPostingCharacter)
+                                                <form method="POST" action="{{ route('characters.destroy', $char) }}" onsubmit="return confirm('Delete this character? This also removes their messages, presence, DM participation, and related room links.');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="return_to" value="{{ $returnTo }}">
+                                                    <button type="submit" class="inline-flex items-center rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500/40">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <span class="text-[11px] text-gray-500">Switch in chat to delete</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <details class="mt-3 rounded-lg border border-gray-800 bg-gray-950/40">
+                                    <summary class="cursor-pointer list-none px-3 py-2 text-xs font-medium text-gray-300">
+                                        <span>Character details and style</span>
+                                    </summary>
+
+                                    <form method="POST" action="{{ route('characters.style', $char) }}" class="border-t border-gray-800 p-3">
+                                        @csrf
+                                        <input type="hidden" name="return_to" value="{{ $returnTo }}">
+
+                                        <label class="mb-3 block text-xs text-gray-300">
+                                            Name
+                                            <input type="text"
+                                                   name="name"
+                                                   maxlength="100"
+                                                   value="{{ old('name', $char->name) }}"
+                                                   class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100" />
+                                        </label>
+
+                                        <label class="mb-3 block text-xs text-gray-300">
+                                            External avatar URL
+                                            <input type="url"
+                                                   name="avatar"
+                                                   maxlength="2048"
+                                                   value="{{ old('avatar', $char->avatar) }}"
+                                                   placeholder="https://example.com/avatar.png"
+                                                   class="mt-1 w-full rounded bg-gray-950 border border-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600" />
+                                            <span class="mt-1 block text-[11px] text-gray-500">Use an externally hosted image URL. HTTPS is preferred.</span>
+                                        </label>
+
+                                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <label class="text-xs text-gray-300">
+                                                Color 1
+                                                <input type="color" name="text_color_1" value="{{ $c1 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                            </label>
+
+                                            <label class="text-xs text-gray-300">
+                                                Color 2
+                                                <input type="color" name="text_color_2" value="{{ $c2 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                            </label>
+
+                                            <label class="text-xs text-gray-300">
+                                                Color 3
+                                                <input type="color" name="text_color_3" value="{{ $c3 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                            </label>
+
+                                            <label class="text-xs text-gray-300">
+                                                Color 4
+                                                <input type="color" name="text_color_4" value="{{ $c4 }}" class="mt-1 h-10 w-full rounded border border-gray-800 bg-gray-950" />
+                                            </label>
+                                        </div>
+
+                                        <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-200">
+                                            <label class="inline-flex items-center gap-2">
+                                                <input type="checkbox" name="fade_message" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeMsg ? 'checked' : '' }}>
+                                                Fade message text
+                                            </label>
+
+                                            <label class="inline-flex items-center gap-2">
+                                                <input type="checkbox" name="fade_name" value="1" class="rounded border-gray-700 bg-gray-950" {{ $fadeName ? 'checked' : '' }}>
+                                                Fade name
+                                            </label>
+                                        </div>
+
+                                        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                            <div class="flex flex-wrap items-center gap-3 text-xs">
+                                                <a href="{{ route('characters.profile.show', $char) }}" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-200">View profile</a>
+                                                <a href="{{ route('characters.profile.edit', $char) }}" class="text-amber-300 hover:text-amber-200">Edit profile</a>
+                                                <a href="{{ route('characters.manage', $char) }}" class="text-amber-300 hover:text-amber-200">Manage character</a>
+                                            </div>
+                                            <x-primary-button>Save</x-primary-button>
+                                        </div>
+                                    </form>
+                                </details>
+                            </div>
+                        @endforeach
+                    </section>
+                @endforeach
+            @endif
         </div>
     </div>
 </div>

@@ -75,6 +75,7 @@ class CharacterController extends Controller
     {
         $characters = auth()->user()
             ->characters()
+            ->orderByDesc('is_active')
             ->orderBy('name')
             ->get();
 
@@ -108,6 +109,19 @@ class CharacterController extends Controller
         abort_if($character->user_id !== auth()->id(), 403);
 
         return view('characters.show', compact('character'));
+    }
+
+    public function toggleActive(Request $request, Character $character): RedirectResponse
+    {
+        abort_if($character->user_id !== auth()->id(), 403);
+
+        $character->update([
+            'is_active' => $request->boolean('is_active'),
+        ]);
+
+        return $this->redirectToTarget($request, $character->is_active
+            ? $character->name.' is now active.'
+            : $character->name.' is now inactive.');
     }
 
     public function currentRoom(Character $character)

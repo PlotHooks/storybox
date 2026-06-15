@@ -387,6 +387,7 @@ CSS;
 
         if (
             $preferredCharacter !== null
+            && $preferredCharacter->is_active
             && $this->roomAccess->canViewRoom(Auth::user(), $conversation, $preferredCharacter)
         ) {
             return [$preferredCharacter->id, null];
@@ -394,6 +395,7 @@ CSS;
 
         if (
             $preferredCharacter !== null
+            && $preferredCharacter->is_active
             && $this->roomAccess->isBlacklisted($conversation, $preferredCharacter)
         ) {
             return [$preferredCharacter->id, null];
@@ -401,6 +403,7 @@ CSS;
 
         $fallbackCharacter = Character::query()
             ->where('user_id', Auth::id())
+            ->where('is_active', true)
             ->orderBy('name')
             ->get()
             ->first(fn (Character $character) => $this->roomAccess->canViewRoom(Auth::user(), $conversation, $character));
