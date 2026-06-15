@@ -99,6 +99,9 @@
                             @else
                                 <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Pinned Notes</button>
                             @endif
+                            @if ($room->isPublicRoom())
+                                <button type="button" data-context-tool="follow" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">{{ $isFollowingRoom ? '✓ Follow Room' : 'Follow Room' }}</button>
+                            @endif
                         </div>
                     </div>
                     @if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)
@@ -109,14 +112,6 @@
                             </div>
                         </div>
                     @endif
-                    @if ($room->isPublicRoom())
-                        <div class="pt-1 grid grid-cols-2 gap-1 text-[11px] font-medium text-[#d6c8ad]">
-                            <button type="button" data-context-tool="follow" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">{{ $isFollowingRoom ? '✓ Follow Room' : 'Follow Room' }}</button>
-                        </div>
-                    @endif
-                    <div class="px-1 text-[10px] text-[#6f675b]">
-                        Rules govern the room. Pinned Notes highlight what is currently important.
-                    </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 text-xs text-[#d6c8ad]">
                     @if (session('status'))
@@ -135,15 +130,6 @@
                             </ul>
                         </div>
                     @endif
-                    <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Rules opens as a floating room window for official governance. Room Profile renders the same rules automatically.
-                    </div>
-                    <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Notice Board opens as a floating room window for hooks, jobs, rumors, and events.
-                    </div>
-                    <div class="mt-3 rounded-md border border-dashed border-[#332817] bg-[#101012]/60 p-3 text-[#8f8675]">
-                        Pinned Notes opens as a floating room window for what is currently important.
-                    </div>
                     @if ($room->isPublicRoom())
                         <div data-context-panel="follow" class="context-tool-panel hidden rounded-md border border-[#332817] bg-[#101012] p-3">
                             <h3 class="text-sm font-semibold text-[#f2dfb5]">Follow Room</h3>

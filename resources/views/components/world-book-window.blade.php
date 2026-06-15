@@ -52,7 +52,7 @@
                 <input
                     id="world-book-search-input"
                     type="text"
-                    placeholder="Search title, body, tags"
+                    placeholder="Search title, character, notes, tags"
                     class="block w-full rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-[11px] text-[#d6c8ad] placeholder:text-[#6f675a] focus:border-amber-500 focus:ring-amber-500"
                 >
             </div>
@@ -127,6 +127,7 @@
             can_submit: false,
             can_manage: false,
         },
+        ownedCharacters: [],
         selectedCategory: null,
         selectedEntryId: null,
         searchTerm: '',
@@ -226,7 +227,7 @@
     }
 
     function moveStateForEntry(entry) {
-        if (!entry?.viewer_can_manage || !entry.has_published_content || !entry.category) {
+        if (!entry?.viewer_can_manage || !entry.has_published_content || !entry.category || isCharacterCategory(entry.category)) {
             return { canMoveUp: false, canMoveDown: false };
         }
 
@@ -247,6 +248,36 @@
         return `
             <div class="mt-3 flex flex-wrap gap-2">
                 ${tags.map((tag) => `<span class="rounded-full border border-[#5a431f] bg-[#141416] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-amber-200">${escapeHtml(tag)}</span>`).join('')}
+            </div>
+        `;
+    }
+
+    function isCharacterCategory(category) {
+        return category === 'character';
+    }
+
+    function linkedCharacterCardHtml(character, compact = false) {
+        if (!character) {
+            return '';
+        }
+
+        const avatar = character.avatar_url
+            ? `<img src="${escapeHtml(character.avatar_url)}" alt="${escapeHtml(character.name || 'Character')} avatar" class="${compact ? 'h-10 w-10 rounded-lg' : 'h-16 w-16 rounded-xl'} border border-[#5a431f] object-cover">`
+            : `<div class="${compact ? 'h-10 w-10 rounded-lg text-base' : 'h-16 w-16 rounded-xl text-2xl'} flex items-center justify-center border border-[#5a431f] bg-[#120f0c] font-semibold text-[#f2dfb5]">${escapeHtml((character.name || '?').slice(0, 1).toUpperCase())}</div>`;
+
+        return `
+            <div class="rounded border border-[#332817] bg-[#101012] p-4">
+                <div class="flex items-start gap-3">
+                    ${avatar}
+                    <div class="min-w-0 flex-1">
+                        <a href="${escapeHtml(character.card_url || character.profile_url || '#')}" target="_blank" rel="noreferrer" class="block truncate text-sm font-semibold text-[#f2dfb5] hover:text-amber-200">${escapeHtml(character.name || 'Linked Character')}</a>
+                        <div class="mt-1 text-[11px] text-[#8f8675]">${escapeHtml(character.handle || '')}</div>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <a href="${escapeHtml(character.card_url || character.profile_url || '#')}" target="_blank" rel="noreferrer" class="inline-flex items-center rounded border border-[#5a431f] bg-[#171311] px-3 py-1.5 text-[11px] text-[#f2dfb5] hover:bg-[#1d1713]">Open Card</a>
+                            <a href="${escapeHtml(character.profile_url || character.card_url || '#')}" target="_blank" rel="noreferrer" class="inline-flex items-center rounded border border-[#332817] bg-[#0b0b0c] px-3 py-1.5 text-[11px] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]">View Profile</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -344,14 +375,14 @@
                         >
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
-                                    <div class="flex items-center gap-2 text-[11px] font-semibold text-[#f2dfb5]"><span>${escapeHtml(entry.category_icon || '')}</span><span class="truncate">${escapeHtml(entry.title || 'Untitled')}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] font-semibold text-[#f2dfb5]">${entry.linked_character?.avatar_url && isCharacterCategory(entry.category) ? `<img src="${escapeHtml(entry.linked_character.avatar_url)}" alt="" class="h-6 w-6 rounded-md border border-[#5a431f] object-cover">` : `<span>${escapeHtml(entry.category_icon || '')}</span>`}<span class="truncate">${escapeHtml(entry.title || 'Untitled')}</span></div>
                                     <div class="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.category_label)}</div>
                                     ${Array.isArray(entry.tags) && entry.tags.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1">${entry.tags.slice(0, 3).map((tag) => `<span class="rounded-full border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-[#8f8675]">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
                                 </div>
                                 <span class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(status)}</span>
                             </div>
                         </button>
-                        ${entry.viewer_can_manage && entry.has_published_content ? `
+                        ${entry.viewer_can_manage && entry.has_published_content && !isCharacterCategory(entry.category) ? `
                             <div class="shrink-0 flex flex-col gap-1">
                                 <button type="button" data-world-book-move="up" data-world-book-move-entry="${entry.id}" ${moveState.canMoveUp ? '' : 'disabled'} class="rounded border px-1.5 py-0.5 text-[10px] ${moveState.canMoveUp ? 'border-[#332817] bg-[#0b0b0c] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]' : 'border-[#2a241a] bg-[#0b0b0c] text-[#5d5549] cursor-not-allowed opacity-60'}">↑</button>
                                 <button type="button" data-world-book-move="down" data-world-book-move-entry="${entry.id}" ${moveState.canMoveDown ? '' : 'disabled'} class="rounded border px-1.5 py-0.5 text-[10px] ${moveState.canMoveDown ? 'border-[#332817] bg-[#0b0b0c] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]' : 'border-[#2a241a] bg-[#0b0b0c] text-[#5d5549] cursor-not-allowed opacity-60'}">↓</button>
@@ -401,6 +432,7 @@
 
         if (state.mode === 'form') {
             buttons.push('<button type="button" id="world-book-cancel-form" class="rounded border border-[#332817] bg-[#0b0b0c] px-3 py-1.5 text-xs text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Cancel</button>');
+            buttons.push('<button type="submit" form="world-book-form" id="world-book-save-form" class="rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/20">Save</button>');
             actionsEl.innerHTML = buttons.join('');
             document.getElementById('world-book-cancel-form')?.addEventListener('click', () => {
                 state.mode = 'view';
@@ -512,11 +544,13 @@
 
         const publishedHtml = entry.published ? `
             <section class="space-y-4">
-                ${entry.published.image_url ? `<img src="${escapeHtml(entry.published.image_url)}" alt="" class="max-h-72 w-full rounded border border-[#332817] object-cover">` : ''}
+                ${isCharacterCategory(entry.published.category)
+                    ? linkedCharacterCardHtml(entry.published.linked_character)
+                    : (entry.published.image_url ? `<img src="${escapeHtml(entry.published.image_url)}" alt="" class="max-h-72 w-full rounded border border-[#332817] object-cover">` : '')}
                 <div class="rounded border border-[#332817] bg-[#101012] p-4">
                     <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400"><span>${escapeHtml(entry.published.category_icon || '')}</span><span>Published Canon</span></div>
                     ${tagsHtml(entry.published.tags || [])}
-                    <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.published.body)}</div>
+                    ${entry.published.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.published.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
                 </div>
             </section>
         ` : '';
@@ -529,9 +563,11 @@
                 </div>
                 <div class="mt-3 text-sm font-semibold text-[#f2dfb5]">${escapeHtml(entry.pending.title)}</div>
                 <div class="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.pending.category_label)}</div>
-                ${entry.pending.image_url ? `<img src="${escapeHtml(entry.pending.image_url)}" alt="" class="mt-3 max-h-64 w-full rounded border border-[#332817] object-cover">` : ''}
+                ${isCharacterCategory(entry.pending.category)
+                    ? `<div class="mt-3">${linkedCharacterCardHtml(entry.pending.linked_character, true)}</div>`
+                    : (entry.pending.image_url ? `<img src="${escapeHtml(entry.pending.image_url)}" alt="" class="mt-3 max-h-64 w-full rounded border border-[#332817] object-cover">` : '')}
                 ${tagsHtml(entry.pending.tags || [])}
-                <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>
+                ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
             </section>
         ` : '';
 
@@ -549,8 +585,9 @@
                 ${!entry.published && entry.pending ? `
                     <section class="rounded border border-[#332817] bg-[#101012] p-4">
                         <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Submission</div>
+                        ${isCharacterCategory(entry.pending.category) ? `<div class="mt-3">${linkedCharacterCardHtml(entry.pending.linked_character)}</div>` : ''}
                         ${tagsHtml(entry.pending.tags || [])}
-                        <div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>
+                        ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
                     </section>
                 ` : ''}
                 ${pendingHtml}
@@ -572,7 +609,7 @@
 
         bodyEl.innerHTML = `
             <form id="world-book-form" class="space-y-4">
-                <div>
+                <div id="world-book-form-title-wrap">
                     <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-title">Title</label>
                     <input id="world-book-form-title" name="title" type="text" maxlength="255" value="${escapeHtml(source?.title || '')}" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
                 </div>
@@ -582,7 +619,16 @@
                         ${state.categories.map((category) => `<option value="${escapeHtml(category.key)}" ${source?.category === category.key ? 'selected' : ''}>${escapeHtml(category.icon || '')} ${escapeHtml(category.label)}</option>`).join('')}
                     </select>
                 </div>
-                <div>
+                <div id="world-book-form-linked-character-wrap" class="hidden">
+                    <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-linked-character-id">Linked Character</label>
+                    <select id="world-book-form-linked-character-id" name="linked_character_id" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
+                        <option value="">Select one of your characters</option>
+                        ${state.ownedCharacters.map((character) => `<option value="${escapeHtml(character.id)}" ${String(source?.linked_character?.id || '') === String(character.id) ? 'selected' : ''}>${escapeHtml(character.name)} (${escapeHtml(character.handle)})</option>`).join('')}
+                    </select>
+                    <div class="mt-1 text-[11px] text-[#8f8675]">Only characters you own can be linked here.</div>
+                    ${source?.linked_character ? `<div class="mt-3">${linkedCharacterCardHtml(source.linked_character, true)}</div>` : ''}
+                </div>
+                <div id="world-book-form-image-url-wrap">
                     <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-image-url">Image URL</label>
                     <input id="world-book-form-image-url" name="image_url" type="url" maxlength="2048" value="${escapeHtml(source?.image_url || '')}" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
                 </div>
@@ -591,8 +637,9 @@
                     <input id="world-book-form-tags" name="tags_input" type="text" maxlength="1000" value="${escapeHtml(Array.isArray(source?.tags) ? source.tags.join(', ') : '')}" placeholder="coastal, trade, moon, pirates" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>
-                    <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-body">Body</label>
+                    <label id="world-book-form-body-label" class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-body">Body</label>
                     <textarea id="world-book-form-body" name="body" rows="14" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">${escapeHtml(source?.body || '')}</textarea>
+                    <div id="world-book-form-body-help" class="mt-1 text-[11px] text-[#8f8675]"></div>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                     ${publishAllowed ? `
@@ -601,7 +648,6 @@
                             <span>Publish immediately</span>
                         </label>
                     ` : '<div></div>'}
-                    <button type="submit" class="inline-flex items-center rounded border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20">Save</button>
                 </div>
                 <div id="world-book-form-error" class="hidden rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200"></div>
             </form>
@@ -609,14 +655,50 @@
 
         renderActions(entry);
 
-        document.getElementById('world-book-form')?.addEventListener('submit', async (event) => {
+        const form = document.getElementById('world-book-form');
+        const categoryInput = document.getElementById('world-book-form-category');
+        const titleWrap = document.getElementById('world-book-form-title-wrap');
+        const imageWrap = document.getElementById('world-book-form-image-url-wrap');
+        const linkedCharacterWrap = document.getElementById('world-book-form-linked-character-wrap');
+        const bodyLabel = document.getElementById('world-book-form-body-label');
+        const bodyHelp = document.getElementById('world-book-form-body-help');
+        const bodyInput = document.getElementById('world-book-form-body');
+
+        function syncWorldBookFormCategory() {
+            const characterCategory = isCharacterCategory(categoryInput?.value);
+            titleWrap?.classList.toggle('hidden', characterCategory);
+            imageWrap?.classList.toggle('hidden', characterCategory);
+            linkedCharacterWrap?.classList.toggle('hidden', !characterCategory);
+
+            if (bodyLabel) {
+                bodyLabel.textContent = characterCategory ? 'Supplemental Notes' : 'Body';
+            }
+
+            if (bodyHelp) {
+                bodyHelp.textContent = characterCategory
+                    ? 'Optional room-only notes such as affiliations, current status, relationships, or plot relevance.'
+                    : '';
+            }
+
+            if (bodyInput) {
+                bodyInput.placeholder = characterCategory
+                    ? 'Known Affiliations, Current Status, Relationship Notes, Plot Relevance...'
+                    : '';
+            }
+        }
+
+        categoryInput?.addEventListener('change', syncWorldBookFormCategory);
+        syncWorldBookFormCategory();
+
+        form?.addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
             const errorEl = document.getElementById('world-book-form-error');
             const payload = {
-                title: form.title.value.trim(),
+                title: form.title ? form.title.value.trim() : '',
                 category: form.category.value,
-                image_url: form.image_url.value.trim(),
+                linked_character_id: form.linked_character_id ? form.linked_character_id.value : '',
+                image_url: form.image_url ? form.image_url.value.trim() : '',
                 tags_input: form.tags_input.value.trim(),
                 body: form.body.value.trim(),
                 publish: form.publish ? form.publish.checked : false,
@@ -707,6 +789,7 @@
             state.entries = Array.isArray(data.entries) ? data.entries : [];
             state.pendingQueue = Array.isArray(data.pending_queue) ? data.pending_queue : [];
             state.permissions = data.permissions || state.permissions;
+            state.ownedCharacters = Array.isArray(data.owned_characters) ? data.owned_characters : [];
 
             if (!visibleEntries().some((entry) => entry.id === state.selectedEntryId)) {
                 state.selectedEntryId = null;

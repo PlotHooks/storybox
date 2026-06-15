@@ -8,8 +8,10 @@ use App\Models\WorldBookEntry;
 use App\Services\RoomAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class WorldBookController extends Controller
 {
@@ -30,13 +32,14 @@ class WorldBookController extends Controller
 
         $entries = WorldBookEntry::query()
             ->where('room_id', $room->id)
-            ->with(['authorCharacter', 'reviewedByCharacter'])
-            ->orderByRaw('COALESCE(category, draft_category) asc')
-            ->orderByRaw('COALESCE(sort_order, 2147483647) asc')
-            ->orderByRaw('COALESCE(title, draft_title) asc')
+            ->with(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile'])
             ->get()
             ->filter(fn (WorldBookEntry $entry) => $this->entryVisibleToViewer($entry, $viewerCharacter, $canManage))
             ->values();
+
+        $activityByCharacter = $this->latestRoomActivityByCharacter($room->id, $entries);
+
+        $entries = $this->sortEntriesForIndex($entries, $activityByCharacter, $viewerCharacter, $canManage);
 
         $serialized = $entries
             ->map(fn (WorldBookEntry $entry) => $this->serializeEntry($entry, $viewerCharacter, $canManage))
@@ -53,6 +56,7 @@ class WorldBookController extends Controller
                     'category_label' => $entry['pending']['category_label'] ?? $entry['category_label'],
                     'category_icon' => $entry['pending']['category_icon'] ?? $entry['category_icon'],
                     'author_character' => $entry['author_character'],
+                    'linked_character' => $entry['pending']['linked_character'] ?? $entry['linked_character'],
                     'updated_at' => $entry['updated_at'],
                     'status' => $entry['status'],
                 ])
@@ -81,6 +85,7 @@ class WorldBookController extends Controller
                 'can_manage' => $canManage,
                 'active_character_id' => $viewerCharacter?->id,
             ],
+            'owned_characters' => $this->ownedCharactersForUser($request->user()?->id),
             'pending_queue' => $pendingQueue,
             'entries' => $serialized,
         ]);
@@ -107,13 +112,17 @@ class WorldBookController extends Controller
                 'image_url' => $payload['image_url'],
                 'body' => $payload['body'],
                 'tags' => $payload['tags'],
+                'linked_character_id' => $payload['linked_character_id'],
+                'draft_linked_character_id' => null,
                 'published_at' => now(),
                 'reviewed_by_character_id' => $actor->id,
                 'reviewed_at' => now(),
                 'rejection_note' => null,
                 'rejected_at' => null,
             ]);
-            $entry->sort_order = $this->nextSortOrderForCategory($room->id, $payload['category']);
+            $entry->sort_order = WorldBookEntry::isCharacterCategory($payload['category'])
+                ? null
+                : $this->nextSortOrderForCategory($room->id, $payload['category']);
         } else {
             $entry->fill([
                 'status' => WorldBookEntry::STATUS_PENDING,
@@ -122,6 +131,7 @@ class WorldBookController extends Controller
                 'draft_image_url' => $payload['image_url'],
                 'draft_body' => $payload['body'],
                 'draft_tags' => $payload['tags'],
+                'draft_linked_character_id' => $payload['linked_character_id'],
                 'rejection_note' => null,
                 'rejected_at' => null,
             ]);
@@ -131,7 +141,7 @@ class WorldBookController extends Controller
 
         return response()->json([
             'ok' => true,
-            'entry' => $this->serializeEntry($entry->load(['authorCharacter', 'reviewedByCharacter']), $actor, $canManage),
+            'entry' => $this->serializeEntry($entry->load(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile']), $actor, $canManage),
         ]);
     }
 
@@ -155,11 +165,13 @@ class WorldBookController extends Controller
                     'image_url' => $payload['image_url'],
                     'body' => $payload['body'],
                     'tags' => $payload['tags'],
+                    'linked_character_id' => $payload['linked_character_id'],
                     'draft_title' => null,
                     'draft_category' => null,
                     'draft_image_url' => null,
                     'draft_body' => null,
                     'draft_tags' => null,
+                    'draft_linked_character_id' => null,
                     'published_at' => $entry->published_at ?? now(),
                     'reviewed_by_character_id' => $actor->id,
                     'reviewed_at' => now(),
@@ -177,6 +189,7 @@ class WorldBookController extends Controller
                     'draft_image_url' => $payload['image_url'],
                     'draft_body' => $payload['body'],
                     'draft_tags' => $payload['tags'],
+                    'draft_linked_character_id' => $payload['linked_character_id'],
                     'rejection_note' => null,
                     'rejected_at' => null,
                 ])->save();
@@ -195,6 +208,7 @@ class WorldBookController extends Controller
                 'draft_image_url' => $payload['image_url'],
                 'draft_body' => $payload['body'],
                 'draft_tags' => $payload['tags'],
+                'draft_linked_character_id' => $payload['linked_character_id'],
                 'rejection_note' => null,
                 'rejected_at' => null,
             ])->save();
@@ -202,7 +216,7 @@ class WorldBookController extends Controller
 
         return response()->json([
             'ok' => true,
-            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter']), $actor, $canManage),
+            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile']), $actor, $canManage),
         ]);
     }
 
@@ -226,11 +240,13 @@ class WorldBookController extends Controller
             'image_url' => $entry->draft_image_url,
             'body' => $entry->draft_body,
             'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
+            'linked_character_id' => $entry->draft_linked_character_id,
             'draft_title' => null,
             'draft_category' => null,
             'draft_image_url' => null,
             'draft_body' => null,
             'draft_tags' => null,
+            'draft_linked_character_id' => null,
             'published_at' => $entry->published_at ?? now(),
             'reviewed_by_character_id' => $actor->id,
             'reviewed_at' => now(),
@@ -243,7 +259,7 @@ class WorldBookController extends Controller
 
         return response()->json([
             'ok' => true,
-            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter']), $actor, true),
+            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile']), $actor, true),
         ]);
     }
 
@@ -269,6 +285,7 @@ class WorldBookController extends Controller
                 'draft_image_url' => null,
                 'draft_body' => null,
                 'draft_tags' => null,
+                'draft_linked_character_id' => null,
                 'reviewed_by_character_id' => $actor->id,
                 'reviewed_at' => now(),
                 'rejection_note' => $rejectionNote,
@@ -286,7 +303,7 @@ class WorldBookController extends Controller
 
         return response()->json([
             'ok' => true,
-            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter']), $actor, true),
+            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile']), $actor, true),
         ]);
     }
 
@@ -316,7 +333,7 @@ class WorldBookController extends Controller
 
         $actor = $this->actorCharacterForRoom($request, $room);
         abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
-        abort_unless($entry->hasPublishedContent() && $entry->category !== null, 422);
+        abort_unless($entry->hasPublishedContent() && $entry->category !== null && ! WorldBookEntry::isCharacterCategory($entry->category), 422);
 
         $validated = $request->validate([
             'direction' => ['required', 'string', 'in:up,down'],
@@ -353,28 +370,77 @@ class WorldBookController extends Controller
 
         return response()->json([
             'ok' => true,
-            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter']), $actor, true),
+            'entry' => $this->serializeEntry($entry->fresh()->load(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile']), $actor, true),
         ]);
     }
 
     private function validatedPayload(Request $request): array
     {
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'max:255'],
             'category' => ['required', 'string', 'in:' . implode(',', array_keys(WorldBookEntry::categories()))],
             'image_url' => ['nullable', 'url:http,https', 'max:2048'],
-            'body' => ['required', 'string', 'max:20000'],
+            'body' => ['nullable', 'string', 'max:20000'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['nullable', 'string', 'max:50'],
             'tags_input' => ['nullable', 'string', 'max:1000'],
+            'linked_character_id' => ['nullable', 'integer', 'exists:characters,id'],
         ]);
 
+        $category = $validated['category'];
+        $linkedCharacterId = isset($validated['linked_character_id']) ? (int) $validated['linked_character_id'] : null;
+
+        if (WorldBookEntry::isCharacterCategory($category)) {
+            if ($linkedCharacterId === null || $linkedCharacterId <= 0) {
+                throw ValidationException::withMessages([
+                    'linked_character_id' => 'Select one of your characters to link.',
+                ]);
+            }
+
+            $ownerUserId = (int) ($request->user()?->id ?? 0);
+            $ownsCharacter = Character::query()
+                ->where('id', $linkedCharacterId)
+                ->where('user_id', $ownerUserId)
+                ->exists();
+
+            if (! $ownsCharacter) {
+                throw ValidationException::withMessages([
+                    'linked_character_id' => 'You can only link a character you own.',
+                ]);
+            }
+
+            return [
+                'title' => null,
+                'category' => $category,
+                'image_url' => null,
+                'body' => $this->nullableString($validated['body'] ?? null),
+                'tags' => WorldBookEntry::normalizeTags($validated['tags'] ?? ($validated['tags_input'] ?? [])),
+                'linked_character_id' => $linkedCharacterId,
+            ];
+        }
+
+        $title = trim((string) ($validated['title'] ?? ''));
+        $body = trim((string) ($validated['body'] ?? ''));
+
+        if ($title === '') {
+            throw ValidationException::withMessages([
+                'title' => 'The title field is required.',
+            ]);
+        }
+
+        if ($body === '') {
+            throw ValidationException::withMessages([
+                'body' => 'The body field is required.',
+            ]);
+        }
+
         return [
-            'title' => trim($validated['title']),
-            'category' => $validated['category'],
+            'title' => $title,
+            'category' => $category,
             'image_url' => $this->nullableString($validated['image_url'] ?? null),
-            'body' => trim($validated['body']),
+            'body' => $body,
             'tags' => WorldBookEntry::normalizeTags($validated['tags'] ?? ($validated['tags_input'] ?? [])),
+            'linked_character_id' => null,
         ];
     }
 
@@ -400,7 +466,8 @@ class WorldBookController extends Controller
         $canSeeDraft = $canManage || $isAuthor;
         $canSeeRejectionNote = $canManage || $isAuthor;
         $listCategory = $entry->effectiveCategory($canSeeDraft);
-        $listTitle = $entry->effectiveTitle($canSeeDraft);
+        $listLinkedCharacter = $entry->effectiveLinkedCharacter($canSeeDraft);
+        $listTitle = $this->displayTitleForCategory($entry->effectiveTitle($canSeeDraft), $listCategory, $listLinkedCharacter);
         $listTags = $entry->hasPublishedContent()
             ? WorldBookEntry::normalizeTags($entry->tags ?? [])
             : ($canSeeDraft ? WorldBookEntry::normalizeTags($entry->draft_tags ?? []) : []);
@@ -416,6 +483,7 @@ class WorldBookController extends Controller
             'body' => $entry->hasPublishedContent() ? $entry->body : ($canSeeDraft ? $entry->draft_body : null),
             'image_url' => $entry->hasPublishedContent() ? $entry->image_url : ($canSeeDraft ? $entry->draft_image_url : null),
             'tags' => $listTags,
+            'linked_character' => $this->serializeLinkedCharacter($listLinkedCharacter),
             'has_published_content' => $entry->hasPublishedContent(),
             'has_pending_draft' => $entry->hasPendingDraft(),
             'author_character' => [
@@ -428,7 +496,7 @@ class WorldBookController extends Controller
                 'name' => $entry->reviewedByCharacter?->name,
             ],
             'published' => $entry->hasPublishedContent() ? [
-                'title' => $entry->title,
+                'title' => $this->displayTitleForCategory($entry->title, $entry->category, $entry->linkedCharacter),
                 'category' => $entry->category,
                 'category_label' => WorldBookEntry::categoryLabel($entry->category),
                 'category_icon' => WorldBookEntry::categoryIcon($entry->category),
@@ -436,15 +504,17 @@ class WorldBookController extends Controller
                 'body' => $entry->body,
                 'tags' => WorldBookEntry::normalizeTags($entry->tags ?? []),
                 'sort_order' => $entry->sort_order,
+                'linked_character' => $this->serializeLinkedCharacter($entry->linkedCharacter),
             ] : null,
             'pending' => $canSeeDraft && $entry->hasPendingDraft() ? [
-                'title' => $entry->draft_title,
+                'title' => $this->displayTitleForCategory($entry->draft_title, $entry->draft_category, $entry->draftLinkedCharacter),
                 'category' => $entry->draft_category,
                 'category_label' => WorldBookEntry::categoryLabel($entry->draft_category),
                 'category_icon' => WorldBookEntry::categoryIcon($entry->draft_category),
                 'image_url' => $entry->draft_image_url,
                 'body' => $entry->draft_body,
                 'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
+                'linked_character' => $this->serializeLinkedCharacter($entry->draftLinkedCharacter),
             ] : null,
             'rejection_note' => $canSeeRejectionNote ? $entry->rejection_note : null,
             'rejected_at' => $canSeeRejectionNote ? optional($entry->rejected_at)->toIso8601String() : null,
@@ -464,12 +534,16 @@ class WorldBookController extends Controller
             $entry->title,
             $entry->body,
             implode(' ', WorldBookEntry::normalizeTags($entry->tags ?? [])),
+            $entry->linkedCharacter?->name,
+            $entry->linkedCharacter?->public_handle,
         ];
 
         if ($canSeeDraft) {
             $segments[] = $entry->draft_title;
             $segments[] = $entry->draft_body;
             $segments[] = implode(' ', WorldBookEntry::normalizeTags($entry->draft_tags ?? []));
+            $segments[] = $entry->draftLinkedCharacter?->name;
+            $segments[] = $entry->draftLinkedCharacter?->public_handle;
         }
 
         return trim(implode(' ', array_filter($segments, fn ($value) => is_string($value) && trim($value) !== '')));
@@ -486,6 +560,11 @@ class WorldBookController extends Controller
 
     private function applyPublishedSortOrder(WorldBookEntry $entry, int $roomId, string $newCategory, ?string $previousPublishedCategory, bool $hadPublishedContent): void
     {
+        if (WorldBookEntry::isCharacterCategory($newCategory)) {
+            $entry->sort_order = null;
+            return;
+        }
+
         if ($hadPublishedContent && $previousPublishedCategory === $newCategory && $entry->sort_order !== null) {
             return;
         }
@@ -504,6 +583,10 @@ class WorldBookController extends Controller
 
     private function reindexCategory(int $roomId, string $category): void
     {
+        if (WorldBookEntry::isCharacterCategory($category)) {
+            return;
+        }
+
         $entries = WorldBookEntry::query()
             ->where('room_id', $roomId)
             ->where('category', $category)
@@ -577,4 +660,135 @@ class WorldBookController extends Controller
 
         return $value === '' ? null : $value;
     }
+
+    private function displayTitleForCategory(?string $title, ?string $category, ?Character $linkedCharacter): string
+    {
+        if (WorldBookEntry::isCharacterCategory($category)) {
+            return $linkedCharacter?->name ?? 'Linked Character';
+        }
+
+        return $title ?: 'Untitled';
+    }
+
+    private function serializeLinkedCharacter(?Character $character): ?array
+    {
+        if ($character === null) {
+            return null;
+        }
+
+        return [
+            'id' => $character->id,
+            'name' => $character->name,
+            'handle' => $character->public_handle,
+            'avatar_url' => $character->profile?->avatar_url ?: $character->externalAvatarUrl(),
+            'card_url' => route('characters.show', $character),
+            'profile_url' => route('characters.profile.show', $character),
+        ];
+    }
+
+    private function latestRoomActivityByCharacter(int $roomId, Collection $entries): array
+    {
+        $characterIds = $entries
+            ->flatMap(fn (WorldBookEntry $entry) => [
+                $entry->linked_character_id,
+                $entry->draft_linked_character_id,
+            ])
+            ->filter(fn ($id) => (int) $id > 0)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($characterIds->isEmpty()) {
+            return [];
+        }
+
+        return DB::table('messages')
+            ->selectRaw('character_id, MAX(created_at) as latest_posted_at')
+            ->where('room_id', $roomId)
+            ->whereIn('character_id', $characterIds->all())
+            ->whereNull('deleted_at')
+            ->groupBy('character_id')
+            ->pluck('latest_posted_at', 'character_id')
+            ->map(fn ($value) => (string) $value)
+            ->all();
+    }
+
+    private function sortEntriesForIndex(Collection $entries, array $activityByCharacter, ?Character $viewerCharacter, bool $canManage): Collection
+    {
+        $categoryOrder = array_flip(array_keys(WorldBookEntry::categoryMeta()));
+
+        $sorted = $entries->sort(function (WorldBookEntry $left, WorldBookEntry $right) use ($activityByCharacter, $viewerCharacter, $canManage, $categoryOrder) {
+            $leftCanSeeDraft = $canManage || ($viewerCharacter !== null && (int) $left->author_character_id === (int) $viewerCharacter->id);
+            $rightCanSeeDraft = $canManage || ($viewerCharacter !== null && (int) $right->author_character_id === (int) $viewerCharacter->id);
+
+            $leftCategory = $left->effectiveCategory($leftCanSeeDraft);
+            $rightCategory = $right->effectiveCategory($rightCanSeeDraft);
+            $leftCategoryOrder = $categoryOrder[$leftCategory] ?? PHP_INT_MAX;
+            $rightCategoryOrder = $categoryOrder[$rightCategory] ?? PHP_INT_MAX;
+
+            if ($leftCategoryOrder !== $rightCategoryOrder) {
+                return $leftCategoryOrder <=> $rightCategoryOrder;
+            }
+
+            if (WorldBookEntry::isCharacterCategory($leftCategory) && WorldBookEntry::isCharacterCategory($rightCategory)) {
+                $leftCharacterId = $left->effectiveLinkedCharacter($leftCanSeeDraft)?->id;
+                $rightCharacterId = $right->effectiveLinkedCharacter($rightCanSeeDraft)?->id;
+                $leftActivity = $leftCharacterId !== null ? ($activityByCharacter[$leftCharacterId] ?? null) : null;
+                $rightActivity = $rightCharacterId !== null ? ($activityByCharacter[$rightCharacterId] ?? null) : null;
+
+                if ($leftActivity !== $rightActivity) {
+                    if ($leftActivity === null) {
+                        return 1;
+                    }
+
+                    if ($rightActivity === null) {
+                        return -1;
+                    }
+
+                    return strcmp($rightActivity, $leftActivity);
+                }
+
+                return strcasecmp(
+                    $this->displayTitleForCategory($left->effectiveTitle($leftCanSeeDraft), $leftCategory, $left->effectiveLinkedCharacter($leftCanSeeDraft)),
+                    $this->displayTitleForCategory($right->effectiveTitle($rightCanSeeDraft), $rightCategory, $right->effectiveLinkedCharacter($rightCanSeeDraft))
+                );
+            }
+
+            $leftSortOrder = $left->sort_order ?? PHP_INT_MAX;
+            $rightSortOrder = $right->sort_order ?? PHP_INT_MAX;
+
+            if ($leftSortOrder !== $rightSortOrder) {
+                return $leftSortOrder <=> $rightSortOrder;
+            }
+
+            return strcasecmp(
+                $this->displayTitleForCategory($left->effectiveTitle($leftCanSeeDraft), $leftCategory, $left->effectiveLinkedCharacter($leftCanSeeDraft)),
+                $this->displayTitleForCategory($right->effectiveTitle($rightCanSeeDraft), $rightCategory, $right->effectiveLinkedCharacter($rightCanSeeDraft))
+            );
+        });
+
+        return $sorted->values();
+    }
+
+
+    private function ownedCharactersForUser(?int $userId): array
+    {
+        if ((int) $userId <= 0) {
+            return [];
+        }
+
+        return Character::query()
+            ->where('user_id', $userId)
+            ->with('profile')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Character $character) => [
+                'id' => $character->id,
+                'name' => $character->name,
+                'handle' => $character->public_handle,
+                'avatar_url' => $character->profile?->avatar_url ?: $character->externalAvatarUrl(),
+            ])
+            ->all();
+    }
+
 }

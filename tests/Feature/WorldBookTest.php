@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\User;
 use App\Models\WorldBookEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -340,6 +341,220 @@ class WorldBookTest extends TestCase
         $this->assertTrue(str_contains(strtolower((string) $viewerEntries[$published->id]['search_text']), 'coastal'));
     }
 
+
+
+    public function test_world_book_index_exposes_owned_characters_for_character_entry_dropdown(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$user, $firstOwnedCharacter] = $this->createUserWithCharacter('First Owned');
+        $secondOwnedCharacter = $this->createCharacter($user, 'Second Owned', 'https://cdn.example.com/second.png');
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter('Other User');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $response = $this->actingAs($user)
+            ->withSession(['active_character_id' => $firstOwnedCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $ownedCharacters = collect($response->json('owned_characters'));
+
+        $this->assertSame(
+            [$firstOwnedCharacter->id, $secondOwnedCharacter->id],
+            $ownedCharacters->pluck('id')->all()
+        );
+        $this->assertFalse($ownedCharacters->pluck('id')->contains($otherCharacter->id));
+    }
+
+    public function test_character_submission_rejects_linking_another_users_character_id(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$submitterUser, $submitterCharacter] = $this->createUserWithCharacter('Submitter');
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter('Other Character');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $this->actingAs($submitterUser)
+            ->withSession(['active_character_id' => $submitterCharacter->id])
+            ->postJson(route('rooms.world-book.store', $room->slug), [
+                'category' => WorldBookEntry::CATEGORY_CHARACTER,
+                'linked_character_id' => $otherCharacter->id,
+                'tags_input' => 'watchlist',
+                'body' => 'Current status note.',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['linked_character_id']);
+
+        $this->assertDatabaseCount('world_book_entries', 0);
+    }
+
+    public function test_character_submission_requires_owned_linked_character_id(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$submitterUser, $submitterCharacter] = $this->createUserWithCharacter('Submitter');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $this->actingAs($submitterUser)
+            ->withSession(['active_character_id' => $submitterCharacter->id])
+            ->postJson(route('rooms.world-book.store', $room->slug), [
+                'category' => WorldBookEntry::CATEGORY_CHARACTER,
+                'tags_input' => 'watchlist',
+                'body' => 'Current status note.',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['linked_character_id']);
+    }
+
+    public function test_character_entry_renders_linked_character_card_and_profile_data(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        [$linkedUser, $linkedCharacter] = $this->createUserWithCharacter('Leaf', 'https://cdn.example.com/leaf.png');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $entry = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'category' => WorldBookEntry::CATEGORY_CHARACTER,
+            'body' => 'Current Status: Missing in action.',
+            'tags' => ['watchlist'],
+            'linked_character_id' => $linkedCharacter->id,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk()
+            ->assertJsonPath('entries.0.id', $entry->id)
+            ->assertJsonPath('entries.0.category', WorldBookEntry::CATEGORY_CHARACTER)
+            ->assertJsonPath('entries.0.title', 'Leaf')
+            ->assertJsonPath('entries.0.linked_character.id', $linkedCharacter->id)
+            ->assertJsonPath('entries.0.linked_character.avatar_url', 'https://cdn.example.com/leaf.png')
+            ->assertJsonPath('entries.0.linked_character.card_url', route('characters.show', $linkedCharacter))
+            ->assertJsonPath('entries.0.linked_character.profile_url', route('characters.profile.show', $linkedCharacter))
+            ->assertJsonPath('entries.0.published.linked_character.handle', $linkedCharacter->public_handle)
+            ->assertJsonPath('entries.0.published.body', 'Current Status: Missing in action.');
+    }
+
+    public function test_character_category_orders_entries_by_most_recent_room_activity(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        [$leafUser, $leafCharacter] = $this->createUserWithCharacter('Leaf');
+        [$israelUser, $israelCharacter] = $this->createUserWithCharacter('Israel Beach');
+        [$lockhielUser, $lockhielCharacter] = $this->createUserWithCharacter('Lockhiel');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $leafEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $leafCharacter, 'Plot lead');
+        $israelEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $israelCharacter, 'Harbor contact');
+        $lockhielEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $lockhielCharacter, 'Court observer');
+
+        $this->insertMessage($room, $leafCharacter, $leafUser, 'Most recent post', '2026-06-15 12:00:00');
+        $this->insertMessage($room, $israelCharacter, $israelUser, 'Earlier post', '2026-06-15 11:00:00');
+        $this->insertMessage($room, $lockhielCharacter, $lockhielUser, 'Oldest post', '2026-06-15 10:00:00');
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $entries = collect($response->json('entries'));
+
+        $this->assertSame([
+            $leafEntry->id,
+            $israelEntry->id,
+            $lockhielEntry->id,
+        ], $entries->pluck('id')->all());
+
+        $this->assertArrayNotHasKey('last_posted_at', $entries->first());
+    }
+
+    public function test_character_search_text_includes_linked_name_notes_and_tags(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        [$linkedUser, $linkedCharacter] = $this->createUserWithCharacter('Lockhiel');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $entry = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'category' => WorldBookEntry::CATEGORY_CHARACTER,
+            'body' => 'Relationship Notes: owes the harbor guild a favor.',
+            'tags' => ['plot-relevance', 'debt'],
+            'linked_character_id' => $linkedCharacter->id,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $searchText = collect($response->json('entries'))->firstWhere('id', $entry->id)['search_text'];
+
+        $this->assertStringContainsStringIgnoringCase('lockhiel', $searchText);
+        $this->assertStringContainsStringIgnoringCase('harbor guild', $searchText);
+        $this->assertStringContainsStringIgnoringCase('plot-relevance', $searchText);
+    }
+
+    public function test_non_character_categories_keep_curated_sorting_when_character_entries_exist(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        [$linkedUser, $linkedCharacter] = $this->createUserWithCharacter('Leaf');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $locationSecond = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Wormwood',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Location body.',
+            'sort_order' => 2,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $locationFirst = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'The World',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Location body.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $characterEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $linkedCharacter, 'Major player');
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $entries = collect($response->json('entries'));
+        $locationEntries = $entries->where('category', WorldBookEntry::CATEGORY_LOCATION)->pluck('id')->values()->all();
+
+        $this->assertSame([$locationFirst->id, $locationSecond->id], $locationEntries);
+        $this->assertContains($characterEntry->id, $entries->pluck('id')->all());
+    }
+
     public function test_rejection_note_is_visible_to_submitter_and_staff_but_not_other_users(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
@@ -430,9 +645,9 @@ class WorldBookTest extends TestCase
 
         $response->assertOk();
         $this->assertSame([
-            $faction->id,
             $locationA->id,
             $locationB->id,
+            $faction->id,
         ], collect($response->json('entries'))->pluck('id')->all());
     }
 
@@ -536,19 +751,47 @@ class WorldBookTest extends TestCase
     }
 
 
-    private function createUserWithCharacter(string $name = 'Character'): array
+    private function createUserWithCharacter(string $name = 'Character', ?string $avatar = null): array
     {
         $user = User::factory()->create();
 
-        return [$user, $this->createCharacter($user, $name)];
+        return [$user, $this->createCharacter($user, $name, $avatar)];
     }
 
-    private function createCharacter(User $user, string $name): Character
+    private function createCharacter(User $user, string $name, ?string $avatar = null): Character
     {
         return Character::create([
             'user_id' => $user->id,
             'name' => $name,
             'slug' => 'character-' . Str::random(16),
+            'avatar' => $avatar,
+        ]);
+    }
+
+    private function createPublishedCharacterWorldBookEntry(Room $room, Character $authorCharacter, Character $linkedCharacter, ?string $notes = null): WorldBookEntry
+    {
+        return WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $authorCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'category' => WorldBookEntry::CATEGORY_CHARACTER,
+            'body' => $notes,
+            'linked_character_id' => $linkedCharacter->id,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $authorCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+    }
+
+    private function insertMessage(Room $room, Character $character, User $user, string $body, string $createdAt): void
+    {
+        DB::table('messages')->insert([
+            'room_id' => $room->id,
+            'user_id' => $user->id,
+            'character_id' => $character->id,
+            'body' => $body,
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
         ]);
     }
 

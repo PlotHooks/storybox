@@ -19,6 +19,7 @@ class WorldBookEntry extends Model
     public const CATEGORY_LOCATION = 'location';
     public const CATEGORY_FACTION = 'faction';
     public const CATEGORY_NPC = 'npc';
+    public const CATEGORY_CHARACTER = 'character';
     public const CATEGORY_LORE = 'lore';
     public const CATEGORY_TIMELINE_EVENT = 'timeline_event';
     public const CATEGORY_CUSTOM = 'custom';
@@ -27,6 +28,8 @@ class WorldBookEntry extends Model
         'room_id',
         'author_character_id',
         'reviewed_by_character_id',
+        'linked_character_id',
+        'draft_linked_character_id',
         'status',
         'sort_order',
         'title',
@@ -64,6 +67,7 @@ class WorldBookEntry extends Model
             self::CATEGORY_LOCATION => ['label' => 'Location', 'icon' => '📍'],
             self::CATEGORY_FACTION => ['label' => 'Faction', 'icon' => '⚔'],
             self::CATEGORY_NPC => ['label' => 'NPC', 'icon' => '👤'],
+            self::CATEGORY_CHARACTER => ['label' => 'Character', 'icon' => '🪪'],
             self::CATEGORY_LORE => ['label' => 'Lore', 'icon' => '📜'],
             self::CATEGORY_TIMELINE_EVENT => ['label' => 'Timeline Event', 'icon' => '🕒'],
             self::CATEGORY_CUSTOM => ['label' => 'Custom', 'icon' => '🏷'],
@@ -85,6 +89,11 @@ class WorldBookEntry extends Model
     public static function categoryIcon(?string $category): string
     {
         return self::categoryMeta()[$category]['icon'] ?? '🏷';
+    }
+
+    public static function isCharacterCategory(?string $category): bool
+    {
+        return $category === self::CATEGORY_CHARACTER;
     }
 
     public static function normalizeTags(array|string|null $tags): array
@@ -116,8 +125,24 @@ class WorldBookEntry extends Model
         return $this->belongsTo(Character::class, 'reviewed_by_character_id');
     }
 
+    public function linkedCharacter(): BelongsTo
+    {
+        return $this->belongsTo(Character::class, 'linked_character_id');
+    }
+
+    public function draftLinkedCharacter(): BelongsTo
+    {
+        return $this->belongsTo(Character::class, 'draft_linked_character_id');
+    }
+
     public function hasPublishedContent(): bool
     {
+        if (self::isCharacterCategory($this->category)) {
+            return $this->published_at !== null
+                && $this->linked_character_id !== null
+                && $this->category !== null;
+        }
+
         return $this->published_at !== null
             && $this->title !== null
             && $this->category !== null
@@ -126,11 +151,15 @@ class WorldBookEntry extends Model
 
     public function hasPendingDraft(): bool
     {
+        if (self::isCharacterCategory($this->draft_category)) {
+            return $this->draft_category !== null
+                && $this->draft_linked_character_id !== null;
+        }
+
         return $this->draft_title !== null
             && $this->draft_category !== null
             && $this->draft_body !== null;
     }
-
 
     public function effectiveCategory(bool $canSeeDraft = true): ?string
     {
@@ -140,5 +169,18 @@ class WorldBookEntry extends Model
     public function effectiveTitle(bool $canSeeDraft = true): ?string
     {
         return $this->title ?? ($canSeeDraft ? $this->draft_title : null);
+    }
+
+    public function effectiveLinkedCharacter(bool $canSeeDraft = true): ?Character
+    {
+        if ($this->hasPublishedContent()) {
+            return $this->linkedCharacter;
+        }
+
+        if ($canSeeDraft && $this->hasPendingDraft()) {
+            return $this->draftLinkedCharacter;
+        }
+
+        return $this->linkedCharacter ?? ($canSeeDraft ? $this->draftLinkedCharacter : null);
     }
 }
