@@ -15,6 +15,148 @@ class WorldBookTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_map_category_exists_in_world_book_index(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $mapCategory = collect($response->json('categories'))->firstWhere('key', WorldBookEntry::CATEGORY_MAP);
+
+        $this->assertNotNull($mapCategory);
+        $this->assertSame('Map', $mapCategory['label']);
+    }
+
+    public function test_regular_participant_can_submit_pending_map_entry(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$participantUser, $participantCharacter] = $this->createUserWithCharacter('Participant');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $this->actingAs($participantUser)
+            ->withSession(['active_character_id' => $participantCharacter->id])
+            ->postJson(route('rooms.world-book.store', $room->slug), [
+                'title' => 'Trade Roads of Ardent Reach',
+                'category' => WorldBookEntry::CATEGORY_MAP,
+                'image_url' => 'https://cdn.example.com/maps/ardent-reach.png',
+                'tags_input' => 'roads, trade, overland',
+                'body' => 'Primary caravan paths and river crossings across the Reach.',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('world_book_entries', [
+            'room_id' => $room->id,
+            'author_character_id' => $participantCharacter->id,
+            'status' => WorldBookEntry::STATUS_PENDING,
+            'draft_title' => 'Trade Roads of Ardent Reach',
+            'draft_category' => WorldBookEntry::CATEGORY_MAP,
+            'draft_image_url' => 'https://cdn.example.com/maps/ardent-reach.png',
+        ]);
+    }
+
+    public function test_map_entries_render_image_url_and_preserve_normal_approval_workflow(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$participantUser, $participantCharacter] = $this->createUserWithCharacter('Participant');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $entry = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $participantCharacter->id,
+            'status' => WorldBookEntry::STATUS_PENDING,
+            'draft_title' => 'Underdeep Survey',
+            'draft_category' => WorldBookEntry::CATEGORY_MAP,
+            'draft_image_url' => 'https://cdn.example.com/maps/underdeep.jpg',
+            'draft_body' => 'A stitched survey of the lower tunnels.',
+            'draft_tags' => ['tunnels', 'survey'],
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.approve', [$room->slug, $entry]))
+            ->assertOk();
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk()
+            ->assertJsonPath('entries.0.category', WorldBookEntry::CATEGORY_MAP)
+            ->assertJsonPath('entries.0.image_url', 'https://cdn.example.com/maps/underdeep.jpg')
+            ->assertJsonPath('entries.0.published.image_url', 'https://cdn.example.com/maps/underdeep.jpg')
+            ->assertJsonPath('entries.0.published.body', 'A stitched survey of the lower tunnels.');
+
+        $this->assertDatabaseHas('world_book_entries', [
+            'id' => $entry->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'category' => WorldBookEntry::CATEGORY_MAP,
+            'image_url' => 'https://cdn.example.com/maps/underdeep.jpg',
+        ]);
+    }
+
+    public function test_map_entries_preserve_manual_ordering_and_character_activity_sorting_stays_isolated(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter('Viewer');
+        [$activeLinkedUser, $activeLinkedCharacter] = $this->createUserWithCharacter('Active Scout');
+        [$quietLinkedUser, $quietLinkedCharacter] = $this->createUserWithCharacter('Quiet Scout');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $firstMap = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Northern Reach',
+            'category' => WorldBookEntry::CATEGORY_MAP,
+            'image_url' => 'https://cdn.example.com/maps/north.png',
+            'body' => 'Northern routes and holdfasts.',
+            'sort_order' => 1,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $secondMap = WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Southern Reach',
+            'category' => WorldBookEntry::CATEGORY_MAP,
+            'image_url' => 'https://cdn.example.com/maps/south.png',
+            'body' => 'Southern roads and ferries.',
+            'sort_order' => 2,
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $activeCharacterEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $activeLinkedCharacter, 'Active character note');
+        $quietCharacterEntry = $this->createPublishedCharacterWorldBookEntry($room, $ownerCharacter, $quietLinkedCharacter, 'Quiet character note');
+
+        $this->insertMessage($room, $activeLinkedCharacter, $activeLinkedUser, 'Newest report', '2026-06-15 12:00:00');
+        $this->insertMessage($room, $quietLinkedCharacter, $quietLinkedUser, 'Older report', '2026-06-15 10:00:00');
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug));
+
+        $response->assertOk();
+
+        $entries = collect($response->json('entries'));
+        $mapEntries = $entries->where('category', WorldBookEntry::CATEGORY_MAP)->pluck('id')->values()->all();
+        $characterEntries = $entries->where('category', WorldBookEntry::CATEGORY_CHARACTER)->pluck('id')->values()->all();
+
+        $this->assertSame([$firstMap->id, $secondMap->id], $mapEntries);
+        $this->assertSame([$activeCharacterEntry->id, $quietCharacterEntry->id], $characterEntries);
+    }
+
     public function test_regular_participant_can_view_published_entries(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');

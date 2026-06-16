@@ -22,6 +22,7 @@ class WorldBookEntry extends Model
     public const CATEGORY_CHARACTER = 'character';
     public const CATEGORY_LORE = 'lore';
     public const CATEGORY_TIMELINE_EVENT = 'timeline_event';
+    public const CATEGORY_MAP = 'map';
     public const CATEGORY_CUSTOM = 'custom';
 
     protected $fillable = [
@@ -70,6 +71,7 @@ class WorldBookEntry extends Model
             self::CATEGORY_CHARACTER => ['label' => 'Character', 'icon' => '🪪'],
             self::CATEGORY_LORE => ['label' => 'Lore', 'icon' => '📜'],
             self::CATEGORY_TIMELINE_EVENT => ['label' => 'Timeline Event', 'icon' => '🕒'],
+            self::CATEGORY_MAP => ['label' => 'Map', 'icon' => '🗺'],
             self::CATEGORY_CUSTOM => ['label' => 'Custom', 'icon' => '🏷'],
         ];
     }

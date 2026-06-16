@@ -88,6 +88,37 @@
     <div id="world-book-resize-handle" class="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize" title="Resize"></div>
 </div>
 
+<div
+    id="world-book-map-lightbox"
+    class="hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Expanded world map"
+    style="position: fixed; inset: 0; z-index: 10010; background: rgba(0, 0, 0, 0.9); overflow: auto;"
+>
+    <button
+        id="world-book-map-lightbox-close"
+        type="button"
+        class="rounded border border-[#5a431f] bg-[#0b0b0c] px-3 py-1.5 text-sm text-[#f2dfb5] hover:border-amber-500/40 hover:text-amber-200"
+        aria-label="Close fullscreen map"
+        style="position: fixed; top: 16px; right: 16px; z-index: 10011;"
+    >
+        Close
+    </button>
+    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;">
+        <div style="display: flex; align-items: center; justify-content: center; max-width: 95vw; max-height: 90vh; width: 100%;">
+            <img
+                id="world-book-map-lightbox-image"
+                src=""
+                alt=""
+                class="rounded border border-[#5a431f] bg-[#080809] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                referrerpolicy="no-referrer"
+                style="display: block; max-width: 95vw; max-height: 90vh; width: auto; height: auto; object-fit: contain; margin: 0 auto;"
+            >
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const windowEl = document.getElementById('world-book-window');
@@ -108,6 +139,9 @@
     const searchInput = document.getElementById('world-book-search-input');
     const dragHandle = document.getElementById('world-book-drag-handle');
     const resizeHandle = document.getElementById('world-book-resize-handle');
+    const mapLightboxEl = document.getElementById('world-book-map-lightbox');
+    const mapLightboxImageEl = document.getElementById('world-book-map-lightbox-image');
+    const mapLightboxCloseBtn = document.getElementById('world-book-map-lightbox-close');
 
     const WINDOW_MIN_WIDTH = 960;
     const WINDOW_MIN_HEIGHT = 560;
@@ -254,6 +288,35 @@
 
     function isCharacterCategory(category) {
         return category === 'character';
+    }
+
+    function isMapCategory(category) {
+        return category === 'map';
+    }
+
+    function mapImageHtml(imageUrl, title, extraClasses = '', compact = false) {
+        if (!imageUrl) {
+            return '';
+        }
+
+        return `
+            <button
+                type="button"
+                data-world-book-map-preview="${escapeHtml(imageUrl)}"
+                data-world-book-map-title="${escapeHtml(title || 'Map preview')}"
+                class="group block w-full overflow-hidden rounded border border-[#5a431f] bg-[#0d0d0f] p-3 text-left ${extraClasses}"
+            >
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Map Preview</div>
+                <img
+                    src="${escapeHtml(imageUrl)}"
+                    alt="${escapeHtml(title || 'Map preview')}"
+                    class="mt-3 mx-auto block ${compact ? 'max-h-[26rem]' : 'max-h-[38rem]'} h-auto w-auto max-w-full rounded object-contain"
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                >
+                <span class="mt-2 block text-[10px] uppercase tracking-[0.14em] text-[#8f8675] group-hover:text-[#d6c8ad]">Open fullscreen</span>
+            </button>
+        `;
     }
 
     function linkedCharacterCardHtml(character, compact = false) {
@@ -546,11 +609,13 @@
             <section class="space-y-4">
                 ${isCharacterCategory(entry.published.category)
                     ? linkedCharacterCardHtml(entry.published.linked_character)
-                    : (entry.published.image_url ? `<div class="rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.published.image_url)}" alt="${escapeHtml(entry.published.title || entry.title || 'World Book image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : '')}
+                    : (isMapCategory(entry.published.category)
+                        ? mapImageHtml(entry.published.image_url, entry.published.title || entry.title || 'Map')
+                        : (entry.published.image_url ? `<div class="rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.published.image_url)}" alt="${escapeHtml(entry.published.title || entry.title || 'World Book image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : ''))}
                 <div class="rounded border border-[#332817] bg-[#101012] p-4">
-                    <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400"><span>${escapeHtml(entry.published.category_icon || '')}</span><span>Published Canon</span></div>
+                    <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400"><span>${escapeHtml(entry.published.category_icon || '')}</span><span>${isMapCategory(entry.published.category) ? 'Published Map' : 'Published Canon'}</span></div>
                     ${tagsHtml(entry.published.tags || [])}
-                    ${entry.published.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.published.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
+                    ${entry.published.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.published.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">${isMapCategory(entry.published.category) ? 'No map description yet.' : 'No supplemental room notes yet.'}</div>`}
                 </div>
             </section>
         ` : '';
@@ -565,9 +630,11 @@
                 <div class="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.pending.category_label)}</div>
                 ${isCharacterCategory(entry.pending.category)
                     ? `<div class="mt-3">${linkedCharacterCardHtml(entry.pending.linked_character, true)}</div>`
-                    : (entry.pending.image_url ? `<div class="mt-3 rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.pending.image_url)}" alt="${escapeHtml(entry.pending.title || entry.title || 'World Book draft image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : '')}
+                    : (isMapCategory(entry.pending.category)
+                        ? mapImageHtml(entry.pending.image_url, entry.pending.title || entry.title || 'Pending map', 'mt-3', true)
+                        : (entry.pending.image_url ? `<div class="mt-3 rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.pending.image_url)}" alt="${escapeHtml(entry.pending.title || entry.title || 'World Book draft image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : ''))}
                 ${tagsHtml(entry.pending.tags || [])}
-                ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
+                ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">${isMapCategory(entry.pending.category) ? 'No map description yet.' : 'No supplemental room notes yet.'}</div>`}
             </section>
         ` : '';
 
@@ -586,8 +653,9 @@
                     <section class="rounded border border-[#332817] bg-[#101012] p-4">
                         <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Submission</div>
                         ${isCharacterCategory(entry.pending.category) ? `<div class="mt-3">${linkedCharacterCardHtml(entry.pending.linked_character)}</div>` : ''}
+                        ${!isCharacterCategory(entry.pending.category) && isMapCategory(entry.pending.category) ? mapImageHtml(entry.pending.image_url, entry.pending.title || entry.title || 'Pending map', 'mt-3', true) : ''}
                         ${tagsHtml(entry.pending.tags || [])}
-                        ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
+                        ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">${isMapCategory(entry.pending.category) ? 'No map description yet.' : 'No supplemental room notes yet.'}</div>`}
                     </section>
                 ` : ''}
                 ${pendingHtml}
@@ -595,7 +663,34 @@
             </div>
         `;
 
+        bindMapPreviewButtons();
         renderActions(entry);
+    }
+
+    function bindMapPreviewButtons() {
+        bodyEl.querySelectorAll('[data-world-book-map-preview]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!mapLightboxEl || !mapLightboxImageEl) {
+                    return;
+                }
+
+                mapLightboxImageEl.src = button.dataset.worldBookMapPreview || '';
+                mapLightboxImageEl.alt = button.dataset.worldBookMapTitle || 'Map preview';
+                mapLightboxEl.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            });
+        });
+    }
+
+    function closeMapLightbox() {
+        if (!mapLightboxEl || !mapLightboxImageEl) {
+            return;
+        }
+
+        mapLightboxEl.classList.add('hidden');
+        mapLightboxImageEl.src = '';
+        mapLightboxImageEl.alt = '';
+        document.body.classList.remove('overflow-hidden');
     }
 
     function renderForm(entry) {
@@ -629,7 +724,7 @@
                     ${source?.linked_character ? `<div class="mt-3">${linkedCharacterCardHtml(source.linked_character, true)}</div>` : ''}
                 </div>
                 <div id="world-book-form-image-url-wrap">
-                    <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-image-url">Image URL</label>
+                    <label id="world-book-form-image-url-label" class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-form-image-url">Image URL</label>
                     <input id="world-book-form-image-url" name="image_url" type="url" maxlength="2048" value="${escapeHtml(source?.image_url || '')}" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>
@@ -659,6 +754,7 @@
         const categoryInput = document.getElementById('world-book-form-category');
         const titleWrap = document.getElementById('world-book-form-title-wrap');
         const imageWrap = document.getElementById('world-book-form-image-url-wrap');
+        const imageLabel = document.getElementById('world-book-form-image-url-label');
         const linkedCharacterWrap = document.getElementById('world-book-form-linked-character-wrap');
         const bodyLabel = document.getElementById('world-book-form-body-label');
         const bodyHelp = document.getElementById('world-book-form-body-help');
@@ -666,24 +762,29 @@
 
         function syncWorldBookFormCategory() {
             const characterCategory = isCharacterCategory(categoryInput?.value);
+            const mapCategory = isMapCategory(categoryInput?.value);
             titleWrap?.classList.toggle('hidden', characterCategory);
             imageWrap?.classList.toggle('hidden', characterCategory);
             linkedCharacterWrap?.classList.toggle('hidden', !characterCategory);
 
+            if (imageLabel) {
+                imageLabel.textContent = mapCategory ? 'Map Image URL' : 'Image URL';
+            }
+
             if (bodyLabel) {
-                bodyLabel.textContent = characterCategory ? 'Supplemental Notes' : 'Body';
+                bodyLabel.textContent = characterCategory ? 'Supplemental Notes' : (mapCategory ? 'Description' : 'Body');
             }
 
             if (bodyHelp) {
                 bodyHelp.textContent = characterCategory
                     ? 'Optional room-only notes such as affiliations, current status, relationships, or plot relevance.'
-                    : '';
+                    : (mapCategory ? 'Add context, landmarks, travel notes, or usage guidance for this map.' : '');
             }
 
             if (bodyInput) {
                 bodyInput.placeholder = characterCategory
                     ? 'Known Affiliations, Current Status, Relationship Notes, Plot Relevance...'
-                    : '';
+                    : (mapCategory ? 'Region overview, key landmarks, route notes, and other map context...' : '');
             }
         }
 
@@ -876,7 +977,7 @@
 
     function centerWindow() {
         const { width: viewportWidth, height: viewportHeight } = viewportBounds();
-        const desired = clampWindowSize(Math.round(viewportWidth * 0.88), Math.round(viewportHeight * 0.78));
+        const desired = clampWindowSize(Math.round(viewportWidth * 0.76), Math.round(viewportHeight * 0.68));
         const left = Math.round((viewportWidth - desired.width) / 2);
         const top = Math.round((viewportHeight - desired.height) / 2);
         const position = clampWindowPosition(left, top);
@@ -904,6 +1005,7 @@
     }
 
     function closeWorldBook() {
+        closeMapLightbox();
         windowEl.classList.add('hidden');
         setWindowOpenState(false);
     }
@@ -918,6 +1020,17 @@
 
     refreshBtn?.addEventListener('click', () => loadWorldBook(true));
     closeBtn?.addEventListener('click', closeWorldBook);
+    mapLightboxCloseBtn?.addEventListener('click', closeMapLightbox);
+    mapLightboxEl?.addEventListener('click', (event) => {
+        if (event.target === mapLightboxEl) {
+            closeMapLightbox();
+        }
+    });
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && mapLightboxEl && !mapLightboxEl.classList.contains('hidden')) {
+            closeMapLightbox();
+        }
+    });
     newEntryBtn?.addEventListener('click', () => {
         state.formMode = 'create';
         state.mode = 'form';
