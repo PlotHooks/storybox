@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <div class="flex-1 min-h-0 grid overflow-hidden" style="grid-template-columns: 13rem 20rem minmax(0, 1fr);">
+    <div class="flex-1 min-h-0 grid overflow-hidden" style="grid-template-columns: 12rem 18rem minmax(0, 1fr);">
         <div class="min-w-0 border-r border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] flex flex-col overflow-hidden">
             <div class="p-3 border-b border-[#2a241a] space-y-2">
                 <button
@@ -546,7 +546,7 @@
             <section class="space-y-4">
                 ${isCharacterCategory(entry.published.category)
                     ? linkedCharacterCardHtml(entry.published.linked_character)
-                    : (entry.published.image_url ? `<img src="${escapeHtml(entry.published.image_url)}" alt="" class="max-h-72 w-full rounded border border-[#332817] object-cover">` : '')}
+                    : (entry.published.image_url ? `<div class="rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.published.image_url)}" alt="${escapeHtml(entry.published.title || entry.title || 'World Book image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : '')}
                 <div class="rounded border border-[#332817] bg-[#101012] p-4">
                     <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400"><span>${escapeHtml(entry.published.category_icon || '')}</span><span>Published Canon</span></div>
                     ${tagsHtml(entry.published.tags || [])}
@@ -565,7 +565,7 @@
                 <div class="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#8f8675]">${escapeHtml(entry.pending.category_label)}</div>
                 ${isCharacterCategory(entry.pending.category)
                     ? `<div class="mt-3">${linkedCharacterCardHtml(entry.pending.linked_character, true)}</div>`
-                    : (entry.pending.image_url ? `<img src="${escapeHtml(entry.pending.image_url)}" alt="" class="mt-3 max-h-64 w-full rounded border border-[#332817] object-cover">` : '')}
+                    : (entry.pending.image_url ? `<div class="mt-3 rounded border border-[#332817] bg-[#0d0d0f] p-3"><img src="${escapeHtml(entry.pending.image_url)}" alt="${escapeHtml(entry.pending.title || entry.title || 'World Book draft image')}" class="mx-auto block max-h-[32rem] h-auto w-auto max-w-full rounded object-contain" loading="lazy" referrerpolicy="no-referrer"></div>` : '')}
                 ${tagsHtml(entry.pending.tags || [])}
                 ${entry.pending.body ? `<div class="mt-3 whitespace-pre-wrap leading-relaxed text-[#d6c8ad]">${escapeHtml(entry.pending.body)}</div>` : `<div class="mt-3 text-sm text-[#8f8675]">No supplemental room notes yet.</div>`}
             </section>
