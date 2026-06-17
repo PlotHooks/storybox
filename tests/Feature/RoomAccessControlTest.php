@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Models\User;
+use App\Services\RoomParticipationStateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,7 @@ class RoomAccessControlTest extends TestCase
         ]);
 
         Event::fake([
+            \App\Events\CharacterKickedFromRoom::class,
             MessageCreated::class,
             ModerationMessageCreated::class,
         ]);
@@ -106,12 +108,14 @@ class RoomAccessControlTest extends TestCase
         $this->actingAs($viewerUser)
             ->postJson(route('rooms.presence', $room->slug), [
                 'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $viewerCharacter),
             ])
             ->assertOk();
 
         $this->actingAs($viewerUser)
             ->postJson(route('rooms.messages.store', $room->slug), [
                 'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $viewerCharacter),
                 'body' => 'Allowed.',
             ])
             ->assertOk();
@@ -243,6 +247,7 @@ class RoomAccessControlTest extends TestCase
         $this->actingAs($admin)
             ->postJson(route('rooms.messages.store', $room->slug), [
                 'character_id' => $adminCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $adminCharacter),
                 'body' => 'Admin override.',
             ])
             ->assertOk();
@@ -572,7 +577,7 @@ class RoomAccessControlTest extends TestCase
             ->assertOk()
             ->assertSee('Room Settings')
             ->assertSee('Whitelist entries grant access to hidden rooms.')
-            ->assertSee('Blacklist entries deny access even to public rooms.');
+            ->assertSee('Room bans deny access even to public rooms.');
     }
 
     public function test_websocket_room_access_enforces_hidden_whitelist_blacklist_and_public_defaults(): void
@@ -616,6 +621,11 @@ class RoomAccessControlTest extends TestCase
         $user = User::factory()->create();
 
         return [$user, $this->createCharacter($user)];
+    }
+
+    private function issueParticipationToken(Room $room, Character $character): string
+    {
+        return app(RoomParticipationStateService::class)->issueToken($room, $character);
     }
 
     private function createCharacter(User $user): Character

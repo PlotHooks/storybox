@@ -13,10 +13,15 @@ class RoomAccessEntry extends Model
     public const TYPE_WHITELIST = 'whitelist';
     public const TYPE_BLACKLIST = 'blacklist';
 
+    public const SCOPE_CHARACTER = 'character';
+    public const SCOPE_ACCOUNT = 'account';
+
     protected $fillable = [
         'room_id',
         'character_id',
+        'user_id',
         'type',
+        'scope',
         'created_by_character_id',
     ];
 
@@ -28,6 +33,11 @@ class RoomAccessEntry extends Model
     public function character(): BelongsTo
     {
         return $this->belongsTo(Character::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function createdByCharacter(): BelongsTo

@@ -117,12 +117,14 @@ class RoomAccessService
         }
 
         $characterId = $character->id;
+        $userId = (int) $user->id;
 
-        return $query->where(function (Builder $roomQuery) use ($characterId) {
+        return $query->where(function (Builder $roomQuery) use ($characterId, $userId) {
             $roomQuery->where('rooms.owner_character_id', $characterId)
-                ->orWhere(function (Builder $accessibleQuery) use ($characterId) {
+                ->orWhere(function (Builder $accessibleQuery) use ($characterId, $userId) {
                     $accessibleQuery
-                        ->whereNotExists($this->blacklistSubquery($characterId))
+                        ->whereNotExists($this->characterBlacklistSubquery($characterId))
+                        ->whereNotExists($this->accountBlacklistSubquery($userId))
                         ->where(function (Builder $visibilityQuery) use ($characterId) {
                             $visibilityQuery
                                 ->where('rooms.visibility', Room::VISIBILITY_PUBLIC)
@@ -145,6 +147,21 @@ class RoomAccessService
             && (int) $room->owner_character_id === (int) $character->id;
     }
 
+    public function ownerUserId(Room $room): ?int
+    {
+        $ownerCharacterId = (int) ($room->owner_character_id ?? 0);
+
+        if ($ownerCharacterId <= 0) {
+            return null;
+        }
+
+        $userId = DB::table('characters')
+            ->where('id', $ownerCharacterId)
+            ->value('user_id');
+
+        return $userId !== null ? (int) $userId : null;
+    }
+
     public function isModerator(Room $room, ?Character $character): bool
     {
         if ($character === null || ! $room->isPublicRoom()) {
@@ -158,6 +175,20 @@ class RoomAccessService
             ->exists();
     }
 
+    public function userHasModeratorRole(Room $room, int $userId): bool
+    {
+        if ($userId <= 0 || ! $room->isPublicRoom()) {
+            return false;
+        }
+
+        return DB::table('room_character_roles')
+            ->join('characters', 'characters.id', '=', 'room_character_roles.character_id')
+            ->where('room_character_roles.room_id', $room->id)
+            ->where('room_character_roles.role', RoomCharacterRole::ROLE_MODERATOR)
+            ->where('characters.user_id', $userId)
+            ->exists();
+    }
+
     public function isWhitelisted(Room $room, ?Character $character): bool
     {
         if ($character === null || ! $room->isPublicRoom()) {
@@ -168,10 +199,11 @@ class RoomAccessService
             ->where('room_id', $room->id)
             ->where('character_id', $character->id)
             ->where('type', RoomAccessEntry::TYPE_WHITELIST)
+            ->where('scope', RoomAccessEntry::SCOPE_CHARACTER)
             ->exists();
     }
 
-    public function isBlacklisted(Room $room, ?Character $character): bool
+    public function isCharacterBlacklisted(Room $room, ?Character $character): bool
     {
         if ($character === null || ! $room->isPublicRoom() || $this->isOwner($room, $character)) {
             return false;
@@ -181,7 +213,43 @@ class RoomAccessService
             ->where('room_id', $room->id)
             ->where('character_id', $character->id)
             ->where('type', RoomAccessEntry::TYPE_BLACKLIST)
+            ->where('scope', RoomAccessEntry::SCOPE_CHARACTER)
             ->exists();
+    }
+
+    public function isAccountBlacklisted(Room $room, ?Character $character): bool
+    {
+        if ($character === null || ! $room->isPublicRoom() || $this->isOwner($room, $character)) {
+            return false;
+        }
+
+        return $this->isUserBlacklisted($room, (int) $character->user_id);
+    }
+
+    public function isUserBlacklisted(Room $room, int $userId): bool
+    {
+        if ($userId <= 0 || ! $room->isPublicRoom()) {
+            return false;
+        }
+
+        $ownerUserId = $this->ownerUserId($room);
+
+        if ($ownerUserId !== null && $ownerUserId === $userId) {
+            return false;
+        }
+
+        return DB::table('room_access_entries')
+            ->where('room_id', $room->id)
+            ->where('user_id', $userId)
+            ->where('type', RoomAccessEntry::TYPE_BLACKLIST)
+            ->where('scope', RoomAccessEntry::SCOPE_ACCOUNT)
+            ->exists();
+    }
+
+    public function isBlacklisted(Room $room, ?Character $character): bool
+    {
+        return $this->isCharacterBlacklisted($room, $character)
+            || $this->isAccountBlacklisted($room, $character);
     }
 
     public function canDeleteRoom(User $user, Room $room, ?Character $character): bool
@@ -226,15 +294,27 @@ class RoomAccessService
             ->selectRaw('1')
             ->whereColumn('room_access_entries.room_id', 'rooms.id')
             ->where('room_access_entries.character_id', $characterId)
-            ->where('room_access_entries.type', RoomAccessEntry::TYPE_WHITELIST);
+            ->where('room_access_entries.type', RoomAccessEntry::TYPE_WHITELIST)
+            ->where('room_access_entries.scope', RoomAccessEntry::SCOPE_CHARACTER);
     }
 
-    private function blacklistSubquery(int $characterId)
+    private function characterBlacklistSubquery(int $characterId)
     {
         return DB::table('room_access_entries')
             ->selectRaw('1')
             ->whereColumn('room_access_entries.room_id', 'rooms.id')
             ->where('room_access_entries.character_id', $characterId)
-            ->where('room_access_entries.type', RoomAccessEntry::TYPE_BLACKLIST);
+            ->where('room_access_entries.type', RoomAccessEntry::TYPE_BLACKLIST)
+            ->where('room_access_entries.scope', RoomAccessEntry::SCOPE_CHARACTER);
+    }
+
+    private function accountBlacklistSubquery(int $userId)
+    {
+        return DB::table('room_access_entries')
+            ->selectRaw('1')
+            ->whereColumn('room_access_entries.room_id', 'rooms.id')
+            ->where('room_access_entries.user_id', $userId)
+            ->where('room_access_entries.type', RoomAccessEntry::TYPE_BLACKLIST)
+            ->where('room_access_entries.scope', RoomAccessEntry::SCOPE_ACCOUNT);
     }
 }

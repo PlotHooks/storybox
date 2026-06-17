@@ -293,7 +293,6 @@
 
     function characterTriggerHtml(character, nameClass = '', fallbackName = 'Unknown') {
         const characterId = parseInt(character?.id || 0, 10) || 0;
-        const userId = parseInt(character?.user_id || 0, 10) || 0;
         const name = String(character?.name || fallbackName || 'Unknown').trim() || 'Unknown';
         const handle = String(character?.handle || '').trim();
         const avatar = String(character?.avatar || '').trim();
@@ -305,7 +304,6 @@
         return `<button type="button"
             class="char-trigger ${nameClass} rounded-sm text-left hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50"
             data-character-id="${characterId}"
-            data-user-id="${userId || ''}"
             data-character-name="${escapeHtml(name)}"
             data-character-handle="${escapeHtml(handle)}"
             data-character-avatar="${escapeHtml(avatar)}"

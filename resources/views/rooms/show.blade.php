@@ -218,7 +218,7 @@
                             <div class="rounded-md border border-[#332817] bg-[#101012] p-3">
                                 <div class="text-[10px] uppercase tracking-[0.16em] text-[#8f8675]">Access</div>
                                 <p class="mt-2 text-[11px] leading-relaxed text-[#8f8675]">
-                                    Public rooms are visible and joinable by default unless blacklisted. Hidden rooms require owner, moderator, whitelist, or admin access.
+                                    Public rooms are visible and joinable by default unless banned. Hidden rooms require owner, moderator, whitelist, or admin access.
                                 </p>
 
                                 <div class="mt-3">
@@ -271,11 +271,11 @@
 
                                 <div class="mt-4">
                                     <div class="flex items-center justify-between gap-2">
-                                        <h4 class="text-sm font-semibold text-[#f2dfb5]">Blacklist</h4>
+                                        <h4 class="text-sm font-semibold text-[#f2dfb5]">Room Ban List</h4>
                                         <span class="text-[10px] text-[#8f8675]">{{ $roomBlacklist->count() }} entries</span>
                                     </div>
                                     <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
-                                        Blacklist entries deny access even to public rooms. Blacklist always wins over whitelist except for admin override.
+                                        Room bans deny access even to public rooms. Room bans always win over whitelist except for admin override.
                                     </p>
                                     <form method="POST" action="{{ route('rooms.blacklist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
                                         @csrf
@@ -292,7 +292,7 @@
                                             type="submit"
                                             class="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/20"
                                         >
-                                            Add
+                                            Ban from Room
                                         </button>
                                     </form>
                                     <div class="mt-2 space-y-1">
@@ -307,7 +307,7 @@
                                                     @method('DELETE')
                                                     <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
                                                     <input type="hidden" name="context_tool" value="settings">
-                                                    <button type="submit" class="text-[10px] font-semibold text-red-300 hover:text-red-200">Remove</button>
+                                                    <button type="submit" class="text-[10px] font-semibold text-red-300 hover:text-red-200">Unban from Room</button>
                                                 </form>
                                             </div>
                                         @empty
@@ -544,7 +544,6 @@
 
                         <div class="group relative flex flex-none gap-2 px-2 {{ $isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5' }} msg-row {{ $isBlockedByViewer && ! $isAdminBlade ? 'opacity-70' : '' }}"
                              data-message-id="{{ $message->id }}"
-                             data-user-id="{{ $message->user_id }}"
                              data-character-id="{{ $messageCharacterId ?: '' }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}"
@@ -573,7 +572,6 @@
                                             class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                             data-style='{!! $nameStyleJson !!}'
                                             data-character-id="{{ $c?->id ?? '' }}"
-                                            data-user-id="{{ $message->user_id ?? '' }}"
                                             data-character-name="{{ e($name) }}"
                                             data-character-handle="{{ e($c?->public_handle ?? '') }}"
                                             data-character-avatar="{{ e($avatar ?? '') }}">
@@ -651,6 +649,7 @@
                         @csrf
 
                         <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
+                        <input type="hidden" name="room_participation_token" id="room-participation-token-input" value="{{ $roomParticipationTokens[$activeCharacterId] ?? '' }}">
                         <input type="hidden" name="content" id="content-mirror" value="">
 
                         <textarea
@@ -840,6 +839,12 @@
                     DM
                 </button>
             </div>
+
+            <div id="char-popover-moderation" class="mt-3 hidden border-t border-[#2a241a] pt-3">
+                <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675]">Room Moderation</div>
+                <div id="char-popover-moderation-status" class="mt-2 text-[10px] text-[#8f8675]"></div>
+                <div id="char-popover-moderation-actions" class="mt-3 flex flex-wrap gap-2"></div>
+            </div>
         </div>
     </div>
 
@@ -961,9 +966,9 @@
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
         const currentCharacterUrl = @json(route('rooms.current-character'));
-        const currentUserId = {{ (int) Auth::id() }};
         const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
         const ownedCharacterIds = @json($characters->pluck('id')->map(fn ($id) => (int) $id)->values());
+        const roomParticipationTokens = @json($roomParticipationTokens ?? []);
         const seenMessageIds = new Set();
 
         const container  = document.getElementById('message-container');
@@ -975,6 +980,7 @@
 
         const switcher   = document.getElementById('character-switcher');
         const hiddenChar = document.getElementById('character-id-input');
+        const participationTokenInput = document.getElementById('room-participation-token-input');
 
         const leftPanel  = document.getElementById('left-panel');
         const rightPanel = document.getElementById('right-panel');
@@ -1359,13 +1365,32 @@
         const popAvatar = document.getElementById('char-popover-avatar');
         const popProfile = document.getElementById('char-popover-profile');
         const popDm = document.getElementById('char-popover-dm');
+        const popModeration = document.getElementById('char-popover-moderation');
+        const popModerationStatus = document.getElementById('char-popover-moderation-status');
+        const popModerationActions = document.getElementById('char-popover-moderation-actions');
 
-        let popState = { userId: null, characterId: null };
+        let popState = { characterId: null };
 
         function hidePopover() {
             if (!pop) return;
             pop.classList.add('hidden');
-            popState = { userId: null, characterId: null };
+            popState = { characterId: null };
+            resetPopoverModeration();
+        }
+
+        function currentRoomParticipationToken() {
+            const characterId = getTabCharacterId();
+            return roomParticipationTokens[String(characterId)] || roomParticipationTokens[characterId] || '';
+        }
+
+        function syncRoomParticipationToken() {
+            if (participationTokenInput) participationTokenInput.value = currentRoomParticipationToken();
+        }
+
+        function resetPopoverModeration() {
+            if (popModeration) popModeration.classList.add('hidden');
+            if (popModerationStatus) popModerationStatus.textContent = '';
+            if (popModerationActions) popModerationActions.innerHTML = '';
         }
 
         function positionPopoverNear(el) {
@@ -1393,15 +1418,11 @@
             if (!pop || !triggerEl) return;
 
             const characterId = (triggerEl.dataset.characterId || '').trim();
-            const userIdRaw = (triggerEl.dataset.userId || '').trim();
-            const userId = userIdRaw ? parseInt(userIdRaw, 10) : null;
+            const numericCharacterId = characterId ? parseInt(characterId, 10) : 0;
 
             const characterName = (triggerEl.dataset.characterName || triggerEl.textContent || '').trim();
             const characterHandle = (triggerEl.dataset.characterHandle || '').trim();
             const avatar = (triggerEl.dataset.characterAvatar || '').trim();
-
-            // Optional debug (safe: values exist now)
-            // console.log('popover trigger dataset:', { characterId, userIdRaw, userId, characterName });
 
             const fallbackHandle = characterId ? `${characterName}#${shortSigil(parseInt(characterId, 10))}` : characterName;
 
@@ -1416,20 +1437,22 @@
                 popProfile.classList.toggle('hidden', !hasCharacter);
             }
 
-            // DM button only if it is not me and we have a user id
+            const isOwnedCharacter = numericCharacterId > 0 && ownedCharacterIds.includes(numericCharacterId);
+
             if (popDm) {
-                if (userId && userId !== currentUserId) {
+                if (numericCharacterId > 0 && !isOwnedCharacter) {
                     popDm.classList.remove('hidden');
                     popDm.disabled = false;
-                    popState.userId = userId;
                     popState.characterId = characterId;
                 } else {
                     popDm.classList.add('hidden');
                     popDm.disabled = true;
-                    popState.userId = null;
                     popState.characterId = characterId;
                 }
             }
+
+            resetPopoverModeration();
+            if (characterId) loadPopoverModerationState(characterId);
 
             pop.classList.remove('hidden');
             positionPopoverNear(triggerEl);
@@ -1453,10 +1476,194 @@
         window.addEventListener('resize', () => hidePopover());
         window.addEventListener('scroll', () => hidePopover(), true);
 
+        function renderPopoverModerationAction(label, tone, onClick) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `rounded border px-2 py-1 text-xs ${tone}`;
+            button.textContent = label;
+            button.addEventListener('click', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                try {
+                    await onClick();
+                } catch (error) {
+                    window.alert(error instanceof Error ? error.message : 'Room moderation action failed.');
+                }
+            });
+            return button;
+        }
+
+        async function submitRoomModerationAction(url, method, payload, failureMessage) {
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error(failureMessage);
+            }
+
+            window.location.reload();
+        }
+
+        async function loadPopoverModerationState(characterId) {
+            if (!popModeration || !characterId) return;
+
+            try {
+                const response = await fetch(`/rooms/${roomSlug}/moderation/characters/${characterId}`, {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    resetPopoverModeration();
+                    return;
+                }
+
+                const payload = await response.json();
+                const target = payload.target || {};
+                const actions = payload.actions || {};
+                const statusParts = [];
+
+                if (target.is_owner) statusParts.push('Room owner');
+                if (target.is_moderator) statusParts.push('Moderator');
+                if (target.is_whitelisted) statusParts.push('Whitelisted');
+                if (target.is_character_banned) statusParts.push('Character banned from room');
+                if (target.is_account_banned) statusParts.push('Account banned from room');
+
+                popModeration.classList.remove('hidden');
+                if (popModerationStatus) {
+                    popModerationStatus.textContent = statusParts.length ? statusParts.join(' • ') : 'No room-specific moderation state.';
+                }
+
+                if (!popModerationActions) return;
+                popModerationActions.innerHTML = '';
+
+                const actorCharacterId = getTabCharacterId();
+                const basePayload = {
+                    character_id: actorCharacterId,
+                    target_character_id: parseInt(characterId, 10),
+                };
+
+                if (actions.can_kick && !target.is_character_banned && !target.is_account_banned) {
+                    popModerationActions.appendChild(renderPopoverModerationAction(
+                        'Kick from Room',
+                        'border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20',
+                        async () => {
+                            const reasonInput = window.prompt('Optional kick reason', '');
+
+                            if (reasonInput === null) {
+                                return;
+                            }
+
+                            await submitRoomModerationAction(`/rooms/${roomSlug}/kick`, 'POST', { ...basePayload, reason: reasonInput }, 'Failed to kick character from room.');
+                        }
+                    ));
+                }
+
+                if (actions.can_ban_character) {
+                    if (target.is_character_banned) {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Unban Character from Room',
+                            'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/blacklist/${characterId}`, 'DELETE', { character_id: actorCharacterId }, 'Failed to unban character from room.');
+                            }
+                        ));
+                    } else {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Ban Character from Room',
+                            'border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/blacklist`, 'POST', basePayload, 'Failed to ban character from room.');
+                            }
+                        ));
+                    }
+                }
+
+                if (actions.can_ban_account) {
+                    if (target.is_account_banned) {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Unban Account from Room',
+                            'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/account-blacklist/${characterId}`, 'DELETE', { character_id: actorCharacterId }, 'Failed to unban account from room.');
+                            }
+                        ));
+                    } else {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Ban Account from Room',
+                            'border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/account-blacklist`, 'POST', basePayload, 'Failed to ban account from room.');
+                            }
+                        ));
+                    }
+                }
+
+                if (actions.can_ban_character) {
+                    if (target.is_whitelisted) {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Remove from Whitelist',
+                            'border-[#332817] bg-[#141416] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/whitelist/${characterId}`, 'DELETE', { character_id: actorCharacterId }, 'Failed to remove whitelist entry.');
+                            }
+                        ));
+                    } else {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Whitelist Character',
+                            'border-amber-500/40 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/whitelist`, 'POST', basePayload, 'Failed to whitelist character.');
+                            }
+                        ));
+                    }
+                }
+
+                if (actions.can_manage_moderator_role) {
+                    if (target.is_moderator) {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Remove Moderator',
+                            'border-[#332817] bg-[#141416] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#191511] hover:text-[#f2dfb5]',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/moderators/${characterId}`, 'DELETE', { character_id: actorCharacterId }, 'Failed to remove moderator.');
+                            }
+                        ));
+                    } else {
+                        popModerationActions.appendChild(renderPopoverModerationAction(
+                            'Add Moderator',
+                            'border-amber-500/40 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20',
+                            async () => {
+                                await submitRoomModerationAction(`/rooms/${roomSlug}/moderators`, 'POST', basePayload, 'Failed to add moderator.');
+                            }
+                        ));
+                    }
+                }
+
+                if (!popModerationActions.children.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'text-[10px] text-[#8f8675]';
+                    empty.textContent = 'No room actions available for this character.';
+                    popModerationActions.appendChild(empty);
+                }
+            } catch (error) {
+                console.error('Room moderation state error:', error);
+                resetPopoverModeration();
+            }
+        }
+
         popDm?.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            if (!popState.userId) return;
+            if (!popState.characterId) return;
 
             fetch('/dms/start', {
                 method: 'POST',
@@ -1541,6 +1748,7 @@
         function setTabCharacterId(id) {
             sessionStorage.setItem('active_character_id', String(id));
             if (hiddenChar) hiddenChar.value = String(id);
+            syncRoomParticipationToken();
         }
 
 
@@ -1624,7 +1832,10 @@
                     'Content-Type': 'application/json',
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ character_id: characterId }),
+                body: JSON.stringify({
+                    character_id: characterId,
+                    room_participation_token: currentRoomParticipationToken(),
+                }),
             })
             .then((response) => {
                 if (response.ok) clearRoomUnreadBadge(conversationId);
@@ -1649,7 +1860,10 @@
                 },
                 credentials: 'same-origin',
                 keepalive: true,
-                body: JSON.stringify({ character_id: characterId }),
+                body: JSON.stringify({
+                    character_id: characterId,
+                    room_participation_token: currentRoomParticipationToken(),
+                }),
             }).catch(() => {});
         }
 
@@ -1706,6 +1920,7 @@
                     body: JSON.stringify({
                         character_id: id,
                         body,
+                        room_participation_token: currentRoomParticipationToken(),
                     }),
                 }, 'Send message');
 
@@ -1822,8 +2037,7 @@
         function canEditMessageRow(row) {
             if (!row) return false;
             if (row.dataset.canEdit === '1') return true;
-            const uid = parseInt(row.dataset.userId || '0', 10);
-            return (uid && uid === currentUserId) || !!isAdmin;
+            return !!isAdmin;
         }
 
         async function handleMessageActionClick(e) {
@@ -1966,7 +2180,7 @@
 
                     const name = (msg.character && msg.character.name)
                         ? msg.character.name
-                        : (msg.user?.name ?? 'Unknown');
+                        : 'Unknown';
                     const avatar = msg.character?.avatar || '';
 
                     let s = msg.character?.settings || {};
@@ -1984,7 +2198,7 @@
                     const text = isDeleted ? '[deleted]' : String(msg.content ?? msg.body ?? '').trim();
                     const isBlockedByViewer = !isAdmin && parseBool(msg.is_blocked_by_viewer);
 
-                    const canEdit = !!isAdmin || ((msg.user_id ?? 0) === currentUserId);
+                    const canEdit = !!isAdmin || parseBool(msg.can_edit);
                     const viewerCharacterId = getViewerCharacterId();
                     const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
                     const previousRow = Array.from(container.querySelectorAll('.msg-row')).pop();
@@ -1999,7 +2213,6 @@
                     const div = document.createElement('div');
                     div.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5'} msg-row` + (isBlockedByViewer ? " opacity-70" : "");
                     div.dataset.messageId = String(msg.id);
-                    div.dataset.userId = String(msg.user_id ?? 0);
                     div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
                     div.dataset.canEdit = canEdit ? '1' : '0';
                     div.dataset.deleted = isDeleted ? '1' : '0';
@@ -2022,7 +2235,6 @@
                                 class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                 data-style='${nameStyle}'
                                 data-character-id="${messageCharacterId || ''}"
-                                data-user-id="${msg.user_id ?? ''}"
                                 data-character-name="${safeNameAttr}"
                                 data-character-handle="${safeHandleAttr}"
                                 data-character-avatar="${safeAvatarAttr}">
@@ -2097,6 +2309,24 @@
                     if (seenMessageIds.has(parseInt(event.id, 10))) return;
                     fetchNewMessages();
                     sendPresencePing();
+                })
+                .listen('.room.character-kicked', (event) => {
+                    const targetCharacterId = parseInt(event.target_character_id ?? 0, 10) || 0;
+
+                    if (!targetCharacterId || targetCharacterId !== getTabCharacterId()) {
+                        return;
+                    }
+
+                    delete roomParticipationTokens[String(targetCharacterId)];
+                    delete roomParticipationTokens[targetCharacterId];
+                    delete window.StoryboxChannelCharacters[conversationChannelName];
+                    window.Echo.leave(`conversation.${conversationId}`);
+
+                    leaveRoom().finally(() => {
+                        const reason = (event.reason || '').trim();
+                        window.alert(reason ? `You were kicked from this room. Reason: ${reason}` : 'You were kicked from this room.');
+                        window.location.href = event.destination || '/rooms';
+                    });
                 });
 
             window.Echo.connector?.pusher?.connection?.bind('connected', () => fetchNewMessages());
@@ -2160,7 +2390,6 @@
                                     class="char-trigger msg-name text-base font-bold leading-none hover:underline text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                     data-style='${nameStyle}'
                                     data-character-id="${p.character_id ?? ''}"
-                                    data-user-id="${p.user_id ?? ''}"
                                     data-character-name="${safeNameAttr}"
                                     data-character-handle="${escAttr(displayHandle)}"
                                     data-character-avatar="${safeAvatarAttr}">

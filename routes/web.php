@@ -89,6 +89,10 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::delete('/rooms/{room:slug}/whitelist/{character}', [RoomManagementController::class, 'removeWhitelist'])->name('rooms.whitelist.destroy');
     Route::post('/rooms/{room:slug}/blacklist', [RoomManagementController::class, 'addBlacklist'])->name('rooms.blacklist.store');
     Route::delete('/rooms/{room:slug}/blacklist/{character}', [RoomManagementController::class, 'removeBlacklist'])->name('rooms.blacklist.destroy');
+    Route::post('/rooms/{room:slug}/account-blacklist', [RoomManagementController::class, 'addAccountBlacklist'])->name('rooms.account-blacklist.store');
+    Route::delete('/rooms/{room:slug}/account-blacklist/{character}', [RoomManagementController::class, 'removeAccountBlacklist'])->name('rooms.account-blacklist.destroy');
+    Route::post('/rooms/{room:slug}/kick', [RoomManagementController::class, 'kick'])->name('rooms.kick.store');
+    Route::get('/rooms/{room:slug}/moderation/characters/{character}', [RoomManagementController::class, 'moderationState'])->name('rooms.moderation.characters.show');
     Route::post('/rooms/{room:slug}/moderators', [RoomManagementController::class, 'addModerator'])->name('rooms.moderators.store');
     Route::delete('/rooms/{room:slug}/moderators/{character}', [RoomManagementController::class, 'removeModerator'])->name('rooms.moderators.destroy');
     Route::get('/rooms/{room:slug}/rules', [RulesController::class, 'index'])->name('rooms.rules.index');

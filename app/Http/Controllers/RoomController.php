@@ -12,6 +12,7 @@ use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
+use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -169,6 +170,18 @@ class RoomController extends Controller
             ? app(RoomToolIndicatorService::class)->indicatorsFor(Auth::user(), $room)
             : [];
 
+        $roomParticipationTokens = [];
+
+        if ($room->isPublicRoom()) {
+            $participationState = app(RoomParticipationStateService::class);
+
+            foreach (Auth::user()->characters()->orderBy('name')->get() as $ownedCharacter) {
+                if ($this->roomAccess->canViewRoom(Auth::user(), $room, $ownedCharacter)) {
+                    $roomParticipationTokens[$ownedCharacter->id] = $participationState->issueToken($room, $ownedCharacter);
+                }
+            }
+        }
+
         return view('rooms.show', compact(
             'room',
             'messages',
@@ -182,7 +195,8 @@ class RoomController extends Controller
             'roomWhitelist',
             'roomBlacklist',
             'isFollowingRoom',
-            'roomToolIndicators'
+            'roomToolIndicators',
+            'roomParticipationTokens'
         ));
     }
 
@@ -624,6 +638,16 @@ CSS;
         abort_unless($ok, 403);
     }
 
+    private function assertValidPublicRoomParticipationState(Request $request, Room $room, Character $character): void
+    {
+        $token = trim((string) $request->input('room_participation_token', ''));
+
+        abort_unless(
+            app(RoomParticipationStateService::class)->hasValidToken($room, $character, $token),
+            403
+        );
+    }
+
     private function assertDmMessageAllowed(Room $room): void
     {
         $characterIds = $this->dmParticipantCharacterIds($room);
@@ -700,7 +724,7 @@ CSS;
         $since = $request->query('since');
 
         $query = $conversation->messages()
-            ->with(['user', 'character']);
+            ->with('character');
 
         if ($withTrashed) {
             $query->withTrashed();
@@ -739,6 +763,40 @@ CSS;
             ->limit($seek['limit'])
             ->get()
             ->reverse()
+            ->values();
+    }
+
+    private function serializeRoomMessage(Message $message): array
+    {
+        $message->loadMissing('character');
+
+        return [
+            'id' => (int) $message->id,
+            'room_id' => (int) $message->room_id,
+            'character_id' => $message->character_id !== null ? (int) $message->character_id : null,
+            'body' => $message->body,
+            'content' => $message->body,
+            'created_at' => $message->created_at?->toJSON(),
+            'created_at_human' => $message->created_at?->diffForHumans(),
+            'updated_at' => $message->updated_at?->toJSON(),
+            'deleted_at' => $message->deleted_at?->toJSON(),
+            'is_deleted' => (bool) $message->deleted_at,
+            'is_blocked_by_viewer' => (bool) ($message->is_blocked_by_viewer ?? false),
+            'can_edit' => $message->canBeEditedBy(Auth::user()),
+            'character' => $message->character ? [
+                'id' => (int) $message->character->id,
+                'name' => $message->character->name,
+                'avatar' => $message->character->avatar,
+                'settings' => $message->character->settings,
+                'public_handle' => $message->character->public_handle,
+            ] : null,
+        ];
+    }
+
+    private function serializeRoomMessages($messages)
+    {
+        return collect($messages)
+            ->map(fn (Message $message) => $this->serializeRoomMessage($message))
             ->values();
     }
 
@@ -837,9 +895,13 @@ CSS;
         $message->body = $request->body;
         $message->save();
 
+        $freshMessage = $message->fresh()->load('character');
+
         return response()->json([
-            'ok'      => true,
-            'message' => $message->fresh()->load(['user', 'character']),
+            'ok' => true,
+            'message' => $message->room->isPublicRoom()
+                ? $this->serializeRoomMessage($freshMessage)
+                : $freshMessage->load('user'),
         ]);
     }
 
@@ -913,6 +975,7 @@ CSS;
             $character = $this->ownedCharacterById($characterId);
             abort_if($character === null, 403);
             abort_unless($this->roomAccess->canMessageRoom(Auth::user(), $room, $character), 403);
+            $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
         $message = $this->createConversationMessage($room, $characterId, $request->body);
@@ -922,7 +985,7 @@ CSS;
         }
 
         if ($request->wantsJson()) {
-            return response()->json($message->load('user', 'character'));
+            return response()->json($this->serializeRoomMessage($message->load('character')));
         }
 
         return back();
@@ -951,7 +1014,7 @@ CSS;
         $messages = $this->conversationMessages($room, $request);
         $this->applyBlockedMessageFlags($messages, $viewerCharacterId);
 
-        return response()->json($messages);
+        return response()->json($this->serializeRoomMessages($messages));
     }
 
     public function ping(Room $room, Request $request)
@@ -962,6 +1025,7 @@ CSS;
 
         if ($room->isPublicRoom()) {
             abort_unless($this->roomAccess->canJoinRoom(Auth::user(), $room, $character), 403);
+            $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
         DB::table('character_presences')->updateOrInsert(
@@ -1026,6 +1090,7 @@ CSS;
 
         if ($room->isPublicRoom()) {
             abort_unless($this->roomAccess->canJoinRoom(Auth::user(), $room, $character), 403);
+            $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
         DB::table('character_presences')
@@ -1064,7 +1129,6 @@ CSS;
 
         $roster = DB::table('character_presences')
             ->join('characters', 'characters.id', '=', 'character_presences.character_id')
-            ->join('users', 'users.id', '=', 'characters.user_id')
             ->where('character_presences.room_id', $room->id)
             ->where('character_presences.last_seen_at', '>=', $cutoff)
             ->orderBy('characters.name')
@@ -1073,19 +1137,21 @@ CSS;
                 'characters.name as character_name',
                 'characters.avatar as avatar',
                 'characters.settings as settings',
-                'users.id as user_id',
-                'users.name as user_name',
             ])
-            ->get();
-
-        $roster = $roster->map(function ($entry) {
-            $entry->character_handle = Character::formatPublicHandle(
-                (string) $entry->character_name,
-                (int) $entry->character_id
-            );
-
-            return $entry;
-        });
+            ->get()
+            ->map(function ($entry) {
+                return [
+                    'character_id' => (int) $entry->character_id,
+                    'character_name' => $entry->character_name,
+                    'avatar' => $entry->avatar,
+                    'settings' => $entry->settings,
+                    'character_handle' => Character::formatPublicHandle(
+                        (string) $entry->character_name,
+                        (int) $entry->character_id
+                    ),
+                ];
+            })
+            ->values();
 
         return response()->json(['roster' => $roster]);
     }

@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\RoomAccessEntry;
 use App\Models\RoomCharacterRole;
 use App\Services\RoomAccessService;
+use App\Services\RoomEjectionService;
 use App\Services\RoomLandingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ class RoomManagementController extends Controller
 {
     public function __construct(
         private readonly RoomAccessService $roomAccess,
+        private readonly RoomEjectionService $roomEjection,
     ) {
     }
 
@@ -98,22 +100,125 @@ class RoomManagementController extends Controller
 
     public function addWhitelist(Request $request, Room $room)
     {
-        return $this->upsertAccessEntry($request, $room, RoomAccessEntry::TYPE_WHITELIST);
+        return $this->upsertCharacterAccessEntry($request, $room, RoomAccessEntry::TYPE_WHITELIST);
     }
 
     public function removeWhitelist(Request $request, Room $room, Character $character)
     {
-        return $this->deleteAccessEntry($request, $room, $character, RoomAccessEntry::TYPE_WHITELIST);
+        return $this->deleteCharacterAccessEntry($request, $room, $character, RoomAccessEntry::TYPE_WHITELIST);
     }
 
     public function addBlacklist(Request $request, Room $room)
     {
-        return $this->upsertAccessEntry($request, $room, RoomAccessEntry::TYPE_BLACKLIST);
+        return $this->upsertCharacterAccessEntry($request, $room, RoomAccessEntry::TYPE_BLACKLIST);
     }
 
     public function removeBlacklist(Request $request, Room $room, Character $character)
     {
-        return $this->deleteAccessEntry($request, $room, $character, RoomAccessEntry::TYPE_BLACKLIST);
+        return $this->deleteCharacterAccessEntry($request, $room, $character, RoomAccessEntry::TYPE_BLACKLIST);
+    }
+
+    public function addAccountBlacklist(Request $request, Room $room)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->ownedCharacterFromRequest($request);
+        abort_unless($this->roomAccess->canManageRoomAccess($request->user(), $room, $actor), 403);
+
+        $target = $this->targetCharacterFromRequest($request);
+        $this->assertAccountAccessTargetCanBeManaged($request, $room, $actor, $target);
+
+        RoomAccessEntry::query()->updateOrCreate(
+            [
+                'room_id' => $room->id,
+                'user_id' => $target->user_id,
+                'type' => RoomAccessEntry::TYPE_BLACKLIST,
+                'scope' => RoomAccessEntry::SCOPE_ACCOUNT,
+            ],
+            [
+                'character_id' => null,
+                'created_by_character_id' => $actor->id,
+            ],
+        );
+
+        $this->roomEjection->ejectAccount($room, (int) $target->user_id, $actor);
+
+        return $this->managementResponse($request, $room, 'Account ban updated.');
+    }
+
+    public function removeAccountBlacklist(Request $request, Room $room, Character $character)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->ownedCharacterFromRequest($request);
+        abort_unless($this->roomAccess->canManageRoomAccess($request->user(), $room, $actor), 403);
+        $this->assertAccountAccessTargetCanBeManaged($request, $room, $actor, $character);
+
+        RoomAccessEntry::query()
+            ->where('room_id', $room->id)
+            ->where('user_id', $character->user_id)
+            ->where('type', RoomAccessEntry::TYPE_BLACKLIST)
+            ->where('scope', RoomAccessEntry::SCOPE_ACCOUNT)
+            ->delete();
+
+        return $this->managementResponse($request, $room, 'Account ban removed.');
+    }
+
+    public function kick(Request $request, Room $room)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->ownedCharacterFromRequest($request);
+        abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $target = $this->targetCharacterFromRequest($request);
+        $this->assertKickTargetCanBeManaged($request, $room, $actor, $target);
+
+        $reason = $this->nullableString($validated['reason'] ?? null);
+
+        $this->roomEjection->eject($room, $target, $actor, $reason);
+
+        return $this->managementResponse($request, $room, 'Character kicked from room.');
+    }
+
+    public function moderationState(Request $request, Room $room, Character $character)
+    {
+        $this->abortIfNotManagedPublicRoom($room);
+
+        $actor = $this->activeOwnedCharacterFromSession($request);
+        abort_unless($this->roomAccess->canManageRoom($request->user(), $room, $actor), 403);
+
+        $targetIsOwner = (int) $room->owner_character_id === (int) $character->id;
+        $targetIsModerator = $this->roomAccess->isModerator($room, $character);
+        $viewerIsAdmin = $this->roomAccess->isAdmin($request->user());
+        $viewerCanManageModeratorRole = $this->roomAccess->isOwner($room, $actor) || $viewerIsAdmin;
+        $isCharacterBanned = $this->roomAccess->isCharacterBlacklisted($room, $character);
+        $isAccountBanned = $this->roomAccess->isAccountBlacklisted($room, $character);
+
+        return response()->json([
+            'target' => [
+                'id' => $character->id,
+                'public_handle' => $character->public_handle,
+                'is_owner' => $targetIsOwner,
+                'is_moderator' => $targetIsModerator,
+                'is_whitelisted' => $this->roomAccess->isWhitelisted($room, $character),
+                'is_character_banned' => $isCharacterBanned,
+                'is_account_banned' => $isAccountBanned,
+                'is_banned' => $isCharacterBanned || $isAccountBanned,
+            ],
+            'actions' => [
+                'can_kick' => $this->canKickTarget($request, $room, $actor, $character),
+                'can_ban_character' => $this->canManageCharacterAccessTarget($request, $room, $actor, $character),
+                'can_ban_account' => $this->canManageAccountAccessTarget($request, $room, $actor, $character),
+                'can_manage_moderator_role' => $viewerCanManageModeratorRole
+                    && (! $targetIsOwner || $viewerIsAdmin)
+                    && (int) $actor->id !== (int) $character->id,
+            ],
+        ]);
     }
 
     public function addModerator(Request $request, Room $room)
@@ -187,7 +292,7 @@ class RoomManagementController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    private function upsertAccessEntry(Request $request, Room $room, string $type)
+    private function upsertCharacterAccessEntry(Request $request, Room $room, string $type)
     {
         $this->abortIfNotManagedPublicRoom($room);
 
@@ -195,18 +300,14 @@ class RoomManagementController extends Controller
         abort_unless($this->roomAccess->canManageRoomAccess($request->user(), $room, $actor), 403);
 
         $target = $this->targetCharacterFromRequest($request);
-        $this->assertTargetCanBeManaged($request, $room, $actor, $target);
+        $this->assertCharacterAccessTargetCanBeManaged($request, $room, $actor, $target);
 
         if ($type === RoomAccessEntry::TYPE_BLACKLIST) {
             RoomAccessEntry::query()
                 ->where('room_id', $room->id)
                 ->where('character_id', $target->id)
                 ->where('type', RoomAccessEntry::TYPE_WHITELIST)
-                ->delete();
-
-            // Blacklisting should take effect immediately for active room presence.
-            $room->characterPresences()
-                ->where('character_id', $target->id)
+                ->where('scope', RoomAccessEntry::SCOPE_CHARACTER)
                 ->delete();
         }
 
@@ -215,37 +316,44 @@ class RoomManagementController extends Controller
                 'room_id' => $room->id,
                 'character_id' => $target->id,
                 'type' => $type,
+                'scope' => RoomAccessEntry::SCOPE_CHARACTER,
             ],
             [
+                'user_id' => null,
                 'created_by_character_id' => $actor->id,
             ],
         );
 
+        if ($type === RoomAccessEntry::TYPE_BLACKLIST) {
+            $this->roomEjection->eject($room, $target, $actor);
+        }
+
         return $this->managementResponse(
             $request,
             $room,
-            $type === RoomAccessEntry::TYPE_WHITELIST ? 'Whitelist updated.' : 'Blacklist updated.'
+            $type === RoomAccessEntry::TYPE_WHITELIST ? 'Whitelist updated.' : 'Character ban updated.'
         );
     }
 
-    private function deleteAccessEntry(Request $request, Room $room, Character $target, string $type)
+    private function deleteCharacterAccessEntry(Request $request, Room $room, Character $target, string $type)
     {
         $this->abortIfNotManagedPublicRoom($room);
 
         $actor = $this->ownedCharacterFromRequest($request);
         abort_unless($this->roomAccess->canManageRoomAccess($request->user(), $room, $actor), 403);
-        $this->assertTargetCanBeManaged($request, $room, $actor, $target);
+        $this->assertCharacterAccessTargetCanBeManaged($request, $room, $actor, $target);
 
         RoomAccessEntry::query()
             ->where('room_id', $room->id)
             ->where('character_id', $target->id)
             ->where('type', $type)
+            ->where('scope', RoomAccessEntry::SCOPE_CHARACTER)
             ->delete();
 
         return $this->managementResponse(
             $request,
             $room,
-            $type === RoomAccessEntry::TYPE_WHITELIST ? 'Whitelist entry removed.' : 'Blacklist entry removed.'
+            $type === RoomAccessEntry::TYPE_WHITELIST ? 'Whitelist entry removed.' : 'Character ban removed.'
         );
     }
 
@@ -256,16 +364,112 @@ class RoomManagementController extends Controller
         return $value === '' ? null : $value;
     }
 
-    private function assertTargetCanBeManaged(Request $request, Room $room, Character $actor, Character $target): void
+    private function ownerUserId(Room $room): ?int
+    {
+        return $this->roomAccess->ownerUserId($room);
+    }
+
+    private function assertCharacterAccessTargetCanBeManaged(Request $request, Room $room, Character $actor, Character $target): void
     {
         if ((int) $room->owner_character_id === (int) $target->id) {
-            abort_if(! $this->roomAccess->isAdmin($request->user()), 403);
-            abort(422, 'The room owner cannot be changed through this endpoint.');
-        }
-
-        if (! $this->roomAccess->isOwner($room, $actor) && $this->roomAccess->isModerator($room, $target)) {
             abort(403);
         }
+
+        if ($this->ownerUserId($room) !== null && (int) $target->user_id === (int) $this->ownerUserId($room)) {
+            abort(403);
+        }
+
+        if (! $this->roomAccess->isOwner($room, $actor)
+            && ! $this->roomAccess->isAdmin($request->user())
+            && $this->roomAccess->isModerator($room, $target)) {
+            abort(403);
+        }
+    }
+
+    private function assertAccountAccessTargetCanBeManaged(Request $request, Room $room, Character $actor, Character $target): void
+    {
+        if ((int) $actor->user_id === (int) $target->user_id) {
+            abort(422, 'You cannot change your own account ban state.');
+        }
+
+        if ($this->ownerUserId($room) !== null && (int) $target->user_id === (int) $this->ownerUserId($room)) {
+            abort(403);
+        }
+
+        if (! $this->roomAccess->isOwner($room, $actor)
+            && ! $this->roomAccess->isAdmin($request->user())
+            && $this->roomAccess->userHasModeratorRole($room, (int) $target->user_id)) {
+            abort(403);
+        }
+    }
+
+    private function canKickTarget(Request $request, Room $room, Character $actor, Character $target): bool
+    {
+        if ((int) $actor->id === (int) $target->id) {
+            return false;
+        }
+
+        if ((int) $room->owner_character_id === (int) $target->id) {
+            return $this->roomAccess->isAdmin($request->user());
+        }
+
+        if (! $this->roomAccess->isOwner($room, $actor)
+            && ! $this->roomAccess->isAdmin($request->user())
+            && $this->roomAccess->isModerator($room, $target)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function canManageCharacterAccessTarget(Request $request, Room $room, Character $actor, Character $target): bool
+    {
+        if ((int) $actor->id === (int) $target->id) {
+            return false;
+        }
+
+        if ((int) $room->owner_character_id === (int) $target->id) {
+            return false;
+        }
+
+        $ownerUserId = $this->ownerUserId($room);
+        if ($ownerUserId !== null && (int) $target->user_id === $ownerUserId) {
+            return false;
+        }
+
+        if (! $this->roomAccess->isOwner($room, $actor)
+            && ! $this->roomAccess->isAdmin($request->user())
+            && $this->roomAccess->isModerator($room, $target)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function canManageAccountAccessTarget(Request $request, Room $room, Character $actor, Character $target): bool
+    {
+        if ((int) $actor->user_id === (int) $target->user_id) {
+            return false;
+        }
+
+        $ownerUserId = $this->ownerUserId($room);
+        if ($ownerUserId !== null && (int) $target->user_id === $ownerUserId) {
+            return false;
+        }
+
+        if (! $this->roomAccess->isOwner($room, $actor)
+            && ! $this->roomAccess->isAdmin($request->user())
+            && $this->roomAccess->userHasModeratorRole($room, (int) $target->user_id)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function assertKickTargetCanBeManaged(Request $request, Room $room, Character $actor, Character $target): void
+    {
+        abort_if((int) $actor->id === (int) $target->id, 422, 'You cannot kick yourself from the room.');
+        abort_unless($this->canKickTarget($request, $room, $actor, $target), 403);
     }
 
     private function ownedCharacterFromRequest(Request $request): Character

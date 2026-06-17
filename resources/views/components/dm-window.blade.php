@@ -370,14 +370,13 @@
     }
 
 
-    function characterTriggerHtml({ characterId = 0, userId = 0, name = '', handle = '', avatar = '', contentHtml = '', extraClass = '' }) {
+    function characterTriggerHtml({ characterId = 0, name = '', handle = '', avatar = '', contentHtml = '', extraClass = '' }) {
         if (!characterId) return contentHtml;
 
         return `<button
             type="button"
             class="dm-char-trigger ${extraClass}"
             data-character-id="${characterId}"
-            data-user-id="${userId}"
             data-character-name="${escapeAttr(name)}"
             data-character-handle="${escapeAttr(handle || name)}"
             data-character-avatar="${escapeAttr(avatar)}"
@@ -1364,14 +1363,14 @@
                 const fadeName = !!settings.fade_name;
                 const fadeMsg = !!settings.fade_message;
                 const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
-                const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });                const userId = parseInt(m.user?.id ?? m.user_id ?? 0, 10) || 0;
+                const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
                 const characterHandle = m.character?.public_handle || who;
                 const avatarMarkup = isGrouped
                     ? '<div class="w-7 shrink-0"></div>'
-                    : `<div class="w-7 shrink-0">${characterTriggerHtml({ characterId, userId, name: who, handle: characterHandle, avatar, contentHtml: avatarHtml(avatar, who, 'h-7 w-7'), extraClass: 'inline-flex rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40' })}</div>`;
+                    : `<div class="w-7 shrink-0">${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: avatarHtml(avatar, who, 'h-7 w-7'), extraClass: 'inline-flex rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40' })}</div>`;
                 const nameMarkup = isGrouped ? '' : `
                             <div class="mb-0 flex items-baseline gap-2">
-                                ${characterTriggerHtml({ characterId, userId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
+                                ${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
                             </div>
                 `;
 
@@ -1433,7 +1432,7 @@
 
         if (threadHeader) {
             threadHeader.innerHTML = activeDm.displayName
-                ? `DM: ${activeDm.otherCharacterId ? characterTriggerHtml({ characterId: activeDm.otherCharacterId, userId: activeDm.otherUserId, name: activeDm.displayName, handle: activeDm.handle || activeDm.displayName, avatar: activeDm.avatar, contentHtml: `<span class="font-semibold text-[#f2dfb5] hover:underline">${escapeHtml(activeDm.displayName)}</span>`, extraClass: 'rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' }) : escapeHtml(activeDm.displayName)}`
+                ? `DM: ${activeDm.otherCharacterId ? characterTriggerHtml({ characterId: activeDm.otherCharacterId, name: activeDm.displayName, handle: activeDm.handle || activeDm.displayName, avatar: activeDm.avatar, contentHtml: `<span class="font-semibold text-[#f2dfb5] hover:underline">${escapeHtml(activeDm.displayName)}</span>`, extraClass: 'rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' }) : escapeHtml(activeDm.displayName)}`
                 : 'Select a conversation.';
         }
 
