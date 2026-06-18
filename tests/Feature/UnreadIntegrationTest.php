@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\Room;
 use App\Models\User;
 use App\Models\UserRoomState;
+use App\Services\RoomParticipationStateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -26,8 +27,10 @@ class UnreadIntegrationTest extends TestCase
         $message = $this->createMessage($room, $otherUser, $otherCharacter, 'Hello.');
 
         $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
             ->postJson(route('rooms.presence', $room->slug), [
                 'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
             ])
             ->assertOk();
 
@@ -214,8 +217,10 @@ class UnreadIntegrationTest extends TestCase
         $room = $this->createRoom($otherUser);
 
         $response = $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
             ->postJson(route('rooms.messages.store', $room->slug), [
                 'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
                 'body' => 'Message without follow.',
             ])
             ->assertOk();
@@ -396,6 +401,12 @@ class UnreadIntegrationTest extends TestCase
             ->json('rooms');
 
         $this->assertSame([$olderRoom->slug, $newerRoom->slug], collect($afterSend)->pluck('slug')->all());
+    }
+
+
+    private function issueParticipationToken(Room $room, Character $character): string
+    {
+        return app(RoomParticipationStateService::class)->issueToken($room, $character);
     }
 
     private function createUserWithCharacter(): array

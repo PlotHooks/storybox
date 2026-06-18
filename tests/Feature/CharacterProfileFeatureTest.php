@@ -337,7 +337,7 @@ class CharacterProfileFeatureTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('src="https://cdn.example.com/profile-avatar.png"', false);
-        $response->assertSee('<title>Storybox</title>', false);
+        $response->assertSee('<title>'.$character->name.' Profile | Storybox</title>', false);
         $response->assertDontSee('alt="'.$character->name.' profile image"', false);
     }
 

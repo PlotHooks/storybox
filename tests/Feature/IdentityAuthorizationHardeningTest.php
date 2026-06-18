@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use App\Services\RoomParticipationStateService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -34,15 +35,23 @@ class IdentityAuthorizationHardeningTest extends TestCase
             'body' => 'Spoofed character id.',
         ])->assertForbidden();
 
-        $this->actingAs($secondUser)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $secondCharacter->id,
-            'body' => 'Legitimate first send.',
-        ])->assertOk();
+        $token = $this->issueParticipationToken($room, $secondCharacter);
 
-        $this->actingAs($secondUser)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $secondCharacter->id,
-            'body' => 'Legitimate second send.',
-        ])->assertTooManyRequests();
+        $this->actingAs($secondUser)
+            ->withSession(['active_character_id' => $secondCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $secondCharacter->id,
+                'room_participation_token' => $token,
+                'body' => 'Legitimate first send.',
+            ])->assertOk();
+
+        $this->actingAs($secondUser)
+            ->withSession(['active_character_id' => $secondCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $secondCharacter->id,
+                'room_participation_token' => $token,
+                'body' => 'Legitimate second send.',
+            ])->assertTooManyRequests();
     }
 
     public function test_successful_message_send_does_not_emit_suspicious_authorization_warning(): void
@@ -52,10 +61,13 @@ class IdentityAuthorizationHardeningTest extends TestCase
         [$user, $character] = $this->createUserWithCharacter();
         $room = $this->createPublicRoom($user);
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $character->id,
-            'body' => 'Legitimate send.',
-        ])->assertOk();
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
+                'body' => 'Legitimate send.',
+            ])->assertOk();
 
         Log::shouldNotHaveReceived('warning');
     }
@@ -186,6 +198,12 @@ class IdentityAuthorizationHardeningTest extends TestCase
         ]);
 
         return $room;
+    }
+
+
+    private function issueParticipationToken(Room $room, Character $character): string
+    {
+        return app(RoomParticipationStateService::class)->issueToken($room, $character);
     }
 
     private function createMessage(Room $room, User $user, Character $character, string $body): Message

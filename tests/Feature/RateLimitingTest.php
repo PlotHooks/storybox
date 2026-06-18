@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Character;
 use App\Models\Room;
 use App\Models\User;
+use App\Services\RoomParticipationStateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -22,21 +23,31 @@ class RateLimitingTest extends TestCase
         ]);
 
         [$user, $character, $room] = $this->createUserCharacterAndRoom();
+        $token = $this->issueParticipationToken($room, $character);
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $character->id,
-            'body' => 'First.',
-        ])->assertOk();
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $token,
+                'body' => 'First.',
+            ])->assertOk();
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $character->id,
-            'body' => 'Second.',
-        ])->assertOk();
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $token,
+                'body' => 'Second.',
+            ])->assertOk();
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $character->id,
-            'body' => 'Third.',
-        ])
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $token,
+                'body' => 'Third.',
+            ])
             ->assertTooManyRequests()
             ->assertJson([
                 'message' => 'Slow down and try again in a moment.',
@@ -56,25 +67,42 @@ class RateLimitingTest extends TestCase
         $firstCharacter = $this->createCharacter($user);
         $secondCharacter = $this->createCharacter($user);
         $room = $this->createRoom($user);
+        $firstToken = $this->issueParticipationToken($room, $firstCharacter);
+        $secondToken = $this->issueParticipationToken($room, $secondCharacter);
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $firstCharacter->id,
-            'body' => 'First.',
-        ])->assertOk();
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $firstCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $firstCharacter->id,
+                'room_participation_token' => $firstToken,
+                'body' => 'First.',
+            ])->assertOk();
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $secondCharacter->id,
-            'body' => 'Second.',
-        ])->assertOk();
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $secondCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $secondCharacter->id,
+                'room_participation_token' => $secondToken,
+                'body' => 'Second.',
+            ])->assertOk();
 
-        $this->actingAs($user)->postJson(route('rooms.messages.store', $room->slug), [
-            'character_id' => $firstCharacter->id,
-            'body' => 'Third.',
-        ])
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $firstCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $firstCharacter->id,
+                'room_participation_token' => $firstToken,
+                'body' => 'Third.',
+            ])
             ->assertTooManyRequests()
             ->assertJson([
                 'message' => 'Slow down and try again in a moment.',
             ]);
+    }
+
+
+    private function issueParticipationToken(Room $room, Character $character): string
+    {
+        return app(RoomParticipationStateService::class)->issueToken($room, $character);
     }
 
     private function createUserCharacterAndRoom(): array

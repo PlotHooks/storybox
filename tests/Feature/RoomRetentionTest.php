@@ -6,6 +6,7 @@ use App\Models\Character;
 use App\Models\Message;
 use App\Models\Room;
 use App\Models\User;
+use App\Services\RoomParticipationStateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,7 @@ class RoomRetentionTest extends TestCase
             ->withSession(['active_character_id' => $character->id])
             ->postJson(route('rooms.messages.store', $room->slug), [
                 'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
                 'body' => 'Fresh activity.',
             ])
             ->assertOk();
@@ -131,6 +133,7 @@ class RoomRetentionTest extends TestCase
             ->withSession(['active_character_id' => $character->id])
             ->postJson(route('rooms.presence', $room->slug), [
                 'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
             ])
             ->assertOk();
 
@@ -244,6 +247,12 @@ class RoomRetentionTest extends TestCase
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
 
         $this->assertNull(Room::withTrashed()->find($room->id));
+    }
+
+
+    private function issueParticipationToken(Room $room, Character $character): string
+    {
+        return app(RoomParticipationStateService::class)->issueToken($room, $character);
     }
 
     private function createUserWithCharacter(?Carbon $createdAt = null): array
