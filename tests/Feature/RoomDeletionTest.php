@@ -112,7 +112,7 @@ class RoomDeletionTest extends TestCase
                 'context_tool' => 'settings',
                 'delete_confirmation' => 'DELETE',
             ])
-            ->assertRedirect(route('rooms.index'));
+            ->assertRedirect(route('rooms.recovery'));
 
         $this->assertSoftDeleted('rooms', ['id' => $room->id]);
         $this->assertDatabaseHas('messages', [
@@ -180,7 +180,7 @@ class RoomDeletionTest extends TestCase
                 'character_id' => $ownerCharacter->id,
                 'delete_confirmation' => 'DELETE',
             ])
-            ->assertRedirect(route('rooms.index'));
+            ->assertRedirect(route('rooms.recovery'));
 
         $this->actingAs($ownerUser)
             ->withSession(['active_character_id' => $ownerCharacter->id])
@@ -278,7 +278,7 @@ class RoomDeletionTest extends TestCase
                 'character_id' => $adminCharacter->id,
                 'delete_confirmation' => 'DELETE',
             ])
-            ->assertRedirect(route('rooms.index'));
+            ->assertRedirect(route('rooms.recovery'));
 
         $this->assertSoftDeleted('rooms', ['id' => $room->id]);
     }

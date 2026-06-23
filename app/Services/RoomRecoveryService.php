@@ -20,6 +20,12 @@ class RoomRecoveryService
         return $this->recoverableRoomsQueryForUser($user)->get();
     }
 
+
+    public function recoverableRoomCountForUser(User $user): int
+    {
+        return $this->recoverableRoomsQueryForUser($user)->count();
+    }
+
     public function recoverableRoomsQueryForUser(User $user): Builder
     {
         $query = Room::query()

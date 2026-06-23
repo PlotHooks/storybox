@@ -42,7 +42,7 @@ class CharacterKickedFromRoom implements ShouldBroadcastNow
             'target_character_id' => $this->target->id,
             'actor_character_id' => $this->actor?->id,
             'reason' => $this->reason,
-            'destination' => route('rooms.index', absolute: false),
+            'destination' => route('rooms.landing', absolute: false),
         ];
     }
 }

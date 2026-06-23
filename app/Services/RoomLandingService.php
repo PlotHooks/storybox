@@ -27,7 +27,7 @@ class RoomLandingService
             return route('rooms.show', $firstRoom->slug, false);
         }
 
-        return route('rooms.index', absolute: false);
+        return route('rooms.recovery', absolute: false);
     }
 
     private function resolveCurrentRoom(User $user, ?Character $activeCharacter): ?Room
