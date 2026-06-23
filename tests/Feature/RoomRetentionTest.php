@@ -76,12 +76,12 @@ class RoomRetentionTest extends TestCase
         $this->assertSoftDeleted('rooms', ['id' => $room->id]);
     }
 
-    public function test_inactive_mature_account_room_expires_after_3_days(): void
+    public function test_inactive_mature_account_room_expires_after_7_days(): void
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $room = $this->createRoom($user, $character, [
-            'created_at' => now()->subDays(4),
-            'updated_at' => now()->subDays(4),
+            'created_at' => now()->subDays(8),
+            'updated_at' => now()->subDays(8),
         ]);
 
         $this->artisan('retention:expire-inactive-rooms --limit=500')->assertSuccessful();
@@ -93,8 +93,8 @@ class RoomRetentionTest extends TestCase
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $room = $this->createRoom($user, $character, [
-            'created_at' => now()->subDays(4),
-            'updated_at' => now()->subDays(4),
+            'created_at' => now()->subDays(8),
+            'updated_at' => now()->subDays(8),
         ]);
 
         $this->actingAs($user)
@@ -121,8 +121,8 @@ class RoomRetentionTest extends TestCase
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $room = $this->createRoom($user, $character, [
-            'created_at' => now()->subDays(4),
-            'updated_at' => now()->subDays(4),
+            'created_at' => now()->subDays(8),
+            'updated_at' => now()->subDays(8),
         ]);
 
         $this->actingAs($user)
@@ -156,7 +156,7 @@ class RoomRetentionTest extends TestCase
         ]);
 
         $room->delete();
-        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:expire-inactive-rooms --limit=500')->assertSuccessful();
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
@@ -164,13 +164,13 @@ class RoomRetentionTest extends TestCase
         $this->assertNotNull(Room::withTrashed()->find($room->id));
     }
 
-    public function test_soft_deleted_rooms_remain_recoverable_for_30_days(): void
+    public function test_soft_deleted_rooms_remain_recoverable_for_90_days(): void
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $room = $this->createRoom($user, $character);
 
         $room->delete();
-        $room->forceFill(['deleted_at' => now()->subDays(29)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(89)])->saveQuietly();
 
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
 
@@ -184,7 +184,7 @@ class RoomRetentionTest extends TestCase
         $message = $this->createMessage($room, $user, $character, 'Cascade me.');
 
         $room->delete();
-        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
 
@@ -254,7 +254,7 @@ class RoomRetentionTest extends TestCase
         ]);
 
         $room->delete();
-        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
 
@@ -345,7 +345,7 @@ class RoomRetentionTest extends TestCase
         ]);
 
         $room->delete();
-        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
 
@@ -368,12 +368,12 @@ class RoomRetentionTest extends TestCase
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $activeRoom = $this->createRoom($user, $character, [
-            'created_at' => now()->subDays(4),
-            'updated_at' => now()->subDays(4),
+            'created_at' => now()->subDays(8),
+            'updated_at' => now()->subDays(8),
         ]);
         $deletedRoom = $this->createRoom($user, $character);
         $deletedRoom->delete();
-        $deletedRoom->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $deletedRoom->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:expire-inactive-rooms --dry-run --limit=500')->assertSuccessful();
         $this->artisan('retention:hard-delete-expired-rooms --dry-run --limit=500')->assertSuccessful();
@@ -388,8 +388,8 @@ class RoomRetentionTest extends TestCase
     public function test_limit_option_caps_processed_rooms(): void
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
-        $this->createRoom($user, $character, ['created_at' => now()->subDays(4), 'updated_at' => now()->subDays(4)]);
-        $this->createRoom($user, $character, ['created_at' => now()->subDays(5), 'updated_at' => now()->subDays(5)]);
+        $this->createRoom($user, $character, ['created_at' => now()->subDays(8), 'updated_at' => now()->subDays(8)]);
+        $this->createRoom($user, $character, ['created_at' => now()->subDays(8), 'updated_at' => now()->subDays(8)]);
 
         $this->artisan('retention:expire-inactive-rooms --limit=1')->assertSuccessful();
 
@@ -401,8 +401,8 @@ class RoomRetentionTest extends TestCase
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
         $room = $this->createRoom($user, $character, [
-            'created_at' => now()->subDays(4),
-            'updated_at' => now()->subDays(4),
+            'created_at' => now()->subDays(8),
+            'updated_at' => now()->subDays(8),
         ]);
 
         $this->artisan('retention:expire-inactive-rooms --limit=500')->assertSuccessful();
@@ -414,7 +414,7 @@ class RoomRetentionTest extends TestCase
         $this->assertTrue($room->trashed());
         $this->assertTrue($room->deleted_at->equalTo($firstDeletedAt));
 
-        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+        $room->forceFill(['deleted_at' => now()->subDays(91)])->saveQuietly();
 
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
         $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();

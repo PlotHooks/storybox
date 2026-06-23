@@ -2,7 +2,7 @@
 
 return [
     'rooms' => [
-        'recovery_window_days' => 30,
+        'recovery_window_days' => 90,
         'command_batch_size' => 100,
         'default_limit' => 500,
         'tiers' => [
@@ -13,7 +13,7 @@ return [
             'mature' => [
                 'starts_after_days' => 30,
                 'active_room_limit' => 10,
-                'inactive_after_hours' => 72,
+                'inactive_after_hours' => 168,
             ],
             'premium' => [
                 'enabled' => false,

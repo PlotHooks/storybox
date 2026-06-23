@@ -210,7 +210,7 @@ class RoomRetentionService
         }
 
         $now ??= now();
-        $cutoff = $now->copy()->subDays((int) config('retention.rooms.recovery_window_days', 30));
+        $cutoff = $now->copy()->subDays((int) config('retention.rooms.recovery_window_days', 90));
 
         return $room->deleted_at->lte($cutoff);
     }
@@ -240,7 +240,7 @@ class RoomRetentionService
 
     private function hardDeleteCandidateQuery(Carbon $now): Builder
     {
-        $cutoff = $now->copy()->subDays((int) config('retention.rooms.recovery_window_days', 30));
+        $cutoff = $now->copy()->subDays((int) config('retention.rooms.recovery_window_days', 90));
 
         return Room::onlyTrashed()
             ->where('type', Room::TYPE_PUBLIC)
