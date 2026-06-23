@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ArchivedWorldBook;
 use App\Models\Character;
 use App\Models\Message;
 use App\Models\Room;
@@ -191,6 +192,178 @@ class RoomRetentionTest extends TestCase
         $this->assertDatabaseMissing('messages', ['id' => $message->id]);
     }
 
+    public function test_hard_delete_archives_world_book_entries_before_room_force_delete(): void
+    {
+        [$user, $ownerCharacter] = $this->createUserWithCharacter(now()->subDays(31));
+        [, $authorCharacter] = $this->createUserWithCharacter(now()->subDays(31));
+        [, $linkedCharacter] = $this->createUserWithCharacter(now()->subDays(31));
+        $room = $this->createRoom($user, $ownerCharacter);
+
+        $publishedEntryId = DB::table('world_book_entries')->insertGetId([
+            'room_id' => $room->id,
+            'author_character_id' => $authorCharacter->id,
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'linked_character_id' => $linkedCharacter->id,
+            'draft_linked_character_id' => null,
+            'status' => 'published',
+            'sort_order' => 2,
+            'title' => 'Glass Harbor',
+            'category' => 'location',
+            'image_url' => 'https://cdn.example.com/glass-harbor.png',
+            'body' => 'A harbor lined with mirrored breakwaters.',
+            'tags' => json_encode(['harbor', 'trade']),
+            'draft_title' => null,
+            'draft_category' => null,
+            'draft_image_url' => null,
+            'draft_body' => null,
+            'draft_tags' => null,
+            'published_at' => now()->subDays(10),
+            'reviewed_at' => now()->subDays(9),
+            'rejection_note' => null,
+            'rejected_at' => null,
+            'created_at' => now()->subDays(12),
+            'updated_at' => now()->subDays(8),
+            'deleted_at' => null,
+        ]);
+
+        $pendingEntryId = DB::table('world_book_entries')->insertGetId([
+            'room_id' => $room->id,
+            'author_character_id' => $authorCharacter->id,
+            'reviewed_by_character_id' => null,
+            'linked_character_id' => null,
+            'draft_linked_character_id' => $linkedCharacter->id,
+            'status' => 'pending',
+            'sort_order' => 5,
+            'title' => null,
+            'category' => null,
+            'image_url' => null,
+            'body' => null,
+            'tags' => null,
+            'draft_title' => 'Unmapped Shrine',
+            'draft_category' => 'map',
+            'draft_image_url' => 'https://cdn.example.com/unmapped-shrine.png',
+            'draft_body' => 'A draft map of the ruined shrine.',
+            'draft_tags' => json_encode(['shrine', 'draft']),
+            'published_at' => null,
+            'reviewed_at' => null,
+            'rejection_note' => null,
+            'rejected_at' => null,
+            'created_at' => now()->subDays(7),
+            'updated_at' => now()->subDays(6),
+            'deleted_at' => null,
+        ]);
+
+        $room->delete();
+        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+
+        $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
+
+        $archive = ArchivedWorldBook::query()->where('original_room_id', $room->id)->first();
+
+        $this->assertNotNull($archive);
+        $this->assertSame($user->id, $archive->owner_user_id);
+        $this->assertSame($room->name, $archive->original_room_name);
+        $this->assertSame(2, $archive->entry_count);
+        $this->assertNotEmpty($archive->recovery_key);
+        $this->assertNull(Room::withTrashed()->find($room->id));
+
+        $this->assertDatabaseHas('archived_world_book_entries', [
+            'archived_world_book_id' => $archive->id,
+            'source_world_book_entry_id' => $publishedEntryId,
+            'status' => 'published',
+            'title' => 'Glass Harbor',
+            'category' => 'location',
+            'body' => 'A harbor lined with mirrored breakwaters.',
+            'sort_order' => 2,
+        ]);
+
+        $this->assertDatabaseHas('archived_world_book_entries', [
+            'archived_world_book_id' => $archive->id,
+            'source_world_book_entry_id' => $pendingEntryId,
+            'status' => 'pending',
+            'draft_title' => 'Unmapped Shrine',
+            'draft_category' => 'map',
+            'draft_body' => 'A draft map of the ruined shrine.',
+            'sort_order' => 5,
+        ]);
+
+        $archivedPublished = DB::table('archived_world_book_entries')
+            ->where('archived_world_book_id', $archive->id)
+            ->where('source_world_book_entry_id', $publishedEntryId)
+            ->first();
+
+        $archivedPending = DB::table('archived_world_book_entries')
+            ->where('archived_world_book_id', $archive->id)
+            ->where('source_world_book_entry_id', $pendingEntryId)
+            ->first();
+
+        $this->assertSame(['harbor', 'trade'], json_decode((string) $archivedPublished->tags, true));
+        $this->assertSame(['shrine', 'draft'], json_decode((string) $archivedPending->draft_tags, true));
+    }
+
+    public function test_hard_delete_archive_is_idempotent_when_archive_row_already_exists(): void
+    {
+        [$user, $ownerCharacter] = $this->createUserWithCharacter(now()->subDays(31));
+        [, $authorCharacter] = $this->createUserWithCharacter(now()->subDays(31));
+        $room = $this->createRoom($user, $ownerCharacter);
+
+        $entryId = DB::table('world_book_entries')->insertGetId([
+            'room_id' => $room->id,
+            'author_character_id' => $authorCharacter->id,
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'linked_character_id' => null,
+            'draft_linked_character_id' => null,
+            'status' => 'published',
+            'sort_order' => 1,
+            'title' => 'First Archive',
+            'category' => 'lore',
+            'image_url' => null,
+            'body' => 'Original archived text.',
+            'tags' => json_encode(['original']),
+            'draft_title' => null,
+            'draft_category' => null,
+            'draft_image_url' => null,
+            'draft_body' => null,
+            'draft_tags' => null,
+            'published_at' => now()->subDays(4),
+            'reviewed_at' => now()->subDays(4),
+            'rejection_note' => null,
+            'rejected_at' => null,
+            'created_at' => now()->subDays(4),
+            'updated_at' => now()->subDays(4),
+            'deleted_at' => null,
+        ]);
+
+        $existingArchive = ArchivedWorldBook::create([
+            'owner_user_id' => $user->id,
+            'original_room_id' => $room->id,
+            'original_room_name' => 'Old Name',
+            'room_deleted_at' => now()->subDays(60),
+            'entry_count' => 99,
+            'recovery_key' => 'existing-recovery-key',
+            'archived_at' => now()->subDays(60),
+        ]);
+
+        $room->delete();
+        $room->forceFill(['deleted_at' => now()->subDays(31)])->saveQuietly();
+
+        $this->artisan('retention:hard-delete-expired-rooms --limit=500')->assertSuccessful();
+
+        $existingArchive->refresh();
+
+        $this->assertSame('existing-recovery-key', $existingArchive->recovery_key);
+        $this->assertSame($room->name, $existingArchive->original_room_name);
+        $this->assertSame(1, $existingArchive->entry_count);
+        $this->assertSame(1, ArchivedWorldBook::query()->where('original_room_id', $room->id)->count());
+        $this->assertSame(1, DB::table('archived_world_book_entries')->where('archived_world_book_id', $existingArchive->id)->count());
+        $this->assertDatabaseHas('archived_world_book_entries', [
+            'archived_world_book_id' => $existingArchive->id,
+            'source_world_book_entry_id' => $entryId,
+            'title' => 'First Archive',
+            'body' => 'Original archived text.',
+        ]);
+    }
+
     public function test_dry_run_does_not_delete_anything(): void
     {
         [$user, $character] = $this->createUserWithCharacter(now()->subDays(31));
@@ -248,7 +421,6 @@ class RoomRetentionTest extends TestCase
 
         $this->assertNull(Room::withTrashed()->find($room->id));
     }
-
 
     private function issueParticipationToken(Room $room, Character $character): string
     {

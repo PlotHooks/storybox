@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArchivedWorldBook;
 use App\Models\Character;
 use App\Models\Room;
 use App\Models\WorldBookEntry;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class WorldBookController extends Controller
@@ -29,6 +31,8 @@ class WorldBookController extends Controller
 
         $canManage = $viewerCharacter !== null
             && $this->roomAccess->canManageRoom($request->user(), $room, $viewerCharacter);
+        $roomIsEmpty = ! $this->roomHasActiveWorldBookEntries($room);
+        $canRecoverArchive = $this->userOwnsRoom((int) ($request->user()?->id ?? 0), $room) && $roomIsEmpty;
 
         $entries = WorldBookEntry::query()
             ->where('room_id', $room->id)
@@ -85,9 +89,94 @@ class WorldBookController extends Controller
                 'can_manage' => $canManage,
                 'active_character_id' => $viewerCharacter?->id,
             ],
+            'archive_recovery' => [
+                'can_recover' => $canRecoverArchive,
+                'room_is_empty' => $roomIsEmpty,
+                'available_archives' => $canRecoverArchive
+                    ? $this->availableArchivedWorldBooksForUser((int) ($request->user()?->id ?? 0))
+                    : [],
+            ],
             'owned_characters' => $this->ownedCharactersForUser($request->user()?->id),
             'pending_queue' => $pendingQueue,
             'entries' => $serialized,
+        ]);
+    }
+
+    public function previewArchive(Request $request, Room $room): JsonResponse
+    {
+        $this->abortIfNotPublicRoom($room);
+        $this->assertRoomOwnerAccount($request, $room);
+
+        $archive = $this->archivedWorldBookForRequestUser($request);
+
+        return response()->json([
+            'ok' => true,
+            'archive' => $this->serializeArchivedWorldBook($archive),
+        ]);
+    }
+
+    public function importArchive(Request $request, Room $room): JsonResponse
+    {
+        $this->abortIfNotPublicRoom($room);
+        $this->assertRoomOwnerAccount($request, $room);
+
+        abort_if(
+            $this->roomHasActiveWorldBookEntries($room),
+            422,
+            'Recover archived World Book is only available when this room has no existing World Book entries.'
+        );
+
+        $archive = $this->archivedWorldBookForRequestUser($request);
+        $archivedEntries = $archive->entries()
+            ->orderByRaw('COALESCE(sort_order, 2147483647) asc')
+            ->orderBy('id')
+            ->get();
+
+        abort_if($archivedEntries->isEmpty(), 422, 'This archived World Book has no entries to import.');
+
+        $actor = $this->actorCharacterForRoom($request, $room);
+
+        DB::transaction(function () use ($archivedEntries, $room, $actor) {
+            foreach ($archivedEntries as $archivedEntry) {
+                $entry = new WorldBookEntry([
+                    'room_id' => $room->id,
+                    'author_character_id' => $actor->id,
+                    'reviewed_by_character_id' => $archivedEntry->reviewed_at !== null ? $actor->id : null,
+                    'linked_character_id' => null,
+                    'draft_linked_character_id' => null,
+                    'status' => $archivedEntry->status,
+                    'sort_order' => $archivedEntry->sort_order,
+                    'title' => $archivedEntry->title,
+                    'category' => $archivedEntry->category,
+                    'image_url' => $archivedEntry->image_url,
+                    'body' => $archivedEntry->body,
+                    'tags' => WorldBookEntry::normalizeTags($archivedEntry->tags ?? []),
+                    'draft_title' => $archivedEntry->draft_title,
+                    'draft_category' => $archivedEntry->draft_category,
+                    'draft_image_url' => $archivedEntry->draft_image_url,
+                    'draft_body' => $archivedEntry->draft_body,
+                    'draft_tags' => WorldBookEntry::normalizeTags($archivedEntry->draft_tags ?? []),
+                    'published_at' => $archivedEntry->published_at,
+                    'reviewed_at' => $archivedEntry->reviewed_at,
+                    'rejection_note' => $archivedEntry->rejection_note,
+                    'rejected_at' => $archivedEntry->rejected_at,
+                ]);
+                $entry->save();
+            }
+        });
+
+        Log::info('Imported archived World Book into room.', [
+            'room_id' => $room->id,
+            'owner_user_id' => (int) $request->user()->id,
+            'archive_id' => $archive->id,
+            'imported_entry_count' => $archivedEntries->count(),
+            'recovery_key' => $archive->recovery_key,
+            'occurred_at' => now()->toISOString(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'imported_count' => $archivedEntries->count(),
         ]);
     }
 
@@ -770,7 +859,6 @@ class WorldBookController extends Controller
         return $sorted->values();
     }
 
-
     private function ownedCharactersForUser(?int $userId): array
     {
         if ((int) $userId <= 0) {
@@ -791,4 +879,141 @@ class WorldBookController extends Controller
             ->all();
     }
 
+    private function roomOwnerUserId(Room $room): ?int
+    {
+        return $this->roomAccess->ownerUserId($room) ?? ((int) ($room->created_by ?? 0) > 0 ? (int) $room->created_by : null);
+    }
+
+    private function userOwnsRoom(int $userId, Room $room): bool
+    {
+        $ownerUserId = $this->roomOwnerUserId($room);
+
+        return $ownerUserId !== null && $userId > 0 && $userId === $ownerUserId;
+    }
+
+    private function assertRoomOwnerAccount(Request $request, Room $room): void
+    {
+        abort_unless($this->userOwnsRoom((int) ($request->user()?->id ?? 0), $room), 403);
+    }
+
+    private function roomHasActiveWorldBookEntries(Room $room): bool
+    {
+        return WorldBookEntry::query()
+            ->where('room_id', $room->id)
+            ->whereNull('deleted_at')
+            ->exists();
+    }
+
+    private function availableArchivedWorldBooksForUser(int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        return ArchivedWorldBook::query()
+            ->where('owner_user_id', $userId)
+            ->orderByDesc('archived_at')
+            ->get()
+            ->map(fn (ArchivedWorldBook $archive) => $this->serializeArchivedWorldBookSummary($archive))
+            ->all();
+    }
+
+    private function archivedWorldBookForRequestUser(Request $request): ArchivedWorldBook
+    {
+        $validated = $request->validate([
+            'recovery_key' => ['required', 'string', 'max:64'],
+        ]);
+
+        $archive = ArchivedWorldBook::query()
+            ->with('entries')
+            ->where('owner_user_id', (int) $request->user()->id)
+            ->where('recovery_key', trim($validated['recovery_key']))
+            ->first();
+
+        abort_if($archive === null, 404);
+
+        return $archive;
+    }
+
+    private function serializeArchivedWorldBookSummary(ArchivedWorldBook $archive): array
+    {
+        return [
+            'recovery_key' => $archive->recovery_key,
+            'original_room_id' => $archive->original_room_id,
+            'original_room_name' => $archive->original_room_name,
+            'entry_count' => $archive->entry_count,
+            'room_deleted_at' => optional($archive->room_deleted_at)->toIso8601String(),
+            'archived_at' => optional($archive->archived_at)->toIso8601String(),
+        ];
+    }
+
+    private function serializeArchivedWorldBook(ArchivedWorldBook $archive): array
+    {
+        $archive->loadMissing('entries');
+
+        $entries = $archive->entries
+            ->sort(function ($left, $right) {
+                $leftSortOrder = $left->sort_order ?? PHP_INT_MAX;
+                $rightSortOrder = $right->sort_order ?? PHP_INT_MAX;
+
+                if ($leftSortOrder !== $rightSortOrder) {
+                    return $leftSortOrder <=> $rightSortOrder;
+                }
+
+                return $left->id <=> $right->id;
+            })
+            ->values()
+            ->map(fn ($entry) => $this->serializeArchivedWorldBookEntry($entry))
+            ->all();
+
+        return array_merge($this->serializeArchivedWorldBookSummary($archive), [
+            'entries' => $entries,
+        ]);
+    }
+
+    private function serializeArchivedWorldBookEntry($entry): array
+    {
+        $displayCategory = $entry->category ?? $entry->draft_category;
+        $displayTitle = $entry->title ?? $entry->draft_title;
+        $displayBody = $entry->body ?? $entry->draft_body;
+        $displayTags = $entry->category !== null
+            ? WorldBookEntry::normalizeTags($entry->tags ?? [])
+            : WorldBookEntry::normalizeTags($entry->draft_tags ?? []);
+
+        return [
+            'id' => $entry->id,
+            'status' => $entry->status,
+            'sort_order' => $entry->sort_order,
+            'title' => $displayTitle ?: 'Untitled',
+            'category' => $displayCategory,
+            'category_label' => WorldBookEntry::categoryLabel($displayCategory),
+            'category_icon' => WorldBookEntry::categoryIcon($displayCategory),
+            'body' => $displayBody,
+            'tags' => $displayTags,
+            'image_url' => $entry->image_url ?? $entry->draft_image_url,
+            'published' => $entry->category !== null ? [
+                'title' => $entry->title ?: 'Untitled',
+                'category' => $entry->category,
+                'category_label' => WorldBookEntry::categoryLabel($entry->category),
+                'category_icon' => WorldBookEntry::categoryIcon($entry->category),
+                'body' => $entry->body,
+                'image_url' => $entry->image_url,
+                'tags' => WorldBookEntry::normalizeTags($entry->tags ?? []),
+                'sort_order' => $entry->sort_order,
+            ] : null,
+            'pending' => $entry->draft_category !== null ? [
+                'title' => $entry->draft_title ?: 'Untitled',
+                'category' => $entry->draft_category,
+                'category_label' => WorldBookEntry::categoryLabel($entry->draft_category),
+                'category_icon' => WorldBookEntry::categoryIcon($entry->draft_category),
+                'body' => $entry->draft_body,
+                'image_url' => $entry->draft_image_url,
+                'tags' => WorldBookEntry::normalizeTags($entry->draft_tags ?? []),
+            ] : null,
+            'rejection_note' => $entry->rejection_note,
+            'rejected_at' => optional($entry->rejected_at)->toIso8601String(),
+            'published_at' => optional($entry->published_at)->toIso8601String(),
+            'reviewed_at' => optional($entry->reviewed_at)->toIso8601String(),
+        ];
+    }
 }

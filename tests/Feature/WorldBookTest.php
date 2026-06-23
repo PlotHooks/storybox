@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ArchivedWorldBook;
 use App\Models\Character;
 use App\Models\Room;
 use App\Models\User;
@@ -892,6 +893,273 @@ class WorldBookTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_world_book_index_exposes_archive_recovery_only_to_true_room_owner_for_empty_room(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$moderatorUser, $moderatorCharacter] = $this->createUserWithCharacter('Moderator');
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter('Other');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $this->addModerator($room, $moderatorCharacter);
+        $archive = $this->createArchivedWorldBook($ownerUser, [[
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Owner Archive',
+            'category' => WorldBookEntry::CATEGORY_LORE,
+            'body' => 'Lore body.',
+        ]]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug))
+            ->assertOk()
+            ->assertJsonPath('archive_recovery.can_recover', true)
+            ->assertJsonPath('archive_recovery.available_archives.0.recovery_key', $archive->recovery_key);
+
+        $this->actingAs($moderatorUser)
+            ->withSession(['active_character_id' => $moderatorCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug))
+            ->assertOk()
+            ->assertJsonPath('archive_recovery.can_recover', false)
+            ->assertJsonCount(0, 'archive_recovery.available_archives');
+
+        $this->actingAs($otherUser)
+            ->withSession(['active_character_id' => $otherCharacter->id])
+            ->getJson(route('rooms.world-book.index', $room->slug))
+            ->assertOk()
+            ->assertJsonPath('archive_recovery.can_recover', false)
+            ->assertJsonCount(0, 'archive_recovery.available_archives');
+    }
+
+    public function test_owner_can_preview_their_archived_world_book(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $archive = $this->createArchivedWorldBook($ownerUser, [
+            [
+                'status' => WorldBookEntry::STATUS_PUBLISHED,
+                'sort_order' => 1,
+                'title' => 'Harbor Ledger',
+                'category' => WorldBookEntry::CATEGORY_LOCATION,
+                'body' => 'A busy harbor of ferries and ledgers.',
+                'tags' => ['harbor', 'trade'],
+                'published_at' => now()->subDays(10),
+                'reviewed_at' => now()->subDays(9),
+            ],
+            [
+                'status' => WorldBookEntry::STATUS_REJECTED,
+                'sort_order' => 2,
+                'draft_title' => 'Storm Atlas',
+                'draft_category' => WorldBookEntry::CATEGORY_MAP,
+                'draft_body' => 'Draft chart of the storm coast.',
+                'draft_tags' => ['storm', 'atlas'],
+                'rejection_note' => 'Needs another pass.',
+                'rejected_at' => now()->subDays(8),
+            ],
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.preview', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertOk()
+            ->assertJsonPath('archive.recovery_key', $archive->recovery_key)
+            ->assertJsonPath('archive.original_room_name', $archive->original_room_name)
+            ->assertJsonCount(2, 'archive.entries')
+            ->assertJsonPath('archive.entries.0.title', 'Harbor Ledger')
+            ->assertJsonPath('archive.entries.1.pending.title', 'Storm Atlas');
+    }
+
+    public function test_non_owner_cannot_preview_or_import_archived_world_book(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        [$moderatorUser, $moderatorCharacter] = $this->createUserWithCharacter('Moderator');
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter('Other');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $this->addModerator($room, $moderatorCharacter);
+
+        $archive = $this->createArchivedWorldBook($ownerUser, [[
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Owner Archive',
+            'category' => WorldBookEntry::CATEGORY_LORE,
+            'body' => 'Secret lore.',
+        ]]);
+
+        $this->actingAs($moderatorUser)
+            ->withSession(['active_character_id' => $moderatorCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.preview', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($moderatorUser)
+            ->withSession(['active_character_id' => $moderatorCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.import', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($otherUser)
+            ->withSession(['active_character_id' => $otherCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.preview', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($otherUser)
+            ->withSession(['active_character_id' => $otherCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.import', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_owner_can_import_archived_world_book_into_empty_room(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $archive = $this->createArchivedWorldBook($ownerUser, [[
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'sort_order' => 1,
+            'title' => 'Imported Harbor',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Imported harbor body.',
+            'tags' => ['imported', 'harbor'],
+            'published_at' => now()->subDays(5),
+            'reviewed_at' => now()->subDays(4),
+        ]]);
+        $originalArchiveEntryId = $archive->entries->first()->id;
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.import', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertOk()
+            ->assertJsonPath('imported_count', 1);
+
+        $this->assertDatabaseHas('world_book_entries', [
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Imported Harbor',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Imported harbor body.',
+            'linked_character_id' => null,
+            'draft_linked_character_id' => null,
+        ]);
+        $this->assertDatabaseHas('archived_world_books', [
+            'id' => $archive->id,
+            'owner_user_id' => $ownerUser->id,
+            'recovery_key' => $archive->recovery_key,
+        ]);
+        $this->assertDatabaseHas('archived_world_book_entries', [
+            'id' => $originalArchiveEntryId,
+            'archived_world_book_id' => $archive->id,
+            'title' => 'Imported Harbor',
+        ]);
+        $this->assertSame(1, ArchivedWorldBook::query()->whereKey($archive->id)->count());
+        $this->assertSame(1, ArchivedWorldBook::query()->findOrFail($archive->id)->entries()->count());
+    }
+
+    public function test_archive_import_is_blocked_when_destination_room_already_has_world_book_entries(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $archive = $this->createArchivedWorldBook($ownerUser, [[
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Blocked Archive',
+            'category' => WorldBookEntry::CATEGORY_LOCATION,
+            'body' => 'Blocked body.',
+        ]]);
+
+        WorldBookEntry::create([
+            'room_id' => $room->id,
+            'author_character_id' => $ownerCharacter->id,
+            'status' => WorldBookEntry::STATUS_PUBLISHED,
+            'title' => 'Existing Entry',
+            'category' => WorldBookEntry::CATEGORY_LORE,
+            'body' => 'Existing room lore.',
+            'published_at' => now(),
+            'reviewed_by_character_id' => $ownerCharacter->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.import', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Recover archived World Book is only available when this room has no existing World Book entries.');
+
+        $this->assertSame(1, WorldBookEntry::query()->where('room_id', $room->id)->count());
+    }
+
+    public function test_archive_import_preserves_title_category_body_tags_sort_status_and_draft_fields(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $publishedAt = now()->subDays(12)->startOfMinute();
+        $reviewedAt = now()->subDays(11)->startOfMinute();
+        $rejectedAt = now()->subDays(9)->startOfMinute();
+
+        $archive = $this->createArchivedWorldBook($ownerUser, [
+            [
+                'status' => WorldBookEntry::STATUS_PUBLISHED,
+                'sort_order' => 2,
+                'title' => 'Salt Market',
+                'category' => WorldBookEntry::CATEGORY_LOCATION,
+                'image_url' => 'https://cdn.example.com/salt-market.png',
+                'body' => 'A market lined with salt vaults.',
+                'tags' => ['salt', 'market'],
+                'published_at' => $publishedAt,
+                'reviewed_at' => $reviewedAt,
+            ],
+            [
+                'status' => WorldBookEntry::STATUS_REJECTED,
+                'sort_order' => 7,
+                'draft_title' => 'Storm Atlas',
+                'draft_category' => WorldBookEntry::CATEGORY_MAP,
+                'draft_image_url' => 'https://cdn.example.com/storm-atlas.png',
+                'draft_body' => 'A draft atlas of the storm coast.',
+                'draft_tags' => ['storm', 'atlas'],
+                'rejection_note' => 'Needs clearer landmarks.',
+                'rejected_at' => $rejectedAt,
+                'reviewed_at' => $reviewedAt,
+            ],
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.world-book.recovery.import', $room->slug), [
+                'recovery_key' => $archive->recovery_key,
+            ])
+            ->assertOk();
+
+        $published = WorldBookEntry::query()->where('room_id', $room->id)->where('title', 'Salt Market')->firstOrFail();
+        $rejected = WorldBookEntry::query()->where('room_id', $room->id)->where('draft_title', 'Storm Atlas')->firstOrFail();
+
+        $this->assertSame(WorldBookEntry::STATUS_PUBLISHED, $published->status);
+        $this->assertSame(WorldBookEntry::CATEGORY_LOCATION, $published->category);
+        $this->assertSame('A market lined with salt vaults.', $published->body);
+        $this->assertSame(['salt', 'market'], $published->tags);
+        $this->assertSame(2, $published->sort_order);
+        $this->assertTrue($publishedAt->equalTo($published->published_at));
+        $this->assertTrue($reviewedAt->equalTo($published->reviewed_at));
+        $this->assertNull($published->linked_character_id);
+        $this->assertNull($published->draft_linked_character_id);
+
+        $this->assertSame(WorldBookEntry::STATUS_REJECTED, $rejected->status);
+        $this->assertSame('Storm Atlas', $rejected->draft_title);
+        $this->assertSame(WorldBookEntry::CATEGORY_MAP, $rejected->draft_category);
+        $this->assertSame('A draft atlas of the storm coast.', $rejected->draft_body);
+        $this->assertSame(['storm', 'atlas'], $rejected->draft_tags);
+        $this->assertSame('Needs clearer landmarks.', $rejected->rejection_note);
+        $this->assertSame(7, $rejected->sort_order);
+        $this->assertTrue($rejectedAt->equalTo($rejected->rejected_at));
+        $this->assertNull($rejected->linked_character_id);
+        $this->assertNull($rejected->draft_linked_character_id);
+    }
 
     private function createUserWithCharacter(string $name = 'Character', ?string $avatar = null): array
     {
@@ -923,6 +1191,43 @@ class WorldBookTest extends TestCase
             'reviewed_by_character_id' => $authorCharacter->id,
             'reviewed_at' => now(),
         ]);
+    }
+
+    private function createArchivedWorldBook(User $ownerUser, array $entries, array $overrides = []): ArchivedWorldBook
+    {
+        $archive = ArchivedWorldBook::create(array_merge([
+            'owner_user_id' => $ownerUser->id,
+            'original_room_id' => (int) (microtime(true) * 1000000) + random_int(1, 999),
+            'original_room_name' => 'Archived Room ' . Str::random(8),
+            'room_deleted_at' => now()->subDays(40),
+            'entry_count' => count($entries),
+            'recovery_key' => 'recovery-' . Str::random(24),
+            'archived_at' => now()->subDays(39),
+        ], $overrides));
+
+        foreach (array_values($entries) as $index => $entry) {
+            $archive->entries()->create(array_merge([
+                'source_world_book_entry_id' => ($archive->id * 1000) + $index + 1,
+                'status' => WorldBookEntry::STATUS_PENDING,
+                'sort_order' => $index + 1,
+                'title' => null,
+                'category' => null,
+                'image_url' => null,
+                'body' => null,
+                'tags' => [],
+                'draft_title' => null,
+                'draft_category' => null,
+                'draft_image_url' => null,
+                'draft_body' => null,
+                'draft_tags' => [],
+                'published_at' => null,
+                'reviewed_at' => null,
+                'rejection_note' => null,
+                'rejected_at' => null,
+            ], $entry));
+        }
+
+        return $archive->fresh('entries');
     }
 
     private function insertMessage(Room $room, Character $character, User $user, string $body, string $createdAt): void
