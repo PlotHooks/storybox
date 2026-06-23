@@ -697,6 +697,8 @@
                                 + Create Room
                             </button>
 
+
+
                             <div>
                                 <label for="room-filter-input" class="sr-only">Filter rooms</label>
                                 <input
@@ -798,6 +800,20 @@
                         <div id="room-list-empty" class="hidden px-3 py-4 text-[#8f8675]">
                             No rooms match this filter.
                         </div>
+
+                        @if ($showRecoveryLink)
+                            <div class="shrink-0 border-t border-[#2a241a] bg-[#0b0b0c] p-2">
+                                <a
+                                    href="{{ route('rooms.recovery') }}"
+                                    class="flex items-center justify-between rounded border border-[#332817] bg-[#101012] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                                >
+                                    <span>Recoverable Rooms</span>
+                                    @if ($recoverableRoomCount > 0)
+                                        <span class="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-200">{{ $recoverableRoomCount }}</span>
+                                    @endif
+                                </a>
+                            </div>
+                        @endif
                     </div>
 
                     <div id="panel-users" class="hidden h-full min-h-0 overflow-y-auto px-3 py-3">
@@ -1870,7 +1886,7 @@
         document.getElementById('leave-room-btn')?.addEventListener('click', () => {
             const cid = getTabCharacterId();
             if (cid) setLastRoomForCharacter(cid, roomSlug);
-            leaveRoom().finally(() => window.location.href = '/rooms');
+            leaveRoom().finally(() => window.location.href = '/chat');
         });
 
         window.addEventListener('beforeunload', () => leaveRoom());
@@ -2325,7 +2341,7 @@
                     leaveRoom().finally(() => {
                         const reason = (event.reason || '').trim();
                         window.alert(reason ? `You were kicked from this room. Reason: ${reason}` : 'You were kicked from this room.');
-                        window.location.href = event.destination || '/rooms';
+                        window.location.href = event.destination || '/chat';
                     });
                 });
 

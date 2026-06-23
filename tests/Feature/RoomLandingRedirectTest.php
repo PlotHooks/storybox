@@ -70,7 +70,7 @@ class RoomLandingRedirectTest extends TestCase
             ->assertRedirect(route('rooms.show', $publicRoom->slug));
     }
 
-    public function test_chat_landing_falls_back_to_rooms_index_when_no_accessible_rooms_exist(): void
+    public function test_chat_landing_falls_back_to_recovery_page_when_no_accessible_rooms_exist(): void
     {
         $user = User::factory()->create();
         $character = $this->createCharacter($user, 'Alice');
@@ -78,7 +78,7 @@ class RoomLandingRedirectTest extends TestCase
         $this->actingAs($user)
             ->withSession(['active_character_id' => $character->id])
             ->get(route('rooms.landing'))
-            ->assertRedirect(route('rooms.index'));
+            ->assertRedirect(route('rooms.recovery'));
     }
 
     public function test_login_redirects_directly_to_current_accessible_room(): void
