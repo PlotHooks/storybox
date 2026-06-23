@@ -893,40 +893,18 @@ class WorldBookTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_world_book_index_exposes_archive_recovery_only_to_true_room_owner_for_empty_room(): void
+    public function test_world_book_index_does_not_expose_room_recovery_data(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter('Owner');
-        [$moderatorUser, $moderatorCharacter] = $this->createUserWithCharacter('Moderator');
-        [$otherUser, $otherCharacter] = $this->createUserWithCharacter('Other');
         $room = $this->createRoom($ownerUser, $ownerCharacter);
-        $this->addModerator($room, $moderatorCharacter);
-        $archive = $this->createArchivedWorldBook($ownerUser, [[
-            'status' => WorldBookEntry::STATUS_PUBLISHED,
-            'title' => 'Owner Archive',
-            'category' => WorldBookEntry::CATEGORY_LORE,
-            'body' => 'Lore body.',
-        ]]);
 
-        $this->actingAs($ownerUser)
+        $response = $this->actingAs($ownerUser)
             ->withSession(['active_character_id' => $ownerCharacter->id])
-            ->getJson(route('rooms.world-book.index', $room->slug))
-            ->assertOk()
-            ->assertJsonPath('archive_recovery.can_recover', true)
-            ->assertJsonPath('archive_recovery.available_archives.0.recovery_key', $archive->recovery_key);
+            ->getJson(route('rooms.world-book.index', $room->slug));
 
-        $this->actingAs($moderatorUser)
-            ->withSession(['active_character_id' => $moderatorCharacter->id])
-            ->getJson(route('rooms.world-book.index', $room->slug))
-            ->assertOk()
-            ->assertJsonPath('archive_recovery.can_recover', false)
-            ->assertJsonCount(0, 'archive_recovery.available_archives');
+        $response->assertOk();
 
-        $this->actingAs($otherUser)
-            ->withSession(['active_character_id' => $otherCharacter->id])
-            ->getJson(route('rooms.world-book.index', $room->slug))
-            ->assertOk()
-            ->assertJsonPath('archive_recovery.can_recover', false)
-            ->assertJsonCount(0, 'archive_recovery.available_archives');
+        $this->assertArrayNotHasKey('archive_recovery', $response->json());
     }
 
     public function test_owner_can_preview_their_archived_world_book(): void

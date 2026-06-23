@@ -12,6 +12,7 @@ use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
+use App\Services\RoomRecoveryService;
 use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
 use Illuminate\Contracts\View\View;
@@ -40,6 +41,7 @@ class RoomController extends Controller
     public function index()
     {
         $activeCharacter = $this->activeOwnedCharacter();
+        $roomRecovery = app(RoomRecoveryService::class);
 
         $rooms = $this->roomAccess
             ->applyVisiblePublicRoomScope(Room::query(), Auth::user(), $activeCharacter)
@@ -47,7 +49,19 @@ class RoomController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('rooms.index', compact('rooms'));
+        $recoverableRooms = $roomRecovery
+            ->recoverableRoomsForUser(Auth::user())
+            ->map(fn (Room $room) => [
+                'id' => $room->id,
+                'name' => $room->name,
+                'description' => $room->description,
+                'visibility' => $room->visibility ?? Room::VISIBILITY_PUBLIC,
+                'owner_name' => optional($room->ownerCharacter)->name ?? optional($room->creator)->name ?? 'Unknown',
+                'deleted_at' => $room->deleted_at,
+                'recovery_expires_at' => $roomRecovery->recoveryExpiresAt($room),
+            ]);
+
+        return view('rooms.index', compact('rooms', 'recoverableRooms'));
     }
 
     public function create()

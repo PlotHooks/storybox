@@ -162,13 +162,6 @@
             can_manage: false,
         },
         ownedCharacters: [],
-        archiveRecovery: {
-            can_recover: false,
-            room_is_empty: false,
-            available_archives: [],
-            selected_recovery_key: '',
-            preview: null,
-        },
         selectedCategory: null,
         selectedEntryId: null,
         searchTerm: '',
@@ -373,105 +366,6 @@
         `;
     }
 
-    function renderArchiveRecoveryEmptyState() {
-        const archives = Array.isArray(state.archiveRecovery.available_archives) ? state.archiveRecovery.available_archives : [];
-        const selectedKey = state.archiveRecovery.selected_recovery_key || '';
-        const preview = state.archiveRecovery.preview;
-
-        titleEl.textContent = 'World Book';
-        subtitleEl.textContent = 'This room has no World Book entries yet.';
-
-        bodyEl.innerHTML = `
-            <div class="space-y-4">
-                <div class="rounded border border-dashed border-[#5a431f] bg-[#141416] p-4">
-                    <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Recover Archived World Book</div>
-                    <div class="mt-2 text-sm text-[#d6c8ad]">Select one of your archived World Books or enter a recovery key, preview it, then import a copy into this empty room.</div>
-                </div>
-                ${archives.length === 0 ? '<div class="rounded border border-[#332817] bg-[#101012] p-4 text-sm text-[#8f8675]">No archived World Books are available on this account.</div>' : `
-                    <form id="world-book-archive-recovery-form" class="space-y-4 rounded border border-[#332817] bg-[#101012] p-4">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-archive-select">Saved archives</label>
-                            <select id="world-book-archive-select" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500">
-                                ${archives.map((archive) => `<option value="${escapeHtml(archive.recovery_key)}" ${archive.recovery_key === selectedKey ? 'selected' : ''}>${escapeHtml(archive.original_room_name)} • ${archive.entry_count} entr${archive.entry_count === 1 ? 'y' : 'ies'}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-semibold text-[#d6c8ad]" for="world-book-archive-key">Recovery key</label>
-                            <input id="world-book-archive-key" type="text" maxlength="64" value="${escapeHtml(selectedKey)}" class="mt-1 block w-full rounded-md border-[#332817] bg-[#0b0b0c] text-sm text-[#d6c8ad] focus:border-amber-500 focus:ring-amber-500" placeholder="Paste a recovery key from your archive list">
-                        </div>
-                        <div class="flex flex-wrap items-center gap-3">
-                            <button type="submit" class="inline-flex items-center rounded border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20">Preview Archive</button>
-                            ${preview ? '<button type="button" id="world-book-import-archive-btn" class="inline-flex items-center rounded border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/20">Import Entries</button>' : ''}
-                        </div>
-                        <div id="world-book-archive-recovery-error" class="hidden rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] text-red-200"></div>
-                    </form>
-                `}
-                ${preview ? `
-                    <section class="space-y-4 rounded border border-[#5a431f] bg-[#171311] p-4">
-                        <div>
-                            <div class="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-300">Archive Preview</div>
-                            <div class="mt-2 text-sm font-semibold text-[#f2dfb5]">${escapeHtml(preview.original_room_name || 'Archived Room')}</div>
-                            <div class="mt-1 text-[11px] text-[#8f8675]">${preview.entry_count} entr${preview.entry_count === 1 ? 'y' : 'ies'} • deleted ${escapeHtml(formatDate(preview.room_deleted_at))}</div>
-                        </div>
-                        <div class="space-y-3">${(preview.entries || []).map((entry) => archivedPreviewEntryHtml(entry)).join('')}</div>
-                    </section>
-                ` : ''}
-            </div>
-        `;
-
-        const selectEl = document.getElementById('world-book-archive-select');
-        const keyEl = document.getElementById('world-book-archive-key');
-        const formEl = document.getElementById('world-book-archive-recovery-form');
-        const errorEl = document.getElementById('world-book-archive-recovery-error');
-        const importBtn = document.getElementById('world-book-import-archive-btn');
-
-        selectEl?.addEventListener('change', () => {
-            state.archiveRecovery.selected_recovery_key = selectEl.value || '';
-            if (keyEl) {
-                keyEl.value = state.archiveRecovery.selected_recovery_key;
-            }
-            if (state.archiveRecovery.preview && state.archiveRecovery.preview.recovery_key !== state.archiveRecovery.selected_recovery_key) {
-                state.archiveRecovery.preview = null;
-                render();
-            }
-        });
-
-        keyEl?.addEventListener('input', () => {
-            state.archiveRecovery.selected_recovery_key = keyEl.value.trim();
-            if (state.archiveRecovery.preview && state.archiveRecovery.preview.recovery_key !== state.archiveRecovery.selected_recovery_key) {
-                state.archiveRecovery.preview = null;
-            }
-        });
-
-        formEl?.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const recoveryKey = keyEl?.value.trim() || '';
-
-            try {
-                errorEl?.classList.add('hidden');
-                await previewArchiveRecovery(recoveryKey);
-            } catch (error) {
-                if (errorEl) {
-                    errorEl.textContent = error.message || 'Could not preview archive.';
-                    errorEl.classList.remove('hidden');
-                }
-            }
-        });
-
-        importBtn?.addEventListener('click', async () => {
-            const recoveryKey = keyEl?.value.trim() || '';
-
-            try {
-                errorEl?.classList.add('hidden');
-                await importArchiveRecovery(recoveryKey);
-            } catch (error) {
-                if (errorEl) {
-                    errorEl.textContent = error.message || 'Could not import archive.';
-                    errorEl.classList.remove('hidden');
-                }
-            }
-        });
-    }
 
     function updateStatusPill() {
         const entry = currentEntry();
@@ -723,12 +617,6 @@
 
     function renderEntryView(entry) {
         if (!entry) {
-            if (state.entries.length === 0 && state.archiveRecovery.can_recover) {
-                renderArchiveRecoveryEmptyState();
-                renderActions(null);
-                return;
-            }
-
             titleEl.textContent = 'World Book';
             subtitleEl.textContent = state.entries.length === 0
                 ? 'This room has no World Book entries yet.'
@@ -1004,38 +892,6 @@
         return data;
     }
 
-    async function previewArchiveRecovery(recoveryKey) {
-        if (!recoveryKey) {
-            throw new Error('Enter or select a recovery key first.');
-        }
-
-        const data = await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/recovery/preview`, 'POST', {
-            recovery_key: recoveryKey,
-        });
-
-        state.archiveRecovery.selected_recovery_key = recoveryKey;
-        state.archiveRecovery.preview = data.archive || null;
-        render();
-    }
-
-    async function importArchiveRecovery(recoveryKey) {
-        if (!recoveryKey) {
-            throw new Error('Enter or select a recovery key first.');
-        }
-
-        if (!window.confirm('Import these archived entries into this empty room World Book? This does not overwrite existing entries.')) {
-            return;
-        }
-
-        await submitJson(`/rooms/${encodeURIComponent(roomSlug)}/world-book/recovery/import`, 'POST', {
-            recovery_key: recoveryKey,
-        });
-
-        state.archiveRecovery.preview = null;
-        state.selectedEntryId = null;
-        await loadWorldBook(true);
-    }
-
     async function loadWorldBook(forceOpen = false) {
         if (forceOpen) {
             windowEl.classList.remove('hidden');
@@ -1061,24 +917,6 @@
             state.pendingQueue = Array.isArray(data.pending_queue) ? data.pending_queue : [];
             state.permissions = data.permissions || state.permissions;
             state.ownedCharacters = Array.isArray(data.owned_characters) ? data.owned_characters : [];
-
-            const availableArchives = Array.isArray(data.archive_recovery?.available_archives)
-                ? data.archive_recovery.available_archives
-                : [];
-            let selectedRecoveryKey = state.archiveRecovery.selected_recovery_key || '';
-            if (!selectedRecoveryKey || !availableArchives.some((archive) => archive.recovery_key === selectedRecoveryKey)) {
-                selectedRecoveryKey = availableArchives[0]?.recovery_key || '';
-            }
-
-            state.archiveRecovery = {
-                can_recover: !!data.archive_recovery?.can_recover,
-                room_is_empty: !!data.archive_recovery?.room_is_empty,
-                available_archives: availableArchives,
-                selected_recovery_key: selectedRecoveryKey,
-                preview: state.archiveRecovery.preview && state.archiveRecovery.preview.recovery_key === selectedRecoveryKey
-                    ? state.archiveRecovery.preview
-                    : null,
-            };
 
             if (!visibleEntries().some((entry) => entry.id === state.selectedEntryId)) {
                 state.selectedEntryId = null;

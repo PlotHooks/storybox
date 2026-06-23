@@ -31,9 +31,6 @@ class WorldBookController extends Controller
 
         $canManage = $viewerCharacter !== null
             && $this->roomAccess->canManageRoom($request->user(), $room, $viewerCharacter);
-        $roomIsEmpty = ! $this->roomHasActiveWorldBookEntries($room);
-        $canRecoverArchive = $this->userOwnsRoom((int) ($request->user()?->id ?? 0), $room) && $roomIsEmpty;
-
         $entries = WorldBookEntry::query()
             ->where('room_id', $room->id)
             ->with(['authorCharacter', 'reviewedByCharacter', 'linkedCharacter.profile', 'draftLinkedCharacter.profile'])
@@ -88,13 +85,6 @@ class WorldBookController extends Controller
                 'can_submit' => $viewerCharacter !== null,
                 'can_manage' => $canManage,
                 'active_character_id' => $viewerCharacter?->id,
-            ],
-            'archive_recovery' => [
-                'can_recover' => $canRecoverArchive,
-                'room_is_empty' => $roomIsEmpty,
-                'available_archives' => $canRecoverArchive
-                    ? $this->availableArchivedWorldBooksForUser((int) ($request->user()?->id ?? 0))
-                    : [],
             ],
             'owned_characters' => $this->ownedCharactersForUser($request->user()?->id),
             'pending_queue' => $pendingQueue,

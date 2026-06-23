@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RulesController;
 use App\Http\Controllers\RoomToolReadController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\RoomRecoveryController;
 use App\Http\Controllers\RoomManagementController;
 use App\Http\Controllers\WorldBookController;
 use Illuminate\Support\Facades\Route;
@@ -76,6 +77,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
     Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+    Route::post('/rooms/recoverable/{room}/restore', [RoomRecoveryController::class, 'restore'])->name('rooms.recoverable.restore');
     Route::post('/rooms/{room:slug}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
     Route::post('/rooms/{room:slug}/presence', [RoomController::class, 'ping'])->name('rooms.presence');
     Route::put('/rooms/{room:slug}/follow', [RoomController::class, 'follow'])->name('rooms.follow');
