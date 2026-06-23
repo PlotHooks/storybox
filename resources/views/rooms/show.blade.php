@@ -645,6 +645,26 @@
 
                 {{-- Send --}}
                 <div class="shrink-0 border-t border-[#2a241a] bg-[#101012] p-3">
+                    @php
+                        $canPostInRoom = (int) ($activeCharacterId ?? 0) > 0;
+                    @endphp
+
+                    <div
+                        id="missing-character-notice"
+                        class="{{ $canPostInRoom ? 'hidden ' : '' }}mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-100"
+                        role="alert"
+                    >
+                        <div class="font-medium">You need to create and select a character before posting in chat.</div>
+                        <button
+                            type="button"
+                            id="open-characters-panel-from-notice"
+                            data-open-characters-panel
+                            class="mt-3 inline-flex items-center rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        >
+                            Open Characters
+                        </button>
+                    </div>
+
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
@@ -658,14 +678,21 @@
                             rows="3"
                             required
                             placeholder="Enter to send. Shift+Enter for newline."
-                            class="mt-1 block w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500"
+                            @disabled(! $canPostInRoom)
+                            aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
+                            class="mt-1 block w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >{{ old('body') }}</textarea>
 
                         <div class="mt-2 flex items-center justify-between gap-3">
-                            <div class="text-[10px] uppercase tracking-[0.18em] text-amber-500/70">Transmission ready</div>
-                            <x-primary-button>
+                            <div id="message-composer-status" class="text-[10px] uppercase tracking-[0.18em] {{ $canPostInRoom ? 'text-amber-500/70' : 'text-amber-300' }}">{{ $canPostInRoom ? 'Transmission ready' : 'Character required' }}</div>
+                            <button
+                                type="submit"
+                                @disabled(! $canPostInRoom)
+                                aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
+                                class="inline-flex items-center rounded-md border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
                                 Send
-                            </x-primary-button>
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -992,6 +1019,8 @@
         const textarea   = document.getElementById('body');
         const contentMirror = document.getElementById('content-mirror');
         const submitButton = form?.querySelector('button[type="submit"], [type="submit"]');
+        const missingCharacterNotice = document.getElementById('missing-character-notice');
+        const composerStatus = document.getElementById('message-composer-status');
         let isSubmittingMessage = false;
 
         const switcher   = document.getElementById('character-switcher');
@@ -1811,6 +1840,7 @@
 
             const cid = getTabCharacterId();
             if (cid) setLastRoomForCharacter(cid, roomSlug);
+            updateComposerAvailability();
         })();
 
         switcher?.addEventListener('change', function() {
@@ -1821,6 +1851,7 @@
             if (oldId) setLastRoomForCharacter(oldId, roomSlug);
 
             setTabCharacterId(newId);
+            updateComposerAvailability();
 
             syncCurrentCharacter(newId).then((ok) => {
                 if (!ok) return;
@@ -1897,6 +1928,43 @@
         }
         textarea?.addEventListener('input', syncContentMirror);
 
+        function showMissingCharacterNotice(message = 'You need to create and select a character before posting in chat.') {
+            if (missingCharacterNotice) {
+                const messageEl = missingCharacterNotice.querySelector('div');
+                if (messageEl) messageEl.textContent = message;
+                missingCharacterNotice.classList.remove('hidden');
+            }
+
+            if (composerStatus) {
+                composerStatus.textContent = 'Character required';
+                composerStatus.classList.remove('text-amber-500/70');
+                composerStatus.classList.add('text-amber-300');
+            }
+        }
+
+        function updateComposerAvailability() {
+            const canPost = getTabCharacterId() > 0;
+
+            if (textarea) {
+                textarea.disabled = !canPost;
+            }
+
+            if (submitButton) {
+                submitButton.disabled = !canPost || isSubmittingMessage;
+                submitButton.setAttribute('aria-disabled', submitButton.disabled ? 'true' : 'false');
+            }
+
+            if (composerStatus) {
+                composerStatus.textContent = canPost ? 'Transmission ready' : 'Character required';
+                composerStatus.classList.toggle('text-amber-500/70', canPost);
+                composerStatus.classList.toggle('text-amber-300', !canPost);
+            }
+
+            if (missingCharacterNotice) {
+                missingCharacterNotice.classList.toggle('hidden', canPost);
+            }
+        }
+
         textarea?.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -1916,7 +1984,14 @@
             }
 
             const body = (textarea?.value || '').trim();
-            if (!body || !id) {
+            if (!id) {
+                e.preventDefault();
+                showMissingCharacterNotice();
+                updateComposerAvailability();
+                return;
+            }
+
+            if (!body) {
                 return;
             }
 
@@ -1945,11 +2020,17 @@
                 await fetchNewMessages();
             } catch (error) {
                 console.error('Send message error:', error);
-                form.submit();
+
+                if (error?.status === 422 && error?.data?.code === 'missing_character') {
+                    showMissingCharacterNotice(error.data.message);
+                    updateComposerAvailability();
+                    return;
+                }
+
                 return;
             } finally {
                 isSubmittingMessage = false;
-                if (submitButton) submitButton.disabled = false;
+                updateComposerAvailability();
             }
         });
 
@@ -1976,7 +2057,11 @@
                     status: response.status,
                     data,
                 });
-                throw new Error(`${label} failed with status ${response.status}`);
+
+                const error = new Error(`${label} failed with status ${response.status}`);
+                error.status = response.status;
+                error.data = data;
+                throw error;
             }
 
             return data;

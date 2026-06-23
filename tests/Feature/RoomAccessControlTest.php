@@ -86,6 +86,40 @@ class RoomAccessControlTest extends TestCase
             ->assertForbidden();
     }
 
+
+    public function test_room_message_post_without_character_returns_structured_missing_character_response(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+        $viewer = User::factory()->create();
+
+        $this->actingAs($viewer)
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'body' => 'Hello?',
+            ])
+            ->assertStatus(422)
+            ->assertJson([
+                'message' => 'You need to create and select a character before posting in chat.',
+                'code' => 'missing_character',
+            ]);
+    }
+
+    public function test_public_room_message_post_with_valid_character_still_succeeds(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter();
+        $room = $this->createRoom($user, $character);
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
+                'body' => 'Legitimate room post.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('body', 'Legitimate room post.');
+    }
+
     public function test_hidden_room_is_accessible_to_whitelisted_character_and_revoked_when_removed(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();

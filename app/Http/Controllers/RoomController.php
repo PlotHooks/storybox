@@ -972,6 +972,14 @@ CSS;
             'body' => 'required|string|max:2000',
         ]);
 
+        if ($room->isPublicRoom()) {
+            $selectedCharacterId = (int) $request->input('character_id', 0);
+
+            if ($selectedCharacterId <= 0 && $request->wantsJson()) {
+                return $this->missingCharacterResponse();
+            }
+        }
+
         $characterId = $this->messageCharacterIdForConversation($room, $request);
         $this->assertConversationParticipant($room, $characterId);
 
@@ -995,6 +1003,14 @@ CSS;
         }
 
         return back();
+    }
+
+    private function missingCharacterResponse()
+    {
+        return response()->json([
+            'message' => 'You need to create and select a character before posting in chat.',
+            'code' => 'missing_character',
+        ], 422);
     }
 
     public function latest(Room $room, Request $request)
