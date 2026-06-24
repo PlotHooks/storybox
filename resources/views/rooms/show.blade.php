@@ -594,15 +594,16 @@
 
                                 <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
                                     @if ($isEmote && ! $isDeleted)
-                                        <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
-                                            <button type="button"
-                                                class="char-trigger msg-name text-sm font-bold leading-snug text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                        <span class="leading-snug">
+                                            <span
+                                                role="button"
+                                                tabindex="0"
+                                                class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                                 data-style='{!! $nameStyleJson !!}'
                                                 data-character-id="{{ $c?->id ?? '' }}"
                                                 data-character-name="{{ e($name) }}"
                                                 data-character-handle="{{ e($c?->public_handle ?? '') }}"
-                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</button>
-                                            <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $displayText }}</span>
+                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $displayText }}</span>
                                         </span>
                                     @else
                                         <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span>
@@ -1774,7 +1775,9 @@
             el.style.webkitBackgroundClip = 'text';
             el.style.backgroundClip = 'text';
             el.style.color = 'transparent';
-            el.style.display = 'inline-block';
+
+            const isEmoteBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"]');
+            el.style.display = isEmoteBody ? 'inline' : 'inline-block';
         }
         function applySolidText(el, color) {
             el.style.backgroundImage = '';
@@ -2380,17 +2383,16 @@
                             ` : ''}
 
                             <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isEmote && !isDeleted ? `
-                                <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
-                                    <button type="button"
-                                        class="char-trigger msg-name text-sm font-bold leading-snug text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                <span class="leading-snug">
+                                    <span
+                                        role="button"
+                                        tabindex="0"
+                                        class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                         data-style='${nameStyle}'
                                         data-character-id="${messageCharacterId || ''}"
                                         data-character-name="${safeNameAttr}"
                                         data-character-handle="${safeHandleAttr}"
-                                        data-character-avatar="${safeAvatarAttr}">
-                                        ${safeNameHtml}
-                                    </button>
-                                    <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>
+                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>
                                 </span>
                             ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>`}</div>
 

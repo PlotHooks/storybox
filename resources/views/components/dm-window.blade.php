@@ -1239,7 +1239,9 @@
         el.style.webkitBackgroundClip = 'text';
         el.style.backgroundClip = 'text';
         el.style.color = 'transparent';
-        el.style.display = 'inline-block';
+
+        const isEmoteBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"]');
+        el.style.display = isEmoteBody ? 'inline' : 'inline-block';
     }
 
     function applySolidText(el, color) {
@@ -1378,16 +1380,14 @@
                 const bubble = document.createElement('div');
                 bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-[#16120c] py-0.5'}`;
                 bubble.dataset.characterId = characterId ? String(characterId) : '';
+                bubble.dataset.messageType = isEmote ? 'emote' : 'normal';
                 bubble.innerHTML = `
                     ${avatarMarkup}
                     <div class="min-w-0 flex-1">
                         ${nameMarkup}
                         <div class="msg-body-wrapper mt-0 text-sm leading-snug">
                             ${isEmote && !isDeleted ? `
-                                <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
-                                    ${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
-                                    <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(bodyDisplay)}</span>
-                                </span>
+                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(bodyDisplay)}</span></span>
                             ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>`}
                         </div>
                     </div>

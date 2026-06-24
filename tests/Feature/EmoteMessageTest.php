@@ -84,10 +84,72 @@ class EmoteMessageTest extends TestCase
         $normalized = preg_replace('/\s+/', ' ', $content);
 
         $this->assertStringContainsString('data-message-type="emote"', $content);
-        $this->assertStringContainsString('>Victor</button> <span class="msg-body', $normalized);
-        $this->assertStringContainsString('>waves.</span>', $normalized);
+        $this->assertStringContainsString('>Victor</span>&nbsp;<span class="msg-body', $normalized);
+        $this->assertStringContainsString('waves.</span>', $normalized);
+        $this->assertStringNotContainsString('<button type="button" class="char-trigger msg-name text-sm', $content);
+        $this->assertStringNotContainsString('inline-flex flex-wrap items-baseline gap-1', $content);
         $this->assertStringNotContainsString('Victor: waves.', $content);
         $this->assertStringNotContainsString('*Victor waves.*', $content);
+    }
+    public function test_long_paragraph_emote_renders_in_one_inline_text_flow(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Leaf');
+        $room = $this->createPublicRoom($user);
+
+        Message::create([
+            'room_id' => $room->id,
+            'user_id' => $user->id,
+            'character_id' => $character->id,
+            'type' => Message::TYPE_EMOTE,
+            'body' => 'sat behind the bar for a while, watching the room drift through another slow hour while the lamps burned low and the rain dragged at the shutters.',
+        ]);
+
+        $content = $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->getContent();
+
+        $normalized = preg_replace('/\s+/', ' ', $content);
+
+        $this->assertStringContainsString('>Leaf</span>&nbsp;<span class="msg-body', $normalized);
+        $this->assertStringContainsString('sat behind the bar for a while, watching the room drift through another slow hour while the lamps burned low and the rain dragged at the shutters.</span>', $normalized);
+        $this->assertStringNotContainsString('>Leaf</span> <span class="text-[10px]', $normalized);
+        $this->assertStringNotContainsString('<button type="button" class="char-trigger msg-name text-sm', $content);
+    }
+    public function test_long_faded_emote_keeps_body_inline(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Leaf');
+        $character->settings = [
+            'text_color_1' => '#D8F3FF',
+            'text_color_2' => '#F2DFB5',
+            'fade_name' => true,
+            'fade_message' => true,
+        ];
+        $character->save();
+
+        $room = $this->createPublicRoom($user);
+
+        Message::create([
+            'room_id' => $room->id,
+            'user_id' => $user->id,
+            'character_id' => $character->id,
+            'type' => Message::TYPE_EMOTE,
+            'body' => 'sat behind the bar for a while, watching the room drift through another slow hour while the lamps burned low and the rain dragged at the shutters.',
+        ]);
+
+        $content = $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->getContent();
+
+        $normalized = preg_replace('/\s+/', ' ', $content);
+
+        $this->assertStringContainsString('data-message-type="emote"', $content);
+        $this->assertStringContainsString('>Leaf</span>&nbsp;<span class="msg-body', $normalized);
+        $this->assertStringContainsString('data-style=', $content);
+        $this->assertStringContainsString('data-message-type="emote"', $content);
     }
 
     public function test_normal_messages_still_render_unchanged(): void
