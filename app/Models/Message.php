@@ -12,10 +12,14 @@ class Message extends Model
     use HasFactory;
     use SoftDeletes;
 
+    public const TYPE_NORMAL = 'normal';
+    public const TYPE_EMOTE = 'emote';
+
     protected $fillable = [
         'room_id',
         'user_id',
         'character_id',
+        'type',
         'body',
         'deleted_by',
     ];
@@ -52,10 +56,16 @@ class Message extends Model
         return $this->trashed();
     }
 
+    public function isEmote(): bool
+    {
+        return $this->type === self::TYPE_EMOTE;
+    }
+
     public function canBeEditedBy(User $user): bool
     {
         return $this->user_id === $user->id || (bool) ($user->is_admin ?? false);
     }
+
     public function reports()
     {
         return $this->hasMany(MessageReport::class);

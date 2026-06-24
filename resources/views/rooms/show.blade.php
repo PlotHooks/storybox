@@ -533,6 +533,7 @@
 
                             $text = $message->content ?? $message->body ?? '';
                             $displayText = trim((string) $text);
+                            $isEmote = ($message->type ?? \App\Models\Message::TYPE_NORMAL) === \App\Models\Message::TYPE_EMOTE;
                             $isBlockedByViewer = (bool) ($message->is_blocked_by_viewer ?? false);
                             $blockLabel = $isBlockedByViewer ? 'Blocked' : 'Block';
                             $blockClass = $isBlockedByViewer
@@ -547,10 +548,11 @@
                              data-character-id="{{ $messageCharacterId ?: '' }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}"
+                             data-message-type="{{ $isEmote ? 'emote' : 'normal' }}"
                              data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
                             <div class="w-7 shrink-0">
-                                @unless ($isGrouped)
+                                @unless ($isGrouped || $isEmote)
                                     @if ($avatar)
                                         <img src="{{ $avatar }}"
                                              alt="{{ $name }} avatar"
@@ -566,7 +568,7 @@
                             </div>
 
                             <div class="min-w-0 flex-1 pr-28">
-                                @unless ($isGrouped)
+                                @unless ($isGrouped || $isEmote)
                                     <div class="mb-0 flex items-baseline gap-2">
                                         <button type="button"
                                             class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
@@ -590,7 +592,22 @@
                                     </div>
                                 @endif
 
-                                <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}"><span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span></div>
+                                <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
+                                    @if ($isEmote && ! $isDeleted)
+                                        <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
+                                            <button type="button"
+                                                class="char-trigger msg-name text-sm font-bold leading-snug text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                                data-style='{!! $nameStyleJson !!}'
+                                                data-character-id="{{ $c?->id ?? '' }}"
+                                                data-character-name="{{ e($name) }}"
+                                                data-character-handle="{{ e($c?->public_handle ?? '') }}"
+                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</button>
+                                            <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $displayText }}</span>
+                                        </span>
+                                    @else
+                                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span>
+                                    @endif
+                                </div>
 
                                 @if ($canEdit)
                                     <div class="msg-editbox hidden mt-2">
@@ -2296,6 +2313,7 @@
                     const fadeName = !!s.fade_name;
 
                     const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
+                    const isEmote = (msg.type || 'normal') === 'emote';
                     const text = isDeleted ? '[deleted]' : String(msg.content ?? msg.body ?? '').trim();
                     const isBlockedByViewer = !isAdmin && parseBool(msg.is_blocked_by_viewer);
 
@@ -2317,6 +2335,7 @@
                     div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
                     div.dataset.canEdit = canEdit ? '1' : '0';
                     div.dataset.deleted = isDeleted ? '1' : '0';
+                    div.dataset.messageType = isEmote ? 'emote' : 'normal';
                     div.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
 
                     const safeNameAttr = escAttr(name);
@@ -2327,10 +2346,10 @@
                     const safeHandleAttr = escAttr(msg.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
-                    const avatarMarkup = isGrouped ? `
+                    const avatarMarkup = (isGrouped || isEmote) ? `
                         <div class="w-7 shrink-0"></div>
                     ` : `<div class="w-7 shrink-0">${avatarHtml(avatar, name, 'h-7 w-7')}</div>`;
-                    const nameMarkup = isGrouped ? '' : `
+                    const nameMarkup = (isGrouped || isEmote) ? '' : `
                         <div class="mb-0 flex items-baseline gap-2">
                             <button type="button"
                                 class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
@@ -2360,7 +2379,20 @@
                                 </div>
                             ` : ''}
 
-                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}"><span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span></div>
+                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isEmote && !isDeleted ? `
+                                <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
+                                    <button type="button"
+                                        class="char-trigger msg-name text-sm font-bold leading-snug text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                        data-style='${nameStyle}'
+                                        data-character-id="${messageCharacterId || ''}"
+                                        data-character-name="${safeNameAttr}"
+                                        data-character-handle="${safeHandleAttr}"
+                                        data-character-avatar="${safeAvatarAttr}">
+                                        ${safeNameHtml}
+                                    </button>
+                                    <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>
+                                </span>
+                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>`}</div>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">

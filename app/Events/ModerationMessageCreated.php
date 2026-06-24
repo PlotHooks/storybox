@@ -51,6 +51,7 @@ class ModerationMessageCreated implements ShouldBroadcast
                 : ($room?->name ?? 'Room #' . $message->room_id),
             'character_id' => $message->character_id,
             'character_name' => $message->character?->name,
+            'type' => $message->type ?? Message::TYPE_NORMAL,
             'user_id' => $message->user_id,
             'user_name' => $message->user?->name,
             'created_at' => $message->created_at?->toISOString(),

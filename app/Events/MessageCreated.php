@@ -34,6 +34,7 @@ class MessageCreated implements ShouldBroadcast
     {
         return [
             'id' => $this->message->id,
+            'type' => $this->message->type ?? \App\Models\Message::TYPE_NORMAL,
             'body' => $this->message->body,
             'character_id' => $this->message->character_id,
             'created_at' => $this->message->created_at?->toISOString(),

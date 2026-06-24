@@ -1342,6 +1342,7 @@
             cache.messages.forEach((m) => {
                 const bodyRaw = (m.content ?? m.body ?? '').toString();
                 const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
+                const isEmote = (m.type || 'normal') === 'emote';
                 const bodyDisplay = bodyRaw.trim();
                 const who =
                     (m.character && m.character.name)
@@ -1365,10 +1366,10 @@
                 const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
                 const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
                 const characterHandle = m.character?.public_handle || who;
-                const avatarMarkup = isGrouped
+                const avatarMarkup = (isGrouped || isEmote)
                     ? '<div class="w-7 shrink-0"></div>'
                     : `<div class="w-7 shrink-0">${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: avatarHtml(avatar, who, 'h-7 w-7'), extraClass: 'inline-flex rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40' })}</div>`;
-                const nameMarkup = isGrouped ? '' : `
+                const nameMarkup = (isGrouped || isEmote) ? '' : `
                             <div class="mb-0 flex items-baseline gap-2">
                                 ${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
                             </div>
@@ -1382,7 +1383,12 @@
                     <div class="min-w-0 flex-1">
                         ${nameMarkup}
                         <div class="msg-body-wrapper mt-0 text-sm leading-snug">
-                            <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>
+                            ${isEmote && !isDeleted ? `
+                                <span class="inline-flex flex-wrap items-baseline gap-1 leading-snug">
+                                    ${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
+                                    <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(bodyDisplay)}</span>
+                                </span>
+                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>`}
                         </div>
                     </div>
                 `;

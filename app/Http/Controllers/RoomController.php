@@ -10,6 +10,7 @@ use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
 use App\Models\UserRoomState;
+use App\Services\ChatInputParser;
 use App\Services\MarkPublicRoomRead;
 use App\Services\RoomAccessService;
 use App\Services\RoomParticipationStateService;
@@ -780,6 +781,7 @@ CSS;
             'id' => (int) $message->id,
             'room_id' => (int) $message->room_id,
             'character_id' => $message->character_id !== null ? (int) $message->character_id : null,
+            'type' => $message->type ?? Message::TYPE_NORMAL,
             'body' => $message->body,
             'content' => $message->body,
             'created_at' => $message->created_at?->toJSON(),
@@ -806,12 +808,13 @@ CSS;
             ->values();
     }
 
-    private function createConversationMessage(Room $conversation, int $characterId, string $body): Message
+    private function createConversationMessage(Room $conversation, int $characterId, array $parsedMessage): Message
     {
         $message = $conversation->messages()->create([
-            'user_id'      => Auth::id(),
+            'user_id' => Auth::id(),
             'character_id' => $characterId,
-            'body'         => $body,
+            'type' => $parsedMessage['type'] ?? Message::TYPE_NORMAL,
+            'body' => $parsedMessage['body'],
         ]);
 
         if ($conversation->isPublicRoom()) {
@@ -992,7 +995,9 @@ CSS;
             $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
-        $message = $this->createConversationMessage($room, $characterId, $request->body);
+        $parsedMessage = app(ChatInputParser::class)->parse($request->body);
+
+        $message = $this->createConversationMessage($room, $characterId, $parsedMessage);
 
         if ($room->isPublicRoom()) {
             $this->markPublicRoomRead($room->id, $message->id);
@@ -1517,7 +1522,9 @@ CSS;
         $this->assertDmMessageAllowed($room);
         $this->restoreDmForUser($room->id, Auth::id());
 
-        $message = $this->createConversationMessage($room, $characterId, $request->body)->load(['user', 'character']);
+        $parsedMessage = app(ChatInputParser::class)->parse($request->body);
+
+        $message = $this->createConversationMessage($room, $characterId, $parsedMessage)->load(['user', 'character']);
 
         if ($message->character) {
             $message->character->profile_url = route('characters.profile.show', $message->character);
