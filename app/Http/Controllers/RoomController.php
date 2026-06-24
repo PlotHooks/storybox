@@ -12,6 +12,7 @@ use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\ChatInputParser;
 use App\Services\MarkPublicRoomRead;
+use App\Services\MessageRichTextRenderer;
 use App\Services\RoomAccessService;
 use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
@@ -124,6 +125,7 @@ class RoomController extends Controller
             ->reverse();
 
         $this->applyBlockedMessageFlags($messages, $activeCharacterId);
+        $this->hydrateRenderedMessages($messages);
 
         $sidebarRooms = $this->sidebarRoomsForPublicRooms($activeCharacter)->get();
         $isFollowingRoom = (bool) ($sidebarRooms->firstWhere('id', $room->id)->is_following ?? false);
@@ -776,6 +778,7 @@ CSS;
     private function serializeRoomMessage(Message $message): array
     {
         $message->loadMissing('character');
+        $this->hydrateRenderedMessage($message);
 
         return [
             'id' => (int) $message->id,
@@ -784,6 +787,7 @@ CSS;
             'type' => $message->type ?? Message::TYPE_NORMAL,
             'body' => $message->body,
             'content' => $message->body,
+            'rendered_body_html' => $message->rendered_body_html,
             'created_at' => $message->created_at?->toJSON(),
             'created_at_human' => $message->created_at?->diffForHumans(),
             'updated_at' => $message->updated_at?->toJSON(),
@@ -806,6 +810,26 @@ CSS;
         return collect($messages)
             ->map(fn (Message $message) => $this->serializeRoomMessage($message))
             ->values();
+    }
+
+    private function hydrateRenderedMessages($messages): void
+    {
+        collect($messages)->each(fn (Message $message) => $this->hydrateRenderedMessage($message));
+    }
+
+    private function hydrateRenderedMessage(Message $message): Message
+    {
+        $message->setAttribute(
+            'rendered_body_html',
+            $this->renderRichText($message->deleted_at ? '[deleted]' : $message->body)
+        );
+
+        return $message;
+    }
+
+    private function renderRichText(?string $body): string
+    {
+        return app(MessageRichTextRenderer::class)->render($body);
     }
 
     private function createConversationMessage(Room $conversation, int $characterId, array $parsedMessage): Message
@@ -904,13 +928,14 @@ CSS;
         $message->body = $request->body;
         $message->save();
 
-        $freshMessage = $message->fresh()->load('character');
+        $freshMessage = $message->fresh()->load(['character', 'user']);
+        $this->hydrateRenderedMessage($freshMessage);
 
         return response()->json([
             'ok' => true,
             'message' => $message->room->isPublicRoom()
                 ? $this->serializeRoomMessage($freshMessage)
-                : $freshMessage->load('user'),
+                : $freshMessage,
         ]);
     }
 
@@ -1485,6 +1510,7 @@ CSS;
 
         $messages = $this->conversationMessages($room, $request, false);
         $this->applyBlockedMessageFlags($messages, $characterId);
+        $this->hydrateRenderedMessages($messages);
         $messages->each(function ($message): void {
             if ($message->relationLoaded('character') && $message->character) {
                 $message->character->profile_url = route('characters.profile.show', $message->character);
@@ -1525,6 +1551,7 @@ CSS;
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
 
         $message = $this->createConversationMessage($room, $characterId, $parsedMessage)->load(['user', 'character']);
+        $this->hydrateRenderedMessage($message);
 
         if ($message->character) {
             $message->character->profile_url = route('characters.profile.show', $message->character);

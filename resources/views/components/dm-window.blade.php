@@ -119,6 +119,14 @@
             </div>
 
             <div id="dm-thread-footer" class="border-t border-[#2a241a] bg-[#101012] p-2">
+                <div class="mb-2 flex flex-wrap items-center gap-1 text-[11px]">
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 font-semibold text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="b">B</button>
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 italic text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="i">I</button>
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 underline text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="u">U</button>
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 line-through text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="s">S</button>
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[10px] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="small">small</button>
+                    <button type="button" class="dm-rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="dm-input" data-rich-tag="large">large</button>
+                </div>
                 <div class="flex gap-2">
                     <textarea
                         id="dm-input"
@@ -176,6 +184,23 @@
     </div>
 </div>
 
+<style>
+    .msg-rich-underline {
+        text-decoration: underline;
+    }
+
+    .msg-rich-strike {
+        text-decoration: line-through;
+    }
+
+    .msg-rich-small {
+        font-size: 0.85em;
+    }
+
+    .msg-rich-large {
+        font-size: 1.15em;
+    }
+</style>
 
 <script>
 (function () {
@@ -254,6 +279,28 @@
     const dmCharPopoverTitle = document.getElementById('dm-char-popover-title');
     const dmCharPopoverAvatar = document.getElementById('dm-char-popover-avatar');
     const dmCharPopoverProfile = document.getElementById('dm-char-popover-profile');
+
+    function wrapTextareaSelection(target, tag) {
+        if (!target || target.disabled) return;
+
+        const openTag = `[${tag}]`;
+        const closeTag = `[/${tag}]`;
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        const selected = target.value.slice(start, end);
+        const replacement = `${openTag}${selected}${closeTag}`;
+
+        target.setRangeText(replacement, start, end, 'end');
+
+        const cursorStart = start + openTag.length;
+        const cursorEnd = cursorStart + selected.length;
+        target.focus();
+        target.setSelectionRange(cursorStart, cursorEnd);
+    }
+
+    document.querySelectorAll('.dm-rich-text-btn[data-rich-target="dm-input"]').forEach((button) => {
+        button.addEventListener('click', () => wrapTextareaSelection(inputEl, button.dataset.richTag || 'b'));
+    });
 
     function hideDmCharPopover() {
         if (!dmCharPopover) return;
@@ -477,7 +524,7 @@
                 >
                     <div class="flex items-center gap-2">
                         ${avatarHtml(target.avatar, target.name, 'h-8 w-8')}
-                        <div class="min-w-0 flex-1">
+                        <div class="min-w-0 flex-1" data-body-raw="${escapeAttr(bodyRaw)}">
                             <div class="truncate text-sm font-semibold text-[#f2dfb5]">${escapeHtml(target.name)}</div>
                             <div class="truncate text-[11px] text-[#8f8675]">${escapeHtml(target.handle)}</div>
                         </div>
@@ -1346,6 +1393,9 @@
                 const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
                 const isEmote = (m.type || 'normal') === 'emote';
                 const bodyDisplay = bodyRaw.trim();
+                const renderedBodyHtml = typeof m.rendered_body_html === 'string' && m.rendered_body_html.length
+                    ? m.rendered_body_html
+                    : escapeHtml(isDeleted ? '[deleted]' : bodyDisplay);
                 const who =
                     (m.character && m.character.name)
                         ? m.character.name
@@ -1387,8 +1437,8 @@
                         ${nameMarkup}
                         <div class="msg-body-wrapper mt-0 text-sm leading-snug">
                             ${isEmote && !isDeleted ? `
-                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(bodyDisplay)}</span></span>
-                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${escapeHtml(isDeleted ? '[deleted]' : bodyDisplay)}</span>`}
+                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span></span>
+                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>`}
                         </div>
                     </div>
                 `;

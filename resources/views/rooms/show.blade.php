@@ -52,6 +52,22 @@
                 background-image: linear-gradient(180deg, rgba(20, 20, 22, 1), rgba(20, 20, 22, 1));
             }
         }
+
+        .msg-rich-underline {
+            text-decoration: underline;
+        }
+
+        .msg-rich-strike {
+            text-decoration: line-through;
+        }
+
+        .msg-rich-small {
+            font-size: 0.85em;
+        }
+
+        .msg-rich-large {
+            font-size: 1.15em;
+        }
     </style>
 
     <div class="box-border h-[calc(100dvh-7.625rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
@@ -567,7 +583,7 @@
                                 @endunless
                             </div>
 
-                            <div class="min-w-0 flex-1 pr-28">
+                            <div class="min-w-0 flex-1 pr-28" data-body-raw="{{ e($message->body ?? '') }}">
                                 @unless ($isGrouped || $isEmote)
                                     <div class="mb-0 flex items-baseline gap-2">
                                         <button type="button"
@@ -603,10 +619,10 @@
                                                 data-character-id="{{ $c?->id ?? '' }}"
                                                 data-character-name="{{ e($name) }}"
                                                 data-character-handle="{{ e($c?->public_handle ?? '') }}"
-                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $displayText }}</span>
+                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
                                         </span>
                                     @else
-                                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{{ $isDeleted ? '[deleted]' : $displayText }}</span>
+                                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
                                     @endif
                                 </div>
 
@@ -689,6 +705,15 @@
                         <input type="hidden" name="character_id" id="character-id-input" value="{{ $activeCharacterId }}">
                         <input type="hidden" name="room_participation_token" id="room-participation-token-input" value="{{ $roomParticipationTokens[$activeCharacterId] ?? '' }}">
                         <input type="hidden" name="content" id="content-mirror" value="">
+
+                        <div class="mt-2 flex flex-wrap items-center gap-1 text-[11px]">
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 font-semibold text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="b">B</button>
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 italic text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="i">I</button>
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 underline text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="u">U</button>
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 line-through text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="s">S</button>
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[10px] text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="small">small</button>
+                            <button type="button" class="rich-text-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-xs text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]" data-rich-target="body" data-rich-tag="large">large</button>
+                        </div>
 
                         <textarea
                             id="body"
@@ -1948,6 +1973,29 @@
         }
         textarea?.addEventListener('input', syncContentMirror);
 
+        function wrapTextareaSelection(target, tag) {
+            if (!target || target.disabled) return;
+
+            const openTag = `[${tag}]`;
+            const closeTag = `[/${tag}]`;
+            const start = target.selectionStart ?? target.value.length;
+            const end = target.selectionEnd ?? target.value.length;
+            const selected = target.value.slice(start, end);
+            const replacement = `${openTag}${selected}${closeTag}`;
+
+            target.setRangeText(replacement, start, end, 'end');
+
+            const cursorStart = start + openTag.length;
+            const cursorEnd = cursorStart + selected.length;
+            target.focus();
+            target.setSelectionRange(cursorStart, cursorEnd);
+            syncContentMirror();
+        }
+
+        document.querySelectorAll('.rich-text-btn[data-rich-target="body"]').forEach((button) => {
+            button.addEventListener('click', () => wrapTextareaSelection(textarea, button.dataset.richTag || 'b'));
+        });
+
         function showMissingCharacterNotice(message = 'You need to create and select a character before posting in chat.') {
             if (missingCharacterNotice) {
                 const messageEl = missingCharacterNotice.querySelector('div');
@@ -2177,6 +2225,7 @@
             const ta      = row.querySelector('.msg-edit-textarea');
             const editedTag = row.querySelector('.msg-edited');
             const deletedTag = row.querySelector('.msg-deleted');
+            const messageContent = row.querySelector('[data-body-raw]');
 
             const id = row.dataset.messageId;
             const isDeleted = row.dataset.deleted === '1';
@@ -2197,7 +2246,7 @@
 
             if (actionBtn.classList.contains('msg-edit-btn')) {
                 if (!bodyEl || !editBox || !ta) return;
-                ta.value = (bodyEl.textContent || '').trim();
+                ta.value = messageContent?.dataset.bodyRaw ?? bodyEl.textContent ?? '';
                 editBox.classList.remove('hidden');
                 if (editBtn) editBtn.disabled = true;
                 if (delBtn) delBtn.disabled = true;
@@ -2233,7 +2282,9 @@
                         return;
                     }
 
-                    bodyEl.textContent = data.message?.body ?? data.message?.content ?? newBody;
+                    if (messageContent) messageContent.dataset.bodyRaw = data.message?.body ?? data.message?.content ?? newBody;
+                    bodyEl.innerHTML = data.message?.rendered_body_html ?? escHtml(data.message?.body ?? data.message?.content ?? newBody);
+                    applyStylesIn(bodyEl.closest('.msg-row') || row);
                     editedTag?.classList.remove('hidden');
 
                     editBox?.classList.add('hidden');
@@ -2267,7 +2318,8 @@
                     }
 
                     row.dataset.deleted = '1';
-                    if (bodyEl) bodyEl.textContent = '[deleted]';
+                    if (messageContent) messageContent.dataset.bodyRaw = '[deleted]';
+                    if (bodyEl) bodyEl.innerHTML = '[deleted]';
                     deletedTag?.classList.remove('hidden');
 
                     if (editBtn) editBtn.disabled = true;
@@ -2343,7 +2395,9 @@
 
                     const safeNameAttr = escAttr(name);
                     const safeNameHtml = escHtml(name);
-                    const safeTextHtml = escHtml(text);
+                    const renderedBodyHtml = typeof msg.rendered_body_html === 'string' && msg.rendered_body_html.length
+                        ? msg.rendered_body_html
+                        : escHtml(text);
                     const safeAvatarAttr = escAttr(avatar);
                     const safeCreatedAt = escHtml(msg.created_at_human ?? '');
                     const safeHandleAttr = escAttr(msg.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
@@ -2373,7 +2427,7 @@
                     div.innerHTML = `
                         ${avatarMarkup}
 
-                        <div class="min-w-0 flex-1 pr-28">
+                        <div class="min-w-0 flex-1 pr-28" data-body-raw="${escAttr(String(msg.body ?? msg.content ?? ''))}">
                             ${nameMarkup}
 
                             ${isBlockedByViewer ? `
@@ -2392,9 +2446,9 @@
                                         data-character-id="${messageCharacterId || ''}"
                                         data-character-name="${safeNameAttr}"
                                         data-character-handle="${safeHandleAttr}"
-                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>
+                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>
                                 </span>
-                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${safeTextHtml}</span>`}</div>
+                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">
