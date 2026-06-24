@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\MessageReport;
 use App\Models\UserRoomState;
 use App\Services\ChatInputParser;
+use App\Services\DiceMessageFormatter;
 use App\Services\MarkPublicRoomRead;
 use App\Services\MessageRichTextRenderer;
 use App\Services\RoomAccessService;
@@ -787,6 +788,7 @@ CSS;
             'type' => $message->type ?? Message::TYPE_NORMAL,
             'body' => $message->body,
             'content' => $message->body,
+            'structured_data' => $message->structured_data,
             'rendered_body_html' => $message->rendered_body_html,
             'created_at' => $message->created_at?->toJSON(),
             'created_at_human' => $message->created_at?->diffForHumans(),
@@ -801,6 +803,7 @@ CSS;
                 'avatar' => $message->character->avatar,
                 'settings' => $message->character->settings,
                 'public_handle' => $message->character->public_handle,
+                'profile_url' => route('characters.profile.show', $message->character),
             ] : null,
         ];
     }
@@ -819,10 +822,15 @@ CSS;
 
     private function hydrateRenderedMessage(Message $message): Message
     {
-        $message->setAttribute(
-            'rendered_body_html',
-            $this->renderRichText($message->deleted_at ? '[deleted]' : $message->body)
-        );
+        if ($message->deleted_at) {
+            $renderedBodyHtml = $this->renderRichText('[deleted]');
+        } elseif ($message->isDice()) {
+            $renderedBodyHtml = app(DiceMessageFormatter::class)->renderHtml($message->structured_data);
+        } else {
+            $renderedBodyHtml = $this->renderRichText($message->body);
+        }
+
+        $message->setAttribute('rendered_body_html', $renderedBodyHtml);
 
         return $message;
     }
@@ -834,11 +842,20 @@ CSS;
 
     private function createConversationMessage(Room $conversation, int $characterId, array $parsedMessage): Message
     {
+        $messageType = $parsedMessage['type'] ?? Message::TYPE_NORMAL;
+        $messageBody = $parsedMessage['body'];
+
+        if ($messageType === Message::TYPE_DICE) {
+            $characterName = (string) (Character::query()->whereKey($characterId)->value('name') ?? 'Unknown');
+            $messageBody = app(DiceMessageFormatter::class)->renderStoredBody($characterName, $parsedMessage['structured_data'] ?? null);
+        }
+
         $message = $conversation->messages()->create([
             'user_id' => Auth::id(),
             'character_id' => $characterId,
-            'type' => $parsedMessage['type'] ?? Message::TYPE_NORMAL,
-            'body' => $parsedMessage['body'],
+            'type' => $messageType,
+            'body' => $messageBody,
+            'structured_data' => $parsedMessage['structured_data'] ?? null,
         ]);
 
         if ($conversation->isPublicRoom()) {
@@ -910,6 +927,7 @@ CSS;
             ]);
         }
 
+        abort_if($message->isDice(), 403);
         abort_if($message->deleted_at, 410);
 
         $request->validate([
@@ -950,6 +968,8 @@ CSS;
                 'reason' => 'message_delete_membership_failed',
             ]);
         }
+
+        abort_if($message->isDice(), 403);
 
         $message->deleted_by = Auth::id();
         $message->save();
@@ -1510,12 +1530,6 @@ CSS;
 
         $messages = $this->conversationMessages($room, $request, false);
         $this->applyBlockedMessageFlags($messages, $characterId);
-        $this->hydrateRenderedMessages($messages);
-        $messages->each(function ($message): void {
-            if ($message->relationLoaded('character') && $message->character) {
-                $message->character->profile_url = route('characters.profile.show', $message->character);
-            }
-        });
 
         $otherCharacterId = (int) DB::table('dm_participants')
             ->where('room_id', $room->id)
@@ -1531,7 +1545,7 @@ CSS;
                     ? route('characters.profile.show', ['character' => $otherCharacterId])
                     : null,
             ],
-            'messages' => $messages,
+            'messages' => $this->serializeRoomMessages($messages),
         ]);
     }
 
@@ -1551,15 +1565,10 @@ CSS;
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
 
         $message = $this->createConversationMessage($room, $characterId, $parsedMessage)->load(['user', 'character']);
-        $this->hydrateRenderedMessage($message);
-
-        if ($message->character) {
-            $message->character->profile_url = route('characters.profile.show', $message->character);
-        }
 
         return response()->json([
             'ok' => true,
-            'message' => $message,
+            'message' => $this->serializeRoomMessage($message),
         ]);
     }
 

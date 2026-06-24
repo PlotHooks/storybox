@@ -9,6 +9,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Services\DiceMessageFormatter;
 use Illuminate\Support\Str;
 
 class ModerationMessageCreated implements ShouldBroadcast
@@ -55,7 +56,9 @@ class ModerationMessageCreated implements ShouldBroadcast
             'user_id' => $message->user_id,
             'user_name' => $message->user?->name,
             'created_at' => $message->created_at?->toISOString(),
-            'preview' => Str::limit($message->body ?? '', 160),
+            'preview' => Str::limit($message->isDice()
+                ? app(DiceMessageFormatter::class)->renderPlainText($message->structured_data)
+                : ($message->body ?? ''), 160),
             'deleted' => (bool) $message->deleted_at,
             'view_url' => MessageResource::getUrl('view', ['record' => $message], panel: 'admin'),
         ];

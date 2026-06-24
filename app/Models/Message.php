@@ -14,6 +14,7 @@ class Message extends Model
 
     public const TYPE_NORMAL = 'normal';
     public const TYPE_EMOTE = 'emote';
+    public const TYPE_DICE = 'dice';
 
     protected $fillable = [
         'room_id',
@@ -21,7 +22,13 @@ class Message extends Model
         'character_id',
         'type',
         'body',
+        'structured_data',
         'deleted_by',
+    ];
+
+    protected $casts = [
+        'structured_data' => 'array',
+        'deleted_at' => 'datetime',
     ];
 
     /*
@@ -61,8 +68,22 @@ class Message extends Model
         return $this->type === self::TYPE_EMOTE;
     }
 
+    public function isDice(): bool
+    {
+        return $this->type === self::TYPE_DICE;
+    }
+
+    public function usesInlineCharacterPresentation(): bool
+    {
+        return $this->isEmote() || $this->isDice();
+    }
+
     public function canBeEditedBy(User $user): bool
     {
+        if ($this->isDice()) {
+            return false;
+        }
+
         return $this->user_id === $user->id || (bool) ($user->is_admin ?? false);
     }
 

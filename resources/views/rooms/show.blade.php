@@ -538,7 +538,8 @@
                             ], JSON_UNESCAPED_SLASHES);
 
                             $isOwner = (int)$message->user_id === (int)Auth::id();
-                            $canEdit = $isOwner || $isAdminBlade;
+                            $isDice = ($message->type ?? \App\Models\Message::TYPE_NORMAL) === \App\Models\Message::TYPE_DICE;
+                            $canEdit = ! $isDice && ($isOwner || $isAdminBlade);
 
                             $isDeleted = false;
                             if (method_exists($message, 'trashed')) {
@@ -550,6 +551,7 @@
                             $text = $message->content ?? $message->body ?? '';
                             $displayText = trim((string) $text);
                             $isEmote = ($message->type ?? \App\Models\Message::TYPE_NORMAL) === \App\Models\Message::TYPE_EMOTE;
+                            $inlineMessage = $isEmote || $isDice;
                             $isBlockedByViewer = (bool) ($message->is_blocked_by_viewer ?? false);
                             $blockLabel = $isBlockedByViewer ? 'Blocked' : 'Block';
                             $blockClass = $isBlockedByViewer
@@ -564,11 +566,11 @@
                              data-character-id="{{ $messageCharacterId ?: '' }}"
                              data-can-edit="{{ $canEdit ? '1' : '0' }}"
                              data-deleted="{{ $isDeleted ? '1' : '0' }}"
-                             data-message-type="{{ $isEmote ? 'emote' : 'normal' }}"
+                             data-message-type="{{ $message->type ?? 'normal' }}"
                              data-blocked-by-viewer="{{ $isBlockedByViewer && ! $isAdminBlade ? '1' : '0' }}">
 
                             <div class="w-7 shrink-0">
-                                @unless ($isGrouped || $isEmote)
+                                @unless ($isGrouped || $inlineMessage)
                                     @if ($avatar)
                                         <img src="{{ $avatar }}"
                                              alt="{{ $name }} avatar"
@@ -584,7 +586,7 @@
                             </div>
 
                             <div class="min-w-0 flex-1 pr-28" data-body-raw="{{ e($message->body ?? '') }}">
-                                @unless ($isGrouped || $isEmote)
+                                @unless ($isGrouped || $inlineMessage)
                                     <div class="mb-0 flex items-baseline gap-2">
                                         <button type="button"
                                             class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
@@ -609,7 +611,7 @@
                                 @endif
 
                                 <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
-                                    @if ($isEmote && ! $isDeleted)
+                                    @if ($inlineMessage && ! $isDeleted)
                                         <span class="leading-snug">
                                             <span
                                                 role="button"
@@ -619,7 +621,7 @@
                                                 data-character-id="{{ $c?->id ?? '' }}"
                                                 data-character-name="{{ e($name) }}"
                                                 data-character-handle="{{ e($c?->public_handle ?? '') }}"
-                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
+                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>@if ($isDice)<span class="text-[10px] text-[#8f8675] ml-2">{{ $message->created_at->diffForHumans() }}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>@endif
                                         </span>
                                     @else
                                         <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
@@ -1801,8 +1803,8 @@
             el.style.backgroundClip = 'text';
             el.style.color = 'transparent';
 
-            const isEmoteBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"]');
-            el.style.display = isEmoteBody ? 'inline' : 'inline-block';
+            const isInlineBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"], [data-message-type="dice"]');
+            el.style.display = isInlineBody ? 'inline' : 'inline-block';
         }
         function applySolidText(el, color) {
             el.style.backgroundImage = '';
@@ -2368,11 +2370,14 @@
                     const fadeName = !!s.fade_name;
 
                     const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
-                    const isEmote = (msg.type || 'normal') === 'emote';
+                    const messageType = msg.type || 'normal';
+                    const isEmote = messageType === 'emote';
+                    const isDice = messageType === 'dice';
+                    const isInlineMessage = isEmote || isDice;
                     const text = isDeleted ? '[deleted]' : String(msg.content ?? msg.body ?? '').trim();
                     const isBlockedByViewer = !isAdmin && parseBool(msg.is_blocked_by_viewer);
 
-                    const canEdit = !!isAdmin || parseBool(msg.can_edit);
+                    const canEdit = !isDice && (!!isAdmin || parseBool(msg.can_edit));
                     const viewerCharacterId = getViewerCharacterId();
                     const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
                     const previousRow = Array.from(container.querySelectorAll('.msg-row')).pop();
@@ -2390,7 +2395,7 @@
                     div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
                     div.dataset.canEdit = canEdit ? '1' : '0';
                     div.dataset.deleted = isDeleted ? '1' : '0';
-                    div.dataset.messageType = isEmote ? 'emote' : 'normal';
+                    div.dataset.messageType = messageType;
                     div.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
 
                     const safeNameAttr = escAttr(name);
@@ -2403,10 +2408,10 @@
                     const safeHandleAttr = escAttr(msg.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
                     const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
                     const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
-                    const avatarMarkup = (isGrouped || isEmote) ? `
+                    const avatarMarkup = (isGrouped || isInlineMessage) ? `
                         <div class="w-7 shrink-0"></div>
                     ` : `<div class="w-7 shrink-0">${avatarHtml(avatar, name, 'h-7 w-7')}</div>`;
-                    const nameMarkup = (isGrouped || isEmote) ? '' : `
+                    const nameMarkup = (isGrouped || isInlineMessage) ? '' : `
                         <div class="mb-0 flex items-baseline gap-2">
                             <button type="button"
                                 class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
@@ -2436,7 +2441,7 @@
                                 </div>
                             ` : ''}
 
-                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isEmote && !isDeleted ? `
+                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isInlineMessage && !isDeleted ? `
                                 <span class="leading-snug">
                                     <span
                                         role="button"
@@ -2446,7 +2451,7 @@
                                         data-character-id="${messageCharacterId || ''}"
                                         data-character-name="${safeNameAttr}"
                                         data-character-handle="${safeHandleAttr}"
-                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>
+                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>` : ''}
                                 </span>
                             ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
 

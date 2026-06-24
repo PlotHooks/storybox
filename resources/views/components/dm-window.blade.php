@@ -1287,8 +1287,8 @@
         el.style.backgroundClip = 'text';
         el.style.color = 'transparent';
 
-        const isEmoteBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"]');
-        el.style.display = isEmoteBody ? 'inline' : 'inline-block';
+        const isInlineBody = el.classList.contains('msg-body') && !!el.closest('[data-message-type="emote"], [data-message-type="dice"]');
+        el.style.display = isInlineBody ? 'inline' : 'inline-block';
     }
 
     function applySolidText(el, color) {
@@ -1391,7 +1391,10 @@
             cache.messages.forEach((m) => {
                 const bodyRaw = (m.content ?? m.body ?? '').toString();
                 const isDeleted = !!m.deleted_at || bodyRaw === '[deleted]';
-                const isEmote = (m.type || 'normal') === 'emote';
+                const messageType = m.type || 'normal';
+                const isEmote = messageType === 'emote';
+                const isDice = messageType === 'dice';
+                const isInlineMessage = isEmote || isDice;
                 const bodyDisplay = bodyRaw.trim();
                 const renderedBodyHtml = typeof m.rendered_body_html === 'string' && m.rendered_body_html.length
                     ? m.rendered_body_html
@@ -1418,10 +1421,10 @@
                 const nameStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeName });
                 const bodyStyleJson = JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg });
                 const characterHandle = m.character?.public_handle || who;
-                const avatarMarkup = (isGrouped || isEmote)
+                const avatarMarkup = (isGrouped || isInlineMessage)
                     ? '<div class="w-7 shrink-0"></div>'
                     : `<div class="w-7 shrink-0">${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: avatarHtml(avatar, who, 'h-7 w-7'), extraClass: 'inline-flex rounded focus:outline-none focus:ring-2 focus:ring-amber-500/40' })}</div>`;
-                const nameMarkup = (isGrouped || isEmote) ? '' : `
+                const nameMarkup = (isGrouped || isInlineMessage) ? '' : `
                             <div class="mb-0 flex items-baseline gap-2">
                                 ${characterTriggerHtml({ characterId, name: who, handle: characterHandle, avatar, contentHtml: `<span class="msg-name text-base font-bold leading-none" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span>`, extraClass: 'rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-left' })}
                             </div>
@@ -1430,14 +1433,14 @@
                 const bubble = document.createElement('div');
                 bubble.className = `flex gap-2 px-2 ${isGrouped ? 'border-0 rounded-none bg-transparent py-0' : 'border-t border-[#16120c] py-0.5'}`;
                 bubble.dataset.characterId = characterId ? String(characterId) : '';
-                bubble.dataset.messageType = isEmote ? 'emote' : 'normal';
+                bubble.dataset.messageType = messageType;
                 bubble.innerHTML = `
                     ${avatarMarkup}
                     <div class="min-w-0 flex-1">
                         ${nameMarkup}
                         <div class="msg-body-wrapper mt-0 text-sm leading-snug">
-                            ${isEmote && !isDeleted ? `
-                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span></span>
+                            ${isInlineMessage && !isDeleted ? `
+                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${escapeHtml(m.created_at_human ?? '')}</span>` : ''}</span>
                             ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>`}
                         </div>
                     </div>
