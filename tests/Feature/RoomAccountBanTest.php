@@ -291,6 +291,48 @@ class RoomAccountBanTest extends TestCase
         }
     }
 
+    public function test_room_roster_keeps_recently_heartbeating_characters_visible_without_post_activity(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        DB::table('character_presences')->insert([
+            'room_id' => $room->id,
+            'character_id' => $viewerCharacter->id,
+            'last_seen_at' => now()->subMinutes(10),
+            'created_at' => now()->subMinutes(10),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $room->slug))
+            ->assertOk()
+            ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+    }
+
+    public function test_room_roster_still_expires_stale_characters_when_presence_is_old(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        DB::table('character_presences')->insert([
+            'room_id' => $room->id,
+            'character_id' => $viewerCharacter->id,
+            'last_seen_at' => now()->subMinutes(20),
+            'created_at' => now()->subMinutes(20),
+            'updated_at' => now()->subMinutes(20),
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $room->slug))
+            ->assertOk()
+            ->assertJsonCount(0, 'roster');
+    }
+
     public function test_room_roster_json_does_not_include_account_identity_for_non_admin_viewers(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();

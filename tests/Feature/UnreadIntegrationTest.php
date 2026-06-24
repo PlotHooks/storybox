@@ -41,6 +41,30 @@ class UnreadIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_followed_public_room_sidebar_counts_recent_presence_without_post_activity(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter();
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($otherUser);
+
+        DB::table('character_presences')->insert([
+            'room_id' => $room->id,
+            'character_id' => $otherCharacter->id,
+            'last_seen_at' => now()->subMinutes(10),
+            'created_at' => now()->subMinutes(10),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $rooms = $this->actingAs($user)
+            ->getJson(route('rooms.sidebar', ['character_id' => $character->id]))
+            ->assertOk()
+            ->json('rooms');
+
+        $sidebarRoom = collect($rooms)->firstWhere('id', $room->id);
+
+        $this->assertSame(1, (int) ($sidebarRoom['active_users'] ?? 0));
+    }
+
     public function test_followed_public_room_sidebar_unread_count_uses_the_user_read_marker_and_newer_messages(): void
     {
         [$user, $character] = $this->createUserWithCharacter();

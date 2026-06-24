@@ -504,7 +504,7 @@ CSS;
 
     private function sidebarRoomsForPublicRooms(?Character $character)
     {
-        $cutoff = now()->subMinutes(5);
+        $cutoff = Room::activePresenceCutoff();
         $userId = (int) Auth::id();
 
         $activePresenceCounts = DB::table('character_presences')
@@ -1197,7 +1197,7 @@ CSS;
             abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
         }
 
-        $cutoff = now()->subMinutes(5);
+        $cutoff = Room::activePresenceCutoff();
 
         $roster = DB::table('character_presences')
             ->join('characters', 'characters.id', '=', 'character_presences.character_id')

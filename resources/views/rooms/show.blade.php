@@ -2526,9 +2526,19 @@
             window.Echo.connector?.pusher?.connection?.bind('connected', () => fetchNewMessages());
         }
 
+        function refreshActiveRoomSession() {
+            return sendPresencePing().finally(() => {
+                fetchNewMessages();
+                if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
+            });
+        }
+
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) fetchNewMessages();
+            if (!document.hidden) refreshActiveRoomSession();
         });
+
+        window.addEventListener('focus', () => refreshActiveRoomSession());
+        window.addEventListener('pageshow', () => refreshActiveRoomSession());
 
         setInterval(fetchNewMessages, 2500);
 

@@ -31,6 +31,8 @@ class Room extends Model
     public const PROFILE_MODE_STANDARD = 'standard';
     public const PROFILE_MODE_ADVANCED = 'advanced';
 
+    public const ACTIVE_PRESENCE_WINDOW_MINUTES = 15;
+
     // rooms table is the conversation model.
     protected $fillable = [
         'name',
@@ -188,13 +190,16 @@ class Room extends Model
     |--------------------------------------------------------------------------
     */
 
+    public static function activePresenceCutoff(): Carbon
+    {
+        return now()->subMinutes(self::ACTIVE_PRESENCE_WINDOW_MINUTES);
+    }
+
     // True "active" count based on presence table, not recent posters
     public function getActiveUsersAttribute(): int
     {
-        $cutoff = now()->subMinutes(5);
-
         return $this->characterPresences()
-            ->where('last_seen_at', '>=', $cutoff)
+            ->where('last_seen_at', '>=', self::activePresenceCutoff())
             ->count();
     }
 }
