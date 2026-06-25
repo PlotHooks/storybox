@@ -63,10 +63,7 @@ class SiteContent extends Model
     public static function categoriesForPublicCollection(string $collection): array
     {
         return match ($collection) {
-            self::PUBLIC_COLLECTION_RULES_FAQ => [
-                self::CATEGORY_RULES,
-                self::CATEGORY_FAQ,
-            ],
+            self::PUBLIC_COLLECTION_RULES_FAQ => array_keys(self::categoryOptions()),
             default => [],
         };
     }

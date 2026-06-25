@@ -42,6 +42,8 @@ class SiteContentController extends Controller
             })
             ->values();
 
+        $categoryOrder = array_keys(SiteContent::categoryOptions());
+
         $categories = $serializedDocuments
             ->groupBy('collection')
             ->map(fn ($categoryDocuments, string $category) => [
@@ -49,6 +51,7 @@ class SiteContentController extends Controller
                 'label' => SiteContent::categoryLabel($category),
                 'documents' => $categoryDocuments->values()->all(),
             ])
+            ->sortBy(fn (array $category): int => array_search($category['key'], $categoryOrder, true) ?: 0)
             ->values();
 
         $defaultCategory = $categories->first();

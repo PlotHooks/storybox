@@ -72,7 +72,7 @@ class SiteContentTest extends TestCase
             ->getJson('/site-content/rules-faq')
             ->assertOk()
             ->assertJsonPath('default_category', SiteContent::CATEGORY_RULES)
-            ->assertJsonCount(2, 'categories')
+            ->assertJsonCount(3, 'categories')
             ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_RULES)
             ->assertJsonPath('categories.0.label', 'Rules')
             ->assertJsonPath('categories.0.documents.0.slug', '18-plus-only')
@@ -81,7 +81,10 @@ class SiteContentTest extends TestCase
             ->assertJsonPath('categories.1.key', SiteContent::CATEGORY_FAQ)
             ->assertJsonPath('categories.1.label', 'FAQ')
             ->assertJsonPath('categories.1.documents.0.slug', 'how-do-characters-work')
-            ->assertJsonPath('categories.1.documents.1.slug', 'what-is-storybox');
+            ->assertJsonPath('categories.1.documents.1.slug', 'what-is-storybox')
+            ->assertJsonPath('categories.2.key', SiteContent::CATEGORY_PRIVACY_POLICY)
+            ->assertJsonPath('categories.2.label', 'Privacy Policy')
+            ->assertJsonPath('categories.2.documents.0.slug', 'privacy-policy');
     }
 
     public function test_site_content_endpoint_keeps_legacy_rules_faq_records_grouped_under_their_category_tab(): void
@@ -109,10 +112,42 @@ class SiteContentTest extends TestCase
             ->withSession(['active_character_id' => $character->id])
             ->getJson('/site-content/rules-faq')
             ->assertOk()
-            ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_FAQ)
-            ->assertJsonPath('categories.0.documents.0.title', 'Legacy FAQ')
-            ->assertJsonPath('categories.1.key', SiteContent::CATEGORY_RULES)
-            ->assertJsonPath('categories.1.documents.0.title', 'Legacy Rules');
+            ->assertJsonPath('default_category', SiteContent::CATEGORY_RULES)
+            ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_RULES)
+            ->assertJsonPath('categories.0.documents.0.title', 'Legacy Rules')
+            ->assertJsonPath('categories.1.key', SiteContent::CATEGORY_FAQ)
+            ->assertJsonPath('categories.1.documents.0.title', 'Legacy FAQ');
+    }
+
+    public function test_site_content_endpoint_hides_categories_without_published_documents(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Viewer');
+
+        SiteContent::query()->create([
+            'title' => 'Terms of Service',
+            'slug' => 'terms-of-service',
+            'collection' => SiteContent::CATEGORY_TERMS_OF_SERVICE,
+            'body' => 'Draft terms body',
+            'sort_order' => 1,
+            'is_published' => false,
+        ]);
+        SiteContent::query()->create([
+            'title' => 'About StoryBox',
+            'slug' => 'about-storybox',
+            'collection' => SiteContent::CATEGORY_ABOUT_STORYBOX,
+            'body' => 'About body',
+            'sort_order' => 1,
+            'is_published' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->getJson('/site-content/rules-faq')
+            ->assertOk()
+            ->assertJsonCount(1, 'categories')
+            ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_ABOUT_STORYBOX)
+            ->assertJsonMissingPath('categories.1')
+            ->assertJsonMissing(['key' => SiteContent::CATEGORY_TERMS_OF_SERVICE]);
     }
 
     public function test_admin_site_content_manager_renders_custom_storybox_layout(): void
