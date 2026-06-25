@@ -7,10 +7,7 @@
         id="site-content-drag-handle"
         class="flex shrink-0 cursor-move items-center justify-between border-b border-[#3a2d1b] bg-[#111114] px-3 py-2 shadow-[inset_0_-1px_0_rgba(245,158,11,0.04)]"
     >
-        <div>
-            <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">StoryBox Documents</div>
-            <div id="site-content-window-title" class="text-sm font-semibold text-[#f2dfb5]">Rules / FAQ</div>
-        </div>
+        <div id="site-content-window-title" class="text-sm font-semibold text-[#f2dfb5]">Rules / FAQ</div>
         <div class="flex items-center gap-2">
             <button
                 id="site-content-refresh-btn"
@@ -33,23 +30,16 @@
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#090909]">
         <div class="border-b border-[#2a241a] bg-[linear-gradient(135deg,rgba(245,158,11,0.10),transparent_48%),linear-gradient(180deg,#101012,#0d0d0f)] px-5 py-4">
-            <div class="flex flex-col gap-4">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="min-w-0">
-                        <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400">Official Documents</div>
-                        <div id="site-content-document-title" class="mt-1 text-lg font-semibold text-[#f2dfb5]">Rules / FAQ</div>
-                        <div id="site-content-document-subtitle" class="mt-1 text-[12px] text-[#8f8675]">Global StoryBox documents available from every room.</div>
-                    </div>
-                    <div id="site-content-status-pill" class="shrink-0 rounded border border-[#332817] bg-[#0b0b0c] px-3 py-2 text-right text-[11px] text-[#8f8675]">
-                        Loading
-                    </div>
+            <div class="flex flex-col gap-3">
+                <div class="min-w-0">
+                    <div id="site-content-document-title" class="text-lg font-semibold text-[#f2dfb5]">Rules / FAQ</div>
+                    <div id="site-content-document-subtitle" class="mt-1 text-[12px] text-[#8f8675]">Global StoryBox documents available from every room.</div>
                 </div>
-
                 <div id="site-content-tabs" class="flex flex-wrap gap-2"></div>
             </div>
         </div>
 
-        <div id="site-content-body" class="min-h-0 flex-1 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.04),transparent_24rem)] px-5 py-5 text-sm text-[#d6c8ad]">
+        <div id="site-content-body" class="min-h-0 flex-1 overflow-y-auto bg-[#070707] bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.04),transparent_24rem)] px-5 py-4 text-sm text-[#d6c8ad]">
             <div class="text-[#8f8675]">Loading...</div>
         </div>
     </div>
@@ -69,7 +59,6 @@
     const titleEl = document.getElementById('site-content-window-title');
     const documentTitleEl = document.getElementById('site-content-document-title');
     const documentSubtitleEl = document.getElementById('site-content-document-subtitle');
-    const statusPillEl = document.getElementById('site-content-status-pill');
     const tabsEl = document.getElementById('site-content-tabs');
     const bodyEl = document.getElementById('site-content-body');
     const refreshBtn = document.getElementById('site-content-refresh-btn');
@@ -88,8 +77,9 @@
     const state = {
         collection: 'rules-faq',
         title: 'Rules / FAQ',
-        documents: [],
-        selectedSlug: null,
+        categories: [],
+        selectedCategoryKey: null,
+        pendingDocumentSlug: null,
         lastRequestCollection: null,
     };
 
@@ -120,8 +110,12 @@
         return !windowEl.classList.contains('hidden');
     }
 
-    function currentDocument() {
-        return state.documents.find((document) => document.slug === state.selectedSlug) || state.documents[0] || null;
+    function currentCategory() {
+        return state.categories.find((category) => category.key === state.selectedCategoryKey) || state.categories[0] || null;
+    }
+
+    function findCategoryForSlug(slug) {
+        return state.categories.find((category) => Array.isArray(category.documents) && category.documents.some((document) => document.slug === slug)) || null;
     }
 
     function setWindowOpenState(open) {
@@ -177,63 +171,49 @@
     }
 
     function renderTabs() {
-        if (state.documents.length === 0) {
+        if (state.categories.length === 0) {
             tabsEl.innerHTML = '';
             return;
         }
 
-        tabsEl.innerHTML = state.documents.map((document) => {
-            const isActive = document.slug === state.selectedSlug;
+        tabsEl.innerHTML = state.categories.map((category) => {
+            const isActive = category.key === state.selectedCategoryKey;
             const classes = isActive
                 ? 'rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]'
                 : 'rounded border border-[#332817] bg-[#141416] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]';
 
-            return `<button type="button" data-site-content-tab="${escapeHtml(document.slug)}" class="${classes}">${escapeHtml(document.title)}</button>`;
+            return `<button type="button" data-site-content-tab="${escapeHtml(category.key)}" class="${classes}">${escapeHtml(category.label)}</button>`;
         }).join('');
 
         tabsEl.querySelectorAll('[data-site-content-tab]').forEach((button) => {
             button.addEventListener('click', () => {
-                state.selectedSlug = button.dataset.siteContentTab;
+                state.selectedCategoryKey = button.dataset.siteContentTab;
                 render();
             });
         });
     }
 
     function renderBody() {
-        const document = currentDocument();
+        const category = currentCategory();
 
         titleEl.textContent = state.title;
-        documentTitleEl.textContent = document ? document.title : state.title;
-        statusPillEl.textContent = state.documents.length === 0
-            ? 'No published documents'
-            : `${state.documents.length} tab${state.documents.length === 1 ? '' : 's'}`;
-
-        if (!document) {
-            documentSubtitleEl.textContent = 'This collection does not have any published documents yet.';
+        documentTitleEl.textContent = category ? category.label : state.title;
+        documentSubtitleEl.textContent = 'Global StoryBox documents available from every room.';
+        if (!category || !Array.isArray(category.documents) || category.documents.length === 0) {
             bodyEl.innerHTML = '<div class="mx-auto max-w-4xl px-2 py-8 text-center text-[#8f8675]">No published documents are available in this collection yet.</div>';
             return;
         }
 
-        documentSubtitleEl.textContent = `Collection: ${document.collection}`;
-
-        const lastUpdated = document.last_updated_at
-            ? (() => {
-                try {
-                    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(document.last_updated_at));
-                } catch (error) {
-                    return document.last_updated_at;
-                }
-            })()
-            : 'Unknown';
-
         bodyEl.innerHTML = `
-            <div class="mx-auto flex max-w-4xl min-h-full flex-col px-2 sm:px-3">
-                <article class="flex-1">
-                    <div class="whitespace-pre-line text-[15px] leading-7 text-[#dbcdb2] sm:text-base sm:leading-8">${document.rendered_body_html}</div>
-                </article>
-                <div class="mt-6 border-t border-[#3a2f1e] pt-4 text-[11px] uppercase tracking-[0.16em] text-[#8f8675]">
-                    Last Updated <span class="font-medium text-[#d6c8ad]">${escapeHtml(lastUpdated)}</span>
-                </div>
+            <div class="mx-auto flex max-w-4xl min-h-full flex-col gap-3 px-2 sm:px-3">
+                ${category.documents.map((document) => {
+                    return `
+                        <article class="rounded border border-[#332817] bg-[#0d0d0f] px-4 py-3 sm:px-5 sm:py-4">
+                            <h3 class="text-base font-semibold text-[#f2dfb5] sm:text-lg">${escapeHtml(document.title)}</h3>
+                            <div class="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#dbcdb2] sm:text-base sm:leading-8">${document.rendered_body_html}</div>
+                        </article>
+                    `;
+                }).join('')}
             </div>
         `;
     }
@@ -257,24 +237,29 @@
             throw new Error(payload.message || 'Could not load site content.');
         }
 
-        state.documents = Array.isArray(payload.documents) ? payload.documents : [];
+        state.categories = Array.isArray(payload.categories) ? payload.categories : [];
 
-        if (!state.documents.some((document) => document.slug === state.selectedSlug)) {
-            state.selectedSlug = payload.default_document_slug || state.documents[0]?.slug || null;
+        const requestedCategory = state.pendingDocumentSlug
+            ? findCategoryForSlug(state.pendingDocumentSlug)
+            : null;
+
+        if (requestedCategory) {
+            state.selectedCategoryKey = requestedCategory.key;
+        } else if (!state.categories.some((category) => category.key === state.selectedCategoryKey)) {
+            state.selectedCategoryKey = payload.default_category || state.categories[0]?.key || null;
         }
 
+        state.pendingDocumentSlug = null;
         state.lastRequestCollection = state.collection;
     }
 
     async function loadAndRender() {
-        statusPillEl.textContent = 'Loading';
         bodyEl.innerHTML = '<div class="text-[#8f8675]">Loading...</div>';
 
         try {
             await fetchDocuments();
             render();
         } catch (error) {
-            statusPillEl.textContent = 'Error';
             bodyEl.innerHTML = `<div class="text-red-300">${escapeHtml(error instanceof Error ? error.message : 'Failed to load site content.')}</div>`;
         }
     }
@@ -284,9 +269,10 @@
         state.title = detail.title || 'Rules / FAQ';
 
         if (detail.slug) {
-            state.selectedSlug = detail.slug;
+            state.pendingDocumentSlug = detail.slug;
         } else if (state.collection !== state.lastRequestCollection) {
-            state.selectedSlug = null;
+            state.selectedCategoryKey = null;
+            state.pendingDocumentSlug = null;
         }
 
         windowEl.classList.remove('hidden');

@@ -14,24 +14,40 @@ class SiteContentTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_site_content_endpoint_returns_published_rules_and_faq_categories_in_sort_order(): void
+    public function test_site_content_endpoint_groups_published_rules_and_faq_documents_by_category_in_sort_order(): void
     {
         [$user, $character] = $this->createUserWithCharacter('Viewer');
 
         SiteContent::query()->create([
-            'title' => 'FAQ',
-            'slug' => 'faq',
+            'title' => 'What is StoryBox?',
+            'slug' => 'what-is-storybox',
             'collection' => SiteContent::CATEGORY_FAQ,
-            'body' => 'Second body',
+            'body' => 'Second FAQ body',
             'sort_order' => 2,
             'is_published' => true,
         ]);
         SiteContent::query()->create([
-            'title' => 'Rules',
-            'slug' => 'rules',
+            'title' => '18+ Only',
+            'slug' => '18-plus-only',
             'collection' => SiteContent::CATEGORY_RULES,
-            'body' => '[b]First[/b] body',
+            'body' => '[b]First[/b] rules body',
             'sort_order' => 1,
+            'is_published' => true,
+        ]);
+        SiteContent::query()->create([
+            'title' => 'How do characters work?',
+            'slug' => 'how-do-characters-work',
+            'collection' => SiteContent::CATEGORY_FAQ,
+            'body' => 'First FAQ body',
+            'sort_order' => 1,
+            'is_published' => true,
+        ]);
+        SiteContent::query()->create([
+            'title' => 'No Harassment',
+            'slug' => 'no-harassment',
+            'collection' => SiteContent::CATEGORY_RULES,
+            'body' => 'Second rules body',
+            'sort_order' => 2,
             'is_published' => true,
         ]);
         SiteContent::query()->create([
@@ -44,7 +60,7 @@ class SiteContentTest extends TestCase
         ]);
         SiteContent::query()->create([
             'title' => 'Legacy FAQ',
-            'slug' => 'legacy-faq',
+            'slug' => 'faq',
             'collection' => SiteContent::PUBLIC_COLLECTION_RULES_FAQ,
             'body' => 'Legacy group body',
             'sort_order' => 3,
@@ -55,11 +71,48 @@ class SiteContentTest extends TestCase
             ->withSession(['active_character_id' => $character->id])
             ->getJson('/site-content/rules-faq')
             ->assertOk()
-            ->assertJsonPath('default_document_slug', 'rules')
-            ->assertJsonCount(2, 'documents')
-            ->assertJsonPath('documents.0.slug', 'rules')
-            ->assertJsonPath('documents.1.slug', 'faq')
-            ->assertJsonPath('documents.0.rendered_body_html', '<strong>First</strong> body');
+            ->assertJsonPath('default_category', SiteContent::CATEGORY_RULES)
+            ->assertJsonCount(2, 'categories')
+            ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_RULES)
+            ->assertJsonPath('categories.0.label', 'Rules')
+            ->assertJsonPath('categories.0.documents.0.slug', '18-plus-only')
+            ->assertJsonPath('categories.0.documents.1.slug', 'no-harassment')
+            ->assertJsonPath('categories.0.documents.0.rendered_body_html', '<strong>First</strong> rules body')
+            ->assertJsonPath('categories.1.key', SiteContent::CATEGORY_FAQ)
+            ->assertJsonPath('categories.1.label', 'FAQ')
+            ->assertJsonPath('categories.1.documents.0.slug', 'how-do-characters-work')
+            ->assertJsonPath('categories.1.documents.1.slug', 'what-is-storybox');
+    }
+
+    public function test_site_content_endpoint_keeps_legacy_rules_faq_records_grouped_under_their_category_tab(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Viewer');
+
+        SiteContent::query()->create([
+            'title' => 'Legacy FAQ',
+            'slug' => 'faq',
+            'collection' => SiteContent::PUBLIC_COLLECTION_RULES_FAQ,
+            'body' => 'Legacy FAQ body',
+            'sort_order' => 1,
+            'is_published' => true,
+        ]);
+        SiteContent::query()->create([
+            'title' => 'Legacy Rules',
+            'slug' => 'rules',
+            'collection' => SiteContent::PUBLIC_COLLECTION_RULES_FAQ,
+            'body' => 'Legacy Rules body',
+            'sort_order' => 2,
+            'is_published' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->getJson('/site-content/rules-faq')
+            ->assertOk()
+            ->assertJsonPath('categories.0.key', SiteContent::CATEGORY_FAQ)
+            ->assertJsonPath('categories.0.documents.0.title', 'Legacy FAQ')
+            ->assertJsonPath('categories.1.key', SiteContent::CATEGORY_RULES)
+            ->assertJsonPath('categories.1.documents.0.title', 'Legacy Rules');
     }
 
     public function test_admin_site_content_manager_renders_custom_storybox_layout(): void
