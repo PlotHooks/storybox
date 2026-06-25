@@ -1932,7 +1932,16 @@
                 }),
             })
             .then((response) => {
-                if (response.ok) clearRoomUnreadBadge(conversationId);
+                if (response.ok) {
+                    clearRoomUnreadBadge(conversationId);
+                } else {
+                    console.warn('Room presence heartbeat failed', {
+                        roomSlug,
+                        characterId,
+                        status: response.status,
+                    });
+                }
+
                 return response;
             })
             .catch(() => {});

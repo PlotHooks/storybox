@@ -1101,9 +1101,11 @@ CSS;
         }
 
         DB::table('character_presences')->updateOrInsert(
-            ['character_id' => $characterId],
             [
-                'room_id'      => $room->id,
+                'room_id' => $room->id,
+                'character_id' => $characterId,
+            ],
+            [
                 'last_seen_at' => now(),
                 'updated_at'   => now(),
                 'created_at'   => now(),
@@ -1166,6 +1168,7 @@ CSS;
         }
 
         DB::table('character_presences')
+            ->where('room_id', $room->id)
             ->where('character_id', $characterId)
             ->delete();
 

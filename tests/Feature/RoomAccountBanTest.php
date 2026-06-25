@@ -333,6 +333,138 @@ class RoomAccountBanTest extends TestCase
             ->assertJsonCount(0, 'roster');
     }
 
+
+    public function test_same_character_can_be_present_in_two_different_rooms_at_the_same_time(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $firstRoom = $this->createRoom($ownerUser, $ownerCharacter);
+        $secondRoom = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $firstToken = $this->issueParticipationToken($firstRoom, $viewerCharacter);
+        $secondToken = $this->issueParticipationToken($secondRoom, $viewerCharacter);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.presence', $firstRoom->slug), [
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $firstToken,
+            ])
+            ->assertOk();
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.presence', $secondRoom->slug), [
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $secondToken,
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $firstRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $secondRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $firstRoom->slug))
+            ->assertOk()
+            ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $secondRoom->slug))
+            ->assertOk()
+            ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+    }
+
+    public function test_pinging_second_room_does_not_remove_same_character_from_first_room_roster(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $firstRoom = $this->createRoom($ownerUser, $ownerCharacter);
+        $secondRoom = $this->createRoom($ownerUser, $ownerCharacter);
+
+        DB::table('character_presences')->insert([
+            'room_id' => $firstRoom->id,
+            'character_id' => $viewerCharacter->id,
+            'last_seen_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.presence', $secondRoom->slug), [
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($secondRoom, $viewerCharacter),
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $firstRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $secondRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $firstRoom->slug))
+            ->assertOk()
+            ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+    }
+
+    public function test_leaving_one_room_does_not_remove_same_character_from_other_room_presence(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $firstRoom = $this->createRoom($ownerUser, $ownerCharacter);
+        $secondRoom = $this->createRoom($ownerUser, $ownerCharacter);
+
+        foreach ([$firstRoom, $secondRoom] as $room) {
+            DB::table('character_presences')->insert([
+                'room_id' => $room->id,
+                'character_id' => $viewerCharacter->id,
+                'last_seen_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.leave', $firstRoom->slug), [
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($firstRoom, $viewerCharacter),
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('character_presences', [
+            'room_id' => $firstRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $secondRoom->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.roster', $secondRoom->slug))
+            ->assertOk()
+            ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+    }
+
     public function test_room_roster_json_does_not_include_account_identity_for_non_admin_viewers(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
