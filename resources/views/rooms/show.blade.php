@@ -1,10 +1,5 @@
 {{-- resources/views/rooms/show.blade.php --}}
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-[#f2dfb5] leading-tight">
-            {{ $room->name }}
-        </h2>
-    </x-slot>
 
     <style>
         @keyframes room-tool-update-breathe {
@@ -70,7 +65,7 @@
         }
     </style>
 
-    <div class="box-border h-[calc(100dvh-7.625rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
+    <div class="box-border h-[calc(100dvh-6.5rem)] sm:h-[calc(100dvh-4rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
         <div class="max-w-none w-full mx-auto h-full min-h-0 overflow-hidden flex flex-col lg:flex-row gap-3 px-2 md:px-4">
 
             {{-- LEFT COLUMN --}}

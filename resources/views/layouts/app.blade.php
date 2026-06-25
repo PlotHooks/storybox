@@ -15,14 +15,13 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
 
-    <body class="font-sans antialiased text-base md:text-[17px] leading-relaxed bg-[#050505] text-[#d6c8ad]">
+    <body class="bg-[#050505] font-sans text-base leading-relaxed text-[#d6c8ad] antialiased md:text-[17px]">
         <div class="min-h-screen bg-[#050505] text-[#d6c8ad]">
             @include('layouts.navigation')
 
-            <!-- Page Heading -->
             @isset($header)
-                <header class="bg-[#0b0b0c] border-b border-[#2a241a]">
-                    <div class="max-w-none w-full mx-auto py-4 px-4 sm:px-6 lg:px-8">
+                <header class="border-b border-[#2a241a] bg-[#0b0b0c]">
+                    <div class="mx-auto max-w-none px-4 py-4 sm:px-6 lg:px-8">
                         <div class="text-[#f2dfb5]">
                             {{ $header }}
                         </div>
@@ -30,13 +29,13 @@
                 </header>
             @endisset
 
-            <!-- Page Content -->
             <main>
                 {{ $slot }}
             </main>
         </div>
         <x-dm-window />
         @auth
+            <x-site-content-window />
             @include('characters.panel')
         @endauth
     </body>

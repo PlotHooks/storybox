@@ -7,6 +7,7 @@ use App\Http\Controllers\NoticeBoardController;
 use App\Http\Controllers\PinnedNotesController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RulesController;
+use App\Http\Controllers\SiteContentController;
 use App\Http\Controllers\RoomToolReadController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\RoomRecoveryController;
@@ -72,6 +73,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
 
     Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
     Route::post('/chat/current-character', [RoomController::class, 'setCurrentCharacter'])->name('rooms.current-character');
+    Route::get('/site-content/{collection}', [SiteContentController::class, 'index'])->name('site-content.index');
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');
