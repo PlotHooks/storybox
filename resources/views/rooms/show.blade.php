@@ -1944,7 +1944,13 @@
 
                 return response;
             })
-            .catch(() => {});
+            .catch((error) => {
+                console.warn('Room presence heartbeat request failed', {
+                    roomSlug,
+                    characterId,
+                    error,
+                });
+            });
         }
         sendPresencePing().finally(() => startRoomRealtime());
         setInterval(sendPresencePing, 30000);

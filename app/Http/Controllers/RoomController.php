@@ -6,6 +6,7 @@ use App\Events\MessageCreated;
 use App\Events\ModerationMessageCreated;
 use App\Models\Character;
 use App\Models\CharacterBlock;
+use App\Models\CharacterPresence;
 use App\Models\Room;
 use App\Models\Message;
 use App\Models\MessageReport;
@@ -1100,15 +1101,13 @@ CSS;
             $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
-        DB::table('character_presences')->updateOrInsert(
+        CharacterPresence::query()->updateOrCreate(
             [
                 'room_id' => $room->id,
                 'character_id' => $characterId,
             ],
             [
                 'last_seen_at' => now(),
-                'updated_at'   => now(),
-                'created_at'   => now(),
             ]
         );
 
