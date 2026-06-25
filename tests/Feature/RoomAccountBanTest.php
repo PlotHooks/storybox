@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -331,6 +332,113 @@ class RoomAccountBanTest extends TestCase
             ->getJson(route('rooms.roster', $room->slug))
             ->assertOk()
             ->assertJsonCount(0, 'roster');
+    }
+
+
+    public function test_presence_ping_refreshes_all_of_the_users_existing_presence_rows_in_the_room_and_adds_the_selected_character(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $firstCharacter] = $this->createUserWithCharacter();
+        $secondCharacter = $this->createCharacter($viewerUser);
+        $thirdCharacter = $this->createCharacter($viewerUser);
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $staleTime = now()->subMinutes(20);
+
+        DB::table('character_presences')->insert([
+            [
+                'room_id' => $room->id,
+                'character_id' => $firstCharacter->id,
+                'last_seen_at' => $staleTime,
+                'created_at' => $staleTime,
+                'updated_at' => $staleTime,
+            ],
+            [
+                'room_id' => $room->id,
+                'character_id' => $secondCharacter->id,
+                'last_seen_at' => $staleTime,
+                'created_at' => $staleTime,
+                'updated_at' => $staleTime,
+            ],
+            [
+                'room_id' => $room->id,
+                'character_id' => $otherCharacter->id,
+                'last_seen_at' => $staleTime,
+                'created_at' => $staleTime,
+                'updated_at' => $staleTime,
+            ],
+        ]);
+
+        $heartbeatTime = now();
+        Carbon::setTestNow($heartbeatTime);
+
+        try {
+            $response = $this->actingAs($viewerUser)
+                ->withSession(['active_character_id' => $firstCharacter->id])
+                ->postJson(route('rooms.presence', $room->slug), [
+                    'character_id' => $firstCharacter->id,
+                    'room_participation_token' => $this->issueParticipationToken($room, $firstCharacter),
+                ])
+                ->assertOk();
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $response->assertJsonPath('refreshed_character_ids', [$firstCharacter->id, $secondCharacter->id]);
+
+        foreach ([$firstCharacter->id, $secondCharacter->id] as $characterId) {
+            $this->assertDatabaseHas('character_presences', [
+                'room_id' => $room->id,
+                'character_id' => $characterId,
+                'last_seen_at' => $heartbeatTime->toDateTimeString(),
+            ]);
+        }
+
+        $this->assertDatabaseMissing('character_presences', [
+            'room_id' => $room->id,
+            'character_id' => $thirdCharacter->id,
+        ]);
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $room->id,
+            'character_id' => $otherCharacter->id,
+            'last_seen_at' => $staleTime->toDateTimeString(),
+        ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $firstCharacter->id])
+            ->getJson(route('rooms.roster', $room->slug))
+            ->assertOk()
+            ->assertJsonCount(2, 'roster');
+    }
+
+    public function test_presence_ping_still_creates_a_single_presence_row_for_the_selected_character_when_none_exist_yet(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();
+        $otherOwnedCharacter = $this->createCharacter($viewerUser);
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $response = $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->postJson(route('rooms.presence', $room->slug), [
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $viewerCharacter),
+            ])
+            ->assertOk();
+
+        $response->assertJsonPath('refreshed_character_ids', [$viewerCharacter->id]);
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $room->id,
+            'character_id' => $viewerCharacter->id,
+        ]);
+
+        $this->assertDatabaseMissing('character_presences', [
+            'room_id' => $room->id,
+            'character_id' => $otherOwnedCharacter->id,
+        ]);
     }
 
 

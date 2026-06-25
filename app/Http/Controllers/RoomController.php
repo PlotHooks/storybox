@@ -1101,14 +1101,31 @@ CSS;
             $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
-        CharacterPresence::query()->updateOrCreate(
-            [
-                'room_id' => $room->id,
-                'character_id' => $characterId,
-            ],
-            [
-                'last_seen_at' => now(),
-            ]
+        $now = now();
+
+        $characterIdsToRefresh = DB::table('character_presences')
+            ->join('characters', 'characters.id', '=', 'character_presences.character_id')
+            ->where('character_presences.room_id', $room->id)
+            ->where('characters.user_id', Auth::id())
+            ->pluck('character_presences.character_id')
+            ->map(fn ($id) => (int) $id)
+            ->push($characterId)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
+
+        CharacterPresence::query()->upsert(
+            $characterIdsToRefresh
+                ->map(fn (int $id) => [
+                    'room_id' => $room->id,
+                    'character_id' => $id,
+                    'last_seen_at' => $now,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ])
+                ->all(),
+            ['room_id', 'character_id'],
+            ['last_seen_at', 'updated_at']
         );
 
         if ($room->isPublicRoom()) {
@@ -1120,7 +1137,10 @@ CSS;
             );
         }
 
-        return response()->json(['ok' => true]);
+        return response()->json([
+            'ok' => true,
+            'refreshed_character_ids' => $characterIdsToRefresh->all(),
+        ]);
     }
 
     public function follow(Room $room, Request $request)
