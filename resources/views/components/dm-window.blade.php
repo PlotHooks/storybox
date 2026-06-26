@@ -10,6 +10,12 @@
         'avatar' => $character->avatar,
         'handle' => $character->public_handle,
     ])->values();
+    $dmNotificationSoundPreferences = auth()->user()?->dmNotificationSoundPreferences() ?? [
+        'enabled' => false,
+        'choice' => \App\Models\User::DM_NOTIFICATION_SOUND_OFF,
+        'url' => null,
+    ];
+    $dmNotificationUserId = (int) auth()->id();
 @endphp
 
 <div
@@ -219,6 +225,8 @@
         }))
         .filter((character) => character.id > 0);
     const defaultDmFromCharacterId = parseInt(@json((int) ($dmDefaultFromCharacter?->id ?? 0)), 10) || 0;
+    const dmNotificationSoundConfig = @json($dmNotificationSoundPreferences);
+    const dmNotificationUserId = parseInt(@json($dmNotificationUserId), 10) || 0;
 
     const listEl = document.getElementById('dm-convo-list');
     const convoFilterInput = document.getElementById('dm-convo-filter');
@@ -259,7 +267,11 @@
 
     let activeRealtimeConversationId = 0;
     let dmReconnectHandlerBound = false;
+    let dmGlobalNotificationBound = false;
     let dmConversationFilter = '';
+    const playedDmNotificationIds = [];
+    const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+    let dmNotificationAudioContext = null;
     let archivedSectionExpanded = false;
     const dmListRealtimeConversationIds = new Set();
     const dmRoomsBySlug = new Map();
@@ -814,6 +826,195 @@
 
     function parseBool(value) {
         return value === true || value === 1 || value === '1';
+    }
+
+    function getDmNotificationAudioContext() {
+        if (!window.AudioContext && !window.webkitAudioContext) return null;
+
+        if (!dmNotificationAudioContext) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            dmNotificationAudioContext = new AudioContextClass();
+        }
+
+        return dmNotificationAudioContext;
+    }
+
+    async function ensureDmNotificationAudioContext() {
+        const context = getDmNotificationAudioContext();
+        if (!context) {
+            throw new Error('Audio context unavailable');
+        }
+
+        if (context.state === 'suspended') {
+            await context.resume();
+        }
+
+        if (context.state !== 'running') {
+            throw new Error('Audio context unavailable');
+        }
+
+        return context;
+    }
+
+    function isSafeDmNotificationAudioUrl(url) {
+        if (!url) return false;
+
+        try {
+            const parsed = new URL(url, window.location.origin);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                return false;
+            }
+
+            const pathname = parsed.pathname || '';
+            const extension = pathname.includes('.') ? pathname.split('.').pop().toLowerCase() : '';
+            return supportedDmNotificationAudioExtensions.includes(extension);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function rememberDmNotification(messageId) {
+        const normalized = parseInt(messageId || 0, 10) || 0;
+        if (!normalized) return false;
+        if (playedDmNotificationIds.includes(normalized)) return false;
+
+        playedDmNotificationIds.push(normalized);
+        if (playedDmNotificationIds.length > 200) {
+            playedDmNotificationIds.splice(0, playedDmNotificationIds.length - 200);
+        }
+
+        return true;
+    }
+
+    function resolveDmNotificationSound() {
+        const choice = String(dmNotificationSoundConfig?.choice || 'off');
+        const enabled = !!dmNotificationSoundConfig?.enabled && choice !== 'off';
+        const url = typeof dmNotificationSoundConfig?.url === 'string' ? dmNotificationSoundConfig.url.trim() : '';
+
+        if (!enabled) {
+            return { enabled: false, type: 'off', choice, url: '' };
+        }
+
+        if (choice === 'custom') {
+            return {
+                enabled: isSafeDmNotificationAudioUrl(url),
+                type: 'custom',
+                choice,
+                url,
+            };
+        }
+
+        return {
+            enabled: true,
+            type: 'built_in',
+            choice,
+            url: '',
+        };
+    }
+
+    function scheduleDmNotificationTone(context, destination, oscillatorType, frequency, startAt, duration, gainValue) {
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+
+        oscillator.type = oscillatorType;
+        oscillator.frequency.setValueAtTime(frequency, startAt);
+        gainNode.gain.setValueAtTime(0.0001, startAt);
+        gainNode.gain.exponentialRampToValueAtTime(gainValue, startAt + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(destination);
+
+        oscillator.start(startAt);
+        oscillator.stop(startAt + duration + 0.02);
+    }
+
+    async function playBuiltInDmNotificationSound(choice) {
+        const context = await ensureDmNotificationAudioContext();
+        const now = context.currentTime + 0.02;
+        const master = context.createGain();
+        master.gain.value = 0.12;
+        master.connect(context.destination);
+
+        if (choice === 'soft_chime') {
+            scheduleDmNotificationTone(context, master, 'sine', 587.33, now, 0.3, 0.16);
+            scheduleDmNotificationTone(context, master, 'sine', 783.99, now + 0.15, 0.42, 0.14);
+            return;
+        }
+
+        if (choice === 'bell') {
+            scheduleDmNotificationTone(context, master, 'triangle', 659.25, now, 0.46, 0.18);
+            scheduleDmNotificationTone(context, master, 'sine', 987.77, now + 0.02, 0.62, 0.08);
+            return;
+        }
+
+        if (choice === 'click_tick') {
+            scheduleDmNotificationTone(context, master, 'square', 1046.5, now, 0.04, 0.08);
+            scheduleDmNotificationTone(context, master, 'square', 880, now + 0.12, 0.04, 0.07);
+            return;
+        }
+
+        scheduleDmNotificationTone(context, master, 'triangle', 523.25, now, 0.16, 0.12);
+        scheduleDmNotificationTone(context, master, 'triangle', 783.99, now + 0.14, 0.24, 0.12);
+    }
+
+    async function playCustomDmNotificationSound(url) {
+        if (!isSafeDmNotificationAudioUrl(url)) {
+            throw new Error('Invalid custom DM notification sound URL');
+        }
+
+        const audio = new Audio(url);
+        audio.preload = 'none';
+        audio.volume = 0.8;
+        await audio.play();
+    }
+
+    function playDmNotificationSound() {
+        const sound = resolveDmNotificationSound();
+        if (!sound.enabled) return;
+
+        const playback = sound.type === 'custom'
+            ? playCustomDmNotificationSound(sound.url)
+            : playBuiltInDmNotificationSound(sound.choice);
+
+        Promise.resolve(playback).catch(() => {
+            // Autoplay restrictions or remote audio failures should not interrupt DM updates.
+        });
+    }
+
+    function shouldPlayDmNotificationEvent(event) {
+        const messageId = parseInt(event?.message_id || 0, 10) || 0;
+        const roomId = parseInt(event?.room_id || 0, 10) || 0;
+        const senderCharacterId = parseInt(event?.sender_character_id || 0, 10) || 0;
+        const recipientCharacterId = parseInt(event?.recipient_character_id || 0, 10) || 0;
+        const sound = resolveDmNotificationSound();
+
+        if (!sound.enabled || !messageId || !roomId || !rememberDmNotification(messageId)) {
+            return false;
+        }
+
+        const room = findRoomByConversationId(roomId);
+        if (room?.myCharacterId && senderCharacterId && room.myCharacterId === senderCharacterId) {
+            return false;
+        }
+
+        if (recipientCharacterId && ownedDmCharacters.length > 0 && !ownedDmCharacters.some((character) => character.id === recipientCharacterId)) {
+            return false;
+        }
+
+        if (isOpen() && activeDm.conversationId === roomId) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function handleGlobalDmNotification(event) {
+        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+
+        if (shouldPlayDmNotificationEvent(event)) {
+            playDmNotificationSound();
+        }
     }
 
     function formatUnreadCount(count) {
@@ -1630,6 +1831,17 @@
         });
     }
 
+
+    function startGlobalDmNotificationRealtime() {
+        if (dmGlobalNotificationBound || !window.Echo || !dmNotificationUserId) return;
+
+        dmGlobalNotificationBound = true;
+        window.Echo.private(`dm-notifications.${dmNotificationUserId}`)
+            .listen('.dm.notification.created', (event) => {
+                handleGlobalDmNotification(event || {});
+            });
+    }
+
     function startDmRealtime() {
         if (!window.Echo || !activeDm.conversationId || !activeDm.myCharacterId) return;
 
@@ -1801,6 +2013,7 @@
 
     window.addEventListener('open-dm-window', (e) => {
         try {
+            startGlobalDmNotificationRealtime();
             dmWindow.classList.remove('hidden');
 
             const slug = e?.detail?.slug;
@@ -1892,6 +2105,7 @@
 
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
+        startGlobalDmNotificationRealtime();
         fetchDmRooms({ showLoading: false, allowWhenClosed: true });
         if (isOpen() && activeDm.slug) pollConversation();
     });
@@ -1958,6 +2172,7 @@
     });
     observer.observe(dmWindow, { attributes: true, attributeFilter: ['class'] });
 
+    startGlobalDmNotificationRealtime();
     fetchDmRooms({ showLoading: false, allowWhenClosed: true });
     window.setInterval(() => {
         if (document.hidden) return;

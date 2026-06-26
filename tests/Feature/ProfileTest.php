@@ -21,6 +21,8 @@ class ProfileTest extends TestCase
         $response->assertOk();
         $response->assertSee('action="' . route('logout') . '"', false);
         $response->assertSee('Log Out');
+        $response->assertSee('DM Notification Sound');
+        $response->assertSee('Preview Sound');
     }
 
     public function test_profile_information_can_be_updated(): void
@@ -61,6 +63,77 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_dm_notification_sound_preferences_can_be_updated(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->patch('/profile', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'dm_notification_sound_enabled' => '1',
+                'dm_notification_sound_choice' => User::DM_NOTIFICATION_SOUND_CUSTOM,
+                'dm_notification_sound_url' => 'https://cdn.example.com/chime.ogg',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $user->refresh();
+
+        $this->assertTrue($user->dm_notification_sound_enabled);
+        $this->assertSame(User::DM_NOTIFICATION_SOUND_CUSTOM, $user->dm_notification_sound_choice);
+        $this->assertSame('https://cdn.example.com/chime.ogg', $user->dm_notification_sound_url);
+    }
+
+    public function test_dm_notification_sound_off_disables_sound_even_when_enabled_flag_is_present(): void
+    {
+        $user = User::factory()->create([
+            'dm_notification_sound_enabled' => true,
+            'dm_notification_sound_choice' => User::DM_NOTIFICATION_SOUND_BELL,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->patch('/profile', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'dm_notification_sound_enabled' => '1',
+                'dm_notification_sound_choice' => User::DM_NOTIFICATION_SOUND_OFF,
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $user->refresh();
+
+        $this->assertFalse($user->dm_notification_sound_enabled);
+        $this->assertSame(User::DM_NOTIFICATION_SOUND_OFF, $user->dm_notification_sound_choice);
+    }
+
+    public function test_custom_dm_notification_sound_url_must_use_supported_audio_extension(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->from('/profile')
+            ->patch('/profile', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'dm_notification_sound_enabled' => '1',
+                'dm_notification_sound_choice' => User::DM_NOTIFICATION_SOUND_CUSTOM,
+                'dm_notification_sound_url' => 'https://cdn.example.com/chime.txt',
+            ]);
+
+        $response
+            ->assertSessionHasErrors('dm_notification_sound_url')
+            ->assertRedirect('/profile');
     }
 
     public function test_user_can_delete_their_account(): void

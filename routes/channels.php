@@ -11,6 +11,10 @@ Broadcast::channel('moderation.messages', function ($user) {
     return Gate::allows('accessFilament', $user);
 });
 
+Broadcast::channel('dm-notifications.{userId}', function ($user, int $userId) {
+    return (int) $user->id === $userId;
+});
+
 Broadcast::channel('conversation.{conversationId}', function ($user, int $conversationId) {
     $characterId = (int) request()->input('character_id', 0);
 
@@ -27,7 +31,6 @@ Broadcast::channel('conversation.{conversationId}', function ($user, int $conver
         return false;
     }
 
-    // rooms table is the conversation model.
     $conversation = Room::query()
         ->where('id', $conversationId)
         ->first(['id', 'type', 'owner_character_id', 'visibility']);

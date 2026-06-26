@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DmNotificationCreated;
 use App\Events\MessageCreated;
 use App\Events\ModerationMessageCreated;
 use App\Models\Character;
@@ -866,12 +867,38 @@ CSS;
         if ($conversation->type === Room::TYPE_DM) {
             $conversation->touch();
             $this->restoreDmForOtherParticipants($conversation->id, Auth::id());
+            $this->broadcastDmNotificationToRecipients($conversation, $message, $characterId);
         }
 
         broadcast(new MessageCreated($message))->toOthers();
         event(new ModerationMessageCreated($message));
 
         return $message;
+    }
+
+    private function broadcastDmNotificationToRecipients(Room $conversation, Message $message, int $senderCharacterId): void
+    {
+        DB::table('dm_participants')
+            ->where('room_id', $conversation->id)
+            ->where('user_id', '!=', Auth::id())
+            ->get(['user_id', 'character_id'])
+            ->each(function (object $participant) use ($conversation, $message, $senderCharacterId): void {
+                $recipientUserId = (int) ($participant->user_id ?? 0);
+                $recipientCharacterId = (int) ($participant->character_id ?? 0);
+
+                if ($recipientUserId <= 0 || $recipientCharacterId <= 0) {
+                    return;
+                }
+
+                broadcast(new DmNotificationCreated(
+                    $recipientUserId,
+                    (int) $conversation->id,
+                    (string) $conversation->slug,
+                    (int) $message->id,
+                    $senderCharacterId,
+                    $recipientCharacterId,
+                ));
+            });
     }
 
     private function restoreDmForUser(int $roomId, int $userId): void

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,9 +12,6 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
-    /**
-     * Display the user's profile form.
-     */
     public function edit(Request $request): View
     {
         return view('profile.edit', [
@@ -21,25 +19,37 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update the user's profile information.
-     */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $validated = $request->validated();
+        $user = $request->user();
+        $choice = array_key_exists('dm_notification_sound_choice', $validated)
+            ? ($validated['dm_notification_sound_choice'] ?: User::DM_NOTIFICATION_SOUND_DEFAULT)
+            : ($user->dm_notification_sound_choice ?: User::DM_NOTIFICATION_SOUND_DEFAULT);
+        $soundEnabled = array_key_exists('dm_notification_sound_enabled', $validated)
+            ? ($choice !== User::DM_NOTIFICATION_SOUND_OFF && $request->boolean('dm_notification_sound_enabled', true))
+            : (bool) $user->dm_notification_sound_enabled;
+        $customSoundUrl = array_key_exists('dm_notification_sound_url', $validated)
+            ? $this->nullableTrim($validated['dm_notification_sound_url'] ?? null)
+            : $user->dm_notification_sound_url;
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        $user->fill([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'dm_notification_sound_enabled' => $soundEnabled,
+            'dm_notification_sound_choice' => $choice,
+            'dm_notification_sound_url' => $customSoundUrl,
+        ]);
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
         }
 
-        $request->user()->save();
+        $user->save();
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 
-    /**
-     * Delete the user's account.
-     */
     public function destroy(Request $request): RedirectResponse
     {
         $request->validateWithBag('userDeletion', [
@@ -56,5 +66,12 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    private function nullableTrim(?string $value): ?string
+    {
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 }

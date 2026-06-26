@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\UserRoomState;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -13,13 +12,24 @@ use Illuminate\Support\Facades\Gate;
 
 class User extends Authenticatable implements FilamentUser
 {
-    use HasFactory, Notifiable;
+    use HasFactory;
+    use Notifiable;
+
+    public const DM_NOTIFICATION_SOUND_OFF = 'off';
+    public const DM_NOTIFICATION_SOUND_DEFAULT = 'default';
+    public const DM_NOTIFICATION_SOUND_SOFT_CHIME = 'soft_chime';
+    public const DM_NOTIFICATION_SOUND_BELL = 'bell';
+    public const DM_NOTIFICATION_SOUND_CLICK_TICK = 'click_tick';
+    public const DM_NOTIFICATION_SOUND_CUSTOM = 'custom';
 
     protected $fillable = [
         'name',
         'email',
         'password',
         'is_admin',
+        'dm_notification_sound_enabled',
+        'dm_notification_sound_choice',
+        'dm_notification_sound_url',
     ];
 
     protected $hidden = [
@@ -34,6 +44,44 @@ class User extends Authenticatable implements FilamentUser
             'is_banned' => 'boolean',
             'banned_until' => 'datetime',
             'password' => 'hashed',
+            'dm_notification_sound_enabled' => 'boolean',
+        ];
+    }
+
+    public static function dmNotificationSoundChoices(): array
+    {
+        return [
+            self::DM_NOTIFICATION_SOUND_OFF,
+            self::DM_NOTIFICATION_SOUND_DEFAULT,
+            self::DM_NOTIFICATION_SOUND_SOFT_CHIME,
+            self::DM_NOTIFICATION_SOUND_BELL,
+            self::DM_NOTIFICATION_SOUND_CLICK_TICK,
+            self::DM_NOTIFICATION_SOUND_CUSTOM,
+        ];
+    }
+
+    public static function dmNotificationSoundOptions(): array
+    {
+        return [
+            self::DM_NOTIFICATION_SOUND_OFF => 'Off',
+            self::DM_NOTIFICATION_SOUND_DEFAULT => 'Default',
+            self::DM_NOTIFICATION_SOUND_SOFT_CHIME => 'Soft Chime',
+            self::DM_NOTIFICATION_SOUND_BELL => 'Bell',
+            self::DM_NOTIFICATION_SOUND_CLICK_TICK => 'Click / Tick',
+            self::DM_NOTIFICATION_SOUND_CUSTOM => 'Custom URL',
+        ];
+    }
+
+    public function dmNotificationSoundPreferences(): array
+    {
+        $choice = in_array($this->dm_notification_sound_choice, self::dmNotificationSoundChoices(), true)
+            ? $this->dm_notification_sound_choice
+            : self::DM_NOTIFICATION_SOUND_DEFAULT;
+
+        return [
+            'enabled' => (bool) $this->dm_notification_sound_enabled && $choice !== self::DM_NOTIFICATION_SOUND_OFF,
+            'choice' => $choice,
+            'url' => $this->dm_notification_sound_url,
         ];
     }
 
