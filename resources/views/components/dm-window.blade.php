@@ -271,6 +271,7 @@
     let dmConversationFilter = '';
     const playedDmNotificationIds = [];
     const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+    const builtInDmNotificationFallbackUrl = @json(asset('audio/dm-default.wav'));
     let dmNotificationAudioContext = null;
     let archivedSectionExpanded = false;
     const dmListRealtimeConversationIds = new Set();
@@ -969,16 +970,26 @@
         await audio.play();
     }
 
+    async function playBuiltInDmNotificationFallbackSound() {
+        const audio = new Audio(builtInDmNotificationFallbackUrl);
+        audio.preload = 'auto';
+        audio.volume = 0.8;
+        await audio.play();
+    }
+
     function playDmNotificationSound() {
         const sound = resolveDmNotificationSound();
         if (!sound.enabled) return;
 
         const playback = sound.type === 'custom'
             ? playCustomDmNotificationSound(sound.url)
-            : playBuiltInDmNotificationSound(sound.choice);
+            : playBuiltInDmNotificationSound(sound.choice).catch((error) => {
+                console.warn('Built-in DM notification sound failed, using fallback asset:', error);
+                return playBuiltInDmNotificationFallbackSound();
+            });
 
-        Promise.resolve(playback).catch(() => {
-            // Autoplay restrictions or remote audio failures should not interrupt DM updates.
+        Promise.resolve(playback).catch((error) => {
+            console.warn('DM notification sound playback failed:', error);
         });
     }
 

@@ -95,6 +95,7 @@
     const customChoice = @json(User::DM_NOTIFICATION_SOUND_CUSTOM);
     const offChoice = @json(User::DM_NOTIFICATION_SOUND_OFF);
     const supportedExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+    const builtInFallbackUrl = @json(asset('audio/dm-default.wav'));
     let audioContext = null;
 
     function getAudioContext() {
@@ -198,6 +199,13 @@
         await audio.play();
     }
 
+    async function playBuiltInFallbackPreview() {
+        const audio = new Audio(builtInFallbackUrl);
+        audio.preload = 'auto';
+        audio.volume = 0.8;
+        await audio.play();
+    }
+
     function syncFormState() {
         const choice = choiceInput?.value || offChoice;
         const customSelected = choice === customChoice;
@@ -231,8 +239,16 @@
 
             await playBuiltInPreview(choice);
         } catch (error) {
+            console.warn('DM sound preview failed:', error);
             if (choice === customChoice && urlInput) {
                 urlInput.reportValidity();
+                return;
+            }
+
+            try {
+                await playBuiltInFallbackPreview();
+            } catch (fallbackError) {
+                console.warn('DM sound preview fallback failed:', fallbackError);
             }
         }
     });
