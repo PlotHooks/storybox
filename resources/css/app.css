@@ -26,3 +26,18 @@
         background: #5a431f;
     }
 }
+
+@layer components {
+    .site-content-document-body {
+        line-height: 1.55;
+    }
+
+    .site-content-document-body p {
+        margin: 0 0 0.75rem;
+        line-height: 1.55;
+    }
+
+    .site-content-document-body p:last-child {
+        margin-bottom: 0;
+    }
+}

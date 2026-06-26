@@ -210,7 +210,7 @@
                     return `
                         <article class="rounded border border-[#332817] bg-[#0d0d0f] px-4 py-3 sm:px-5 sm:py-4">
                             <h3 class="text-base font-semibold text-[#f2dfb5] sm:text-lg">${escapeHtml(document.title)}</h3>
-                            <div class="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#dbcdb2] sm:text-base sm:leading-8">${document.rendered_body_html}</div>
+                            <div class="site-content-document-body mt-3 whitespace-pre-line text-[15px] text-[#dbcdb2] sm:text-base">${document.rendered_body_html}</div>
                         </article>
                     `;
                 }).join('')}
