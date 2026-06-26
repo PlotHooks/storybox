@@ -222,7 +222,8 @@
 
     const listEl = document.getElementById('dm-convo-list');
     const convoFilterInput = document.getElementById('dm-convo-filter');
-    const globalUnreadBadge = document.getElementById('dm-unread-badge');
+    const globalUnreadBadges = Array.from(document.querySelectorAll('[data-global-dm-unread-badge]'));
+    const globalDmButtons = Array.from(document.querySelectorAll('[data-global-dm-button]'));
     const refreshBtn = document.getElementById('dm-refresh-btn');
     const closeBtn = document.getElementById('dm-close-btn');
     const newDmBtn = document.getElementById('dm-new-btn');
@@ -832,24 +833,28 @@
         setUnreadBadge(badge, parseUnreadCount(badge.dataset.unreadCount) + 1);
     }
 
-    function updateGlobalUnreadBadge() {
-        if (!globalUnreadBadge) return;
+    function syncGlobalDmButtons(hasUnread) {
+        globalDmButtons.forEach((button) => {
+            button.classList.toggle('global-header-update-glow', hasUnread);
+        });
+    }
 
+    function updateGlobalUnreadBadge() {
         const total = Array.from(dmRoomsBySlug.values()).reduce((sum, room) => {
             return sum + parseUnreadCount(room.unreadCount);
         }, 0);
 
-        setUnreadBadge(globalUnreadBadge, total);
+        globalUnreadBadges.forEach((badge) => setUnreadBadge(badge, total));
+        syncGlobalDmButtons(total > 0);
     }
 
     function updateGlobalUnreadBadgeFromRooms(rooms) {
-        if (!globalUnreadBadge) return;
-
         const total = (Array.isArray(rooms) ? rooms : []).reduce((sum, room) => {
             return sum + parseUnreadCount(room.unreadCount ?? room.unread_count);
         }, 0);
 
-        setUnreadBadge(globalUnreadBadge, total);
+        globalUnreadBadges.forEach((badge) => setUnreadBadge(badge, total));
+        syncGlobalDmButtons(total > 0);
     }
 
     function findRoomByConversationId(conversationId) {
@@ -1228,10 +1233,10 @@
     }
 
     function fetchDmRooms(options = {}) {
-        const { showLoading = false } = options;
+        const { showLoading = false, allowWhenClosed = false } = options;
 
         try {
-            if (!isOpen() || !listEl) return Promise.resolve([]);
+            if (!listEl || (!isOpen() && !allowWhenClosed)) return Promise.resolve([]);
         } catch (error) {
             console.error('DM list preflight error:', error);
             return Promise.resolve([]);
@@ -1869,6 +1874,7 @@
         storeActiveConversationScroll();
         dmWindow.classList.add('hidden');
         stopDmRealtime();
+        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
     });
 
     sendBtn?.addEventListener('click', () => sendDmMessage());
@@ -1885,7 +1891,9 @@
     });
 
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && isOpen() && activeDm.slug) pollConversation();
+        if (document.hidden) return;
+        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+        if (isOpen() && activeDm.slug) pollConversation();
     });
 
     /*
@@ -1949,6 +1957,12 @@
         }
     });
     observer.observe(dmWindow, { attributes: true, attributeFilter: ['class'] });
+
+    fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+    window.setInterval(() => {
+        if (document.hidden) return;
+        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+    }, 30000);
 
 })();
 </script>

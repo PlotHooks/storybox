@@ -204,6 +204,9 @@ class SiteContentTest extends TestCase
             ->assertOk()
             ->assertSee('Rules / FAQ')
             ->assertSee('StoryBox')
+            ->assertSee('data-global-dm-button', false)
+            ->assertSee('data-global-site-content-button', false)
+            ->assertSee('data-global-dm-unread-badge', false)
             ->getContent();
 
         $this->assertStringContainsString('<h1 class="truncate text-lg font-semibold text-[#f2dfb5] md:text-xl">' . $roomName . '</h1>', $content);

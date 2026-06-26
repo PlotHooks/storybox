@@ -2,52 +2,6 @@
 <x-app-layout>
 
     <style>
-        @keyframes room-tool-update-breathe {
-            0%, 100% {
-                border-color: rgba(217, 119, 6, 0.34);
-                box-shadow:
-                    inset 0 0 0 1px rgba(245, 158, 11, 0.08),
-                    0 0 0 rgba(245, 158, 11, 0),
-                    0 0 0 rgba(251, 191, 36, 0);
-            }
-            50% {
-                border-color: rgba(245, 158, 11, 0.58);
-                box-shadow:
-                    inset 0 0 0 1px rgba(251, 191, 36, 0.18),
-                    0 0 14px rgba(245, 158, 11, 0.14),
-                    0 0 26px rgba(251, 191, 36, 0.08);
-            }
-        }
-
-        @keyframes room-tool-update-sheen {
-            0% { background-position: -220% 0, 0 0; }
-            62% { background-position: -220% 0, 0 0; }
-            100% { background-position: 240% 0, 0 0; }
-        }
-
-        .room-tool-update-glow {
-            background-image:
-                linear-gradient(115deg, rgba(245, 158, 11, 0) 0%, rgba(251, 191, 36, 0) 38%, rgba(252, 211, 77, 0.10) 48%, rgba(255, 237, 160, 0.16) 50%, rgba(252, 211, 77, 0.10) 52%, rgba(245, 158, 11, 0) 62%, rgba(245, 158, 11, 0) 100%),
-                linear-gradient(180deg, rgba(20, 20, 22, 1), rgba(20, 20, 22, 1));
-            background-size: 220% 100%, 100% 100%;
-            background-repeat: no-repeat;
-            animation:
-                room-tool-update-breathe 4.8s ease-in-out infinite,
-                room-tool-update-sheen 6s ease-in-out infinite;
-            will-change: background-position, box-shadow, border-color;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            .room-tool-update-glow {
-                animation: none;
-                border-color: rgba(245, 158, 11, 0.52);
-                box-shadow:
-                    inset 0 0 0 1px rgba(251, 191, 36, 0.16),
-                    0 0 12px rgba(245, 158, 11, 0.10);
-                background-image: linear-gradient(180deg, rgba(20, 20, 22, 1), rgba(20, 20, 22, 1));
-            }
-        }
-
         .msg-rich-underline {
             text-decoration: underline;
         }

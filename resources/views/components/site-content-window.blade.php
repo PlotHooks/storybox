@@ -65,6 +65,7 @@
     const closeBtn = document.getElementById('site-content-close-btn');
     const dragHandle = document.getElementById('site-content-drag-handle');
     const resizeHandle = document.getElementById('site-content-resize');
+    const globalSiteContentButtons = Array.from(document.querySelectorAll('[data-global-site-content-button]'));
 
     const MOBILE_INSET = 8;
     const DESKTOP_INSET = 16;
@@ -73,6 +74,8 @@
     const DESKTOP_MIN_HEIGHT = 420;
     const DESKTOP_DEFAULT_WIDTH = 1080;
     const DESKTOP_DEFAULT_HEIGHT = 720;
+    const RULES_FAQ_COLLECTION = 'rules-faq';
+    const SITE_CONTENT_LAST_SEEN_KEY_PREFIX = 'storybox_site_content_last_seen_';
 
     const state = {
         collection: 'rules-faq',
@@ -108,6 +111,89 @@
 
     function isOpen() {
         return !windowEl.classList.contains('hidden');
+    }
+
+    function parseTimestamp(value) {
+        const timestamp = Date.parse(value || '');
+        return Number.isFinite(timestamp) ? timestamp : 0;
+    }
+
+    function latestUpdatedAtForCategories(categories) {
+        return (Array.isArray(categories) ? categories : []).reduce((latest, category) => {
+            const documents = Array.isArray(category?.documents) ? category.documents : [];
+
+            return documents.reduce((categoryLatest, document) => {
+                return Math.max(categoryLatest, parseTimestamp(document?.last_updated_at));
+            }, latest);
+        }, 0);
+    }
+
+    function syncGlobalSiteContentButtons(hasUpdates) {
+        globalSiteContentButtons.forEach((button) => {
+            button.classList.toggle('global-header-update-glow', hasUpdates);
+        });
+    }
+
+    function lastSeenStorageKey(collection) {
+        return `${SITE_CONTENT_LAST_SEEN_KEY_PREFIX}${collection}`;
+    }
+
+    function readLastSeenAt(collection) {
+        try {
+            return parseTimestamp(window.localStorage.getItem(lastSeenStorageKey(collection)) || '');
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    function writeLastSeenAt(collection, timestamp) {
+        if (!timestamp) return;
+
+        try {
+            window.localStorage.setItem(lastSeenStorageKey(collection), new Date(timestamp).toISOString());
+        } catch (error) {
+            // Ignore storage failures and continue without persistence.
+        }
+    }
+
+    function syncRulesFaqIndicator(latestUpdatedAt) {
+        if (!globalSiteContentButtons.length) return;
+
+        const lastSeenAt = readLastSeenAt(RULES_FAQ_COLLECTION);
+        const hasUpdates = latestUpdatedAt > 0 && (lastSeenAt === 0 || latestUpdatedAt > lastSeenAt);
+        syncGlobalSiteContentButtons(hasUpdates);
+    }
+
+    function markCollectionSeen(collection, latestUpdatedAt) {
+        if (collection !== RULES_FAQ_COLLECTION) return;
+
+        if (!latestUpdatedAt) {
+            syncGlobalSiteContentButtons(false);
+            return;
+        }
+
+        writeLastSeenAt(collection, latestUpdatedAt);
+        syncRulesFaqIndicator(latestUpdatedAt);
+    }
+
+    async function refreshRulesFaqIndicator() {
+        if (!globalSiteContentButtons.length) return;
+
+        try {
+            const response = await fetch(`/site-content/${encodeURIComponent(RULES_FAQ_COLLECTION)}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) return;
+
+            syncRulesFaqIndicator(latestUpdatedAtForCategories(payload.categories));
+        } catch (error) {
+            // Ignore background refresh errors and preserve the last known indicator state.
+        }
     }
 
     function currentCategory() {
@@ -259,6 +345,10 @@
         try {
             await fetchDocuments();
             render();
+
+            if (state.collection === RULES_FAQ_COLLECTION) {
+                markCollectionSeen(state.collection, latestUpdatedAtForCategories(state.categories));
+            }
         } catch (error) {
             bodyEl.innerHTML = `<div class="text-red-300">${escapeHtml(error instanceof Error ? error.message : 'Failed to load site content.')}</div>`;
         }
@@ -401,6 +491,17 @@
         windowEl.style.right = 'auto';
         windowEl.dataset.mobileLayout = '0';
     });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        refreshRulesFaqIndicator();
+    });
+
+    refreshRulesFaqIndicator();
+    window.setInterval(() => {
+        if (document.hidden) return;
+        refreshRulesFaqIndicator();
+    }, 300000);
 
     window.addEventListener('open-site-content-window', (event) => openWindow(event.detail || {}));
 })();
