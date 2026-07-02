@@ -14,6 +14,7 @@
         'enabled' => false,
         'choice' => \App\Models\User::DM_NOTIFICATION_SOUND_OFF,
         'url' => null,
+        'volume' => \App\Models\User::DM_NOTIFICATION_VOLUME_DEFAULT,
     ];
     $dmNotificationUserId = (int) auth()->id();
 @endphp
@@ -270,9 +271,13 @@
     let dmGlobalNotificationBound = false;
     let dmConversationFilter = '';
     const playedDmNotificationIds = [];
-    const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+    const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a'];
     const builtInDmNotificationFallbackUrl = @json(asset('audio/dm-default.wav'));
+    const dmNotificationCooldownMs = 1250;
     let dmNotificationAudioContext = null;
+    let dmNotificationAudioUnlockBound = false;
+    let lastDmNotificationPlaybackAt = 0;
+    const dmNotificationDiagnostics = new Set();
     let archivedSectionExpanded = false;
     const dmListRealtimeConversationIds = new Set();
     const dmRoomsBySlug = new Map();
@@ -840,6 +845,55 @@
         return dmNotificationAudioContext;
     }
 
+    function logDmNotificationDiagnosticOnce(key, message, error = null) {
+        if (dmNotificationDiagnostics.has(key)) return;
+        dmNotificationDiagnostics.add(key);
+
+        if (error) {
+            console.warn(message, error);
+            return;
+        }
+
+        console.warn(message);
+    }
+
+    function clampDmNotificationVolume(value) {
+        const normalized = parseInt(value || '0', 10);
+        if (!Number.isFinite(normalized)) {
+            return 60;
+        }
+
+        return Math.max(0, Math.min(100, normalized));
+    }
+
+    function normalizedDmNotificationVolume() {
+        return clampDmNotificationVolume(dmNotificationSoundConfig?.volume ?? 60) / 100;
+    }
+
+    async function primeDmNotificationAudio() {
+        try {
+            const context = getDmNotificationAudioContext();
+            if (!context) return;
+
+            if (context.state === 'suspended') {
+                await context.resume();
+            }
+        } catch (error) {
+            // Respect autoplay restrictions and fail silently.
+        }
+    }
+
+    function bindDmNotificationAudioUnlock() {
+        if (dmNotificationAudioUnlockBound) return;
+        dmNotificationAudioUnlockBound = true;
+
+        ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
+            document.addEventListener(eventName, () => {
+                void primeDmNotificationAudio();
+            }, { passive: true, once: true });
+        });
+    }
+
     async function ensureDmNotificationAudioContext() {
         const context = getDmNotificationAudioContext();
         if (!context) {
@@ -891,9 +945,10 @@
         const choice = String(dmNotificationSoundConfig?.choice || 'off');
         const enabled = !!dmNotificationSoundConfig?.enabled && choice !== 'off';
         const url = typeof dmNotificationSoundConfig?.url === 'string' ? dmNotificationSoundConfig.url.trim() : '';
+        const volume = clampDmNotificationVolume(dmNotificationSoundConfig?.volume ?? 60);
 
         if (!enabled) {
-            return { enabled: false, type: 'off', choice, url: '' };
+            return { enabled: false, type: 'off', choice, url: '', volume };
         }
 
         if (choice === 'custom') {
@@ -902,6 +957,7 @@
                 type: 'custom',
                 choice,
                 url,
+                volume,
             };
         }
 
@@ -910,6 +966,7 @@
             type: 'built_in',
             choice,
             url: '',
+            volume,
         };
     }
 
@@ -930,33 +987,41 @@
         oscillator.stop(startAt + duration + 0.02);
     }
 
+    function markDmNotificationPlayback() {
+        lastDmNotificationPlaybackAt = Date.now();
+    }
+
+    function isDmNotificationInCooldown() {
+        return Date.now() - lastDmNotificationPlaybackAt < dmNotificationCooldownMs;
+    }
+
     async function playBuiltInDmNotificationSound(choice) {
         const context = await ensureDmNotificationAudioContext();
         const now = context.currentTime + 0.02;
         const master = context.createGain();
-        master.gain.value = 0.12;
+        master.gain.value = normalizedDmNotificationVolume();
         master.connect(context.destination);
 
         if (choice === 'soft_chime') {
-            scheduleDmNotificationTone(context, master, 'sine', 587.33, now, 0.3, 0.16);
-            scheduleDmNotificationTone(context, master, 'sine', 783.99, now + 0.15, 0.42, 0.14);
+            scheduleDmNotificationTone(context, master, 'sine', 587.33, now, 0.3, 0.48);
+            scheduleDmNotificationTone(context, master, 'sine', 783.99, now + 0.15, 0.42, 0.42);
             return;
         }
 
         if (choice === 'bell') {
-            scheduleDmNotificationTone(context, master, 'triangle', 659.25, now, 0.46, 0.18);
-            scheduleDmNotificationTone(context, master, 'sine', 987.77, now + 0.02, 0.62, 0.08);
+            scheduleDmNotificationTone(context, master, 'triangle', 659.25, now, 0.46, 0.55);
+            scheduleDmNotificationTone(context, master, 'sine', 987.77, now + 0.02, 0.62, 0.2);
             return;
         }
 
         if (choice === 'click_tick') {
-            scheduleDmNotificationTone(context, master, 'square', 1046.5, now, 0.04, 0.08);
-            scheduleDmNotificationTone(context, master, 'square', 880, now + 0.12, 0.04, 0.07);
+            scheduleDmNotificationTone(context, master, 'square', 1046.5, now, 0.04, 0.28);
+            scheduleDmNotificationTone(context, master, 'square', 880, now + 0.12, 0.04, 0.22);
             return;
         }
 
-        scheduleDmNotificationTone(context, master, 'triangle', 523.25, now, 0.16, 0.12);
-        scheduleDmNotificationTone(context, master, 'triangle', 783.99, now + 0.14, 0.24, 0.12);
+        scheduleDmNotificationTone(context, master, 'triangle', 523.25, now, 0.16, 0.4);
+        scheduleDmNotificationTone(context, master, 'triangle', 783.99, now + 0.14, 0.24, 0.38);
     }
 
     async function playCustomDmNotificationSound(url) {
@@ -966,20 +1031,24 @@
 
         const audio = new Audio(url);
         audio.preload = 'none';
-        audio.volume = 0.8;
+        audio.volume = normalizedDmNotificationVolume();
         await audio.play();
     }
 
     async function playBuiltInDmNotificationFallbackSound() {
         const audio = new Audio(builtInDmNotificationFallbackUrl);
         audio.preload = 'auto';
-        audio.volume = 0.8;
+        audio.volume = normalizedDmNotificationVolume();
         await audio.play();
     }
 
-    function playDmNotificationSound() {
+    function playDmNotificationSound(options = {}) {
+        const { bypassCooldown = false } = options;
         const sound = resolveDmNotificationSound();
         if (!sound.enabled) return;
+        if (!bypassCooldown && isDmNotificationInCooldown()) return;
+
+        markDmNotificationPlayback();
 
         const playback = sound.type === 'custom'
             ? playCustomDmNotificationSound(sound.url)
@@ -988,8 +1057,8 @@
                 return playBuiltInDmNotificationFallbackSound();
             });
 
-        Promise.resolve(playback).catch((error) => {
-            console.warn('DM notification sound playback failed:', error);
+        Promise.resolve(playback).catch(() => {
+            // Respect autoplay restrictions and fail silently.
         });
     }
 
@@ -1020,12 +1089,41 @@
         return true;
     }
 
-    function handleGlobalDmNotification(event) {
-        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+    function roomsNeedingDmNotificationFallback(previousRooms, nextRooms) {
+        const previousByRoomId = new Map(
+            (Array.isArray(previousRooms) ? previousRooms : [])
+                .map(normalizeRoom)
+                .filter((room) => room.roomId > 0)
+                .map((room) => [room.roomId, room])
+        );
 
+        return (Array.isArray(nextRooms) ? nextRooms : [])
+            .map(normalizeRoom)
+            .filter((room) => {
+                if (!room.roomId) return false;
+                if (isOpen() && activeDm.conversationId === room.roomId) return false;
+
+                const previousUnread = parseUnreadCount(previousByRoomId.get(room.roomId)?.unreadCount ?? 0);
+                const nextUnread = parseUnreadCount(room.unreadCount);
+
+                return nextUnread > previousUnread;
+            });
+    }
+
+    function maybePlayDmNotificationFromRooms(previousRooms, nextRooms) {
+        if (!roomsLoaded) return;
+        if (isDmNotificationInCooldown()) return;
+        if (roomsNeedingDmNotificationFallback(previousRooms, nextRooms).length === 0) return;
+
+        playDmNotificationSound();
+    }
+
+    function handleGlobalDmNotification(event) {
         if (shouldPlayDmNotificationEvent(event)) {
-            playDmNotificationSound();
+            playDmNotificationSound({ bypassCooldown: true });
         }
+
+        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
     }
 
     function formatUnreadCount(count) {
@@ -1458,6 +1556,8 @@
             setRoomListMessage('Loading...');
         }
 
+        const previousRooms = Array.from(dmRoomsBySlug.values());
+
         return fetch('/dms', {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
@@ -1474,6 +1574,7 @@
 
             try {
                 renderRooms(rooms);
+                maybePlayDmNotificationFromRooms(previousRooms, rooms);
             } catch (error) {
                 console.error('DM list render error:', error);
                 if (!roomsLoaded) setRoomListMessage('Could not load DMs.', true);
@@ -1844,13 +1945,25 @@
 
 
     function startGlobalDmNotificationRealtime() {
-        if (dmGlobalNotificationBound || !window.Echo || !dmNotificationUserId) return;
+        if (dmGlobalNotificationBound) return;
+
+        if (!window.Echo || !dmNotificationUserId) {
+            logDmNotificationDiagnosticOnce('dm-notification-realtime-unavailable', 'DM notification realtime is unavailable.');
+            return;
+        }
 
         dmGlobalNotificationBound = true;
-        window.Echo.private(`dm-notifications.${dmNotificationUserId}`)
+
+        const channel = window.Echo.private(`dm-notifications.${dmNotificationUserId}`)
             .listen('.dm.notification.created', (event) => {
                 handleGlobalDmNotification(event || {});
             });
+
+        if (typeof channel?.error === 'function') {
+            channel.error((error) => {
+                logDmNotificationDiagnosticOnce('dm-notification-subscription-error', 'DM notification realtime subscription failed.', error);
+            });
+        }
     }
 
     function startDmRealtime() {
@@ -2183,6 +2296,7 @@
     });
     observer.observe(dmWindow, { attributes: true, attributeFilter: ['class'] });
 
+    bindDmNotificationAudioUnlock();
     startGlobalDmNotificationRealtime();
     fetchDmRooms({ showLoading: false, allowWhenClosed: true });
     window.setInterval(() => {

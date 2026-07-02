@@ -39,13 +39,14 @@ class ProfileUpdateRequest extends FormRequest
 
                     $path = (string) parse_url((string) $value, PHP_URL_PATH);
                     $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
-                    $allowedExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+                    $allowedExtensions = ['mp3', 'ogg', 'wav', 'm4a'];
 
                     if (!in_array($extension, $allowedExtensions, true)) {
                         $fail('The custom DM notification sound URL must point to a supported audio file.');
                     }
                 },
             ],
+            'dm_notification_volume' => ['nullable', 'integer', 'min:0', 'max:100'],
         ];
     }
 

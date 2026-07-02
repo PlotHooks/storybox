@@ -4,6 +4,7 @@
     $soundOptions = User::dmNotificationSoundOptions();
     $selectedSound = old('dm_notification_sound_choice', $user->dm_notification_sound_choice ?: User::DM_NOTIFICATION_SOUND_DEFAULT);
     $customSoundUrl = old('dm_notification_sound_url', $user->dm_notification_sound_url);
+    $selectedVolume = User::clampDmNotificationVolume((int) old('dm_notification_volume', $user->dm_notification_volume ?? User::DM_NOTIFICATION_VOLUME_DEFAULT));
     $soundEnabled = $selectedSound !== User::DM_NOTIFICATION_SOUND_OFF;
 @endphp
 
@@ -41,6 +42,28 @@
             <x-input-error class="mt-2" :messages="$errors->get('dm_notification_sound_choice')" />
         </div>
 
+        <div data-dm-sound-volume-row>
+            <div class="flex items-center justify-between gap-3">
+                <x-input-label for="dm_notification_volume" :value="__('Volume')" />
+                <span class="text-sm text-gray-600" data-dm-sound-volume-label>{{ $selectedVolume }}%</span>
+            </div>
+            <input
+                id="dm_notification_volume"
+                name="dm_notification_volume"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="{{ $selectedVolume }}"
+                class="mt-3 block w-full"
+                data-dm-sound-volume
+            >
+            <p class="mt-1 text-sm text-gray-600">
+                {{ __('Applies to built-in sounds, hosted custom sounds, live DM notifications, and preview playback.') }}
+            </p>
+            <x-input-error class="mt-2" :messages="$errors->get('dm_notification_volume')" />
+        </div>
+
         <div>
             <x-input-label for="dm_notification_sound_url" :value="__('Custom Hosted Sound URL')" />
             <x-text-input
@@ -54,7 +77,7 @@
                 data-dm-sound-url
             />
             <p class="mt-1 text-sm text-gray-600">
-                {{ __('No uploads. Custom sounds must be hosted elsewhere and use a common audio file extension such as .mp3, .ogg, .wav, .m4a, .aac, or .webm.') }}
+                {{ __('No uploads. Custom sounds must be hosted elsewhere and use a common audio file extension such as .mp3, .ogg, .wav, or .m4a.') }}
             </p>
             <x-input-error class="mt-2" :messages="$errors->get('dm_notification_sound_url')" />
         </div>
@@ -91,10 +114,13 @@
     const choiceInput = form.querySelector('[data-dm-sound-choice]');
     const urlInput = form.querySelector('[data-dm-sound-url]');
     const enabledInput = form.querySelector('[data-dm-sound-enabled]');
+    const volumeInput = form.querySelector('[data-dm-sound-volume]');
+    const volumeRow = form.querySelector('[data-dm-sound-volume-row]');
+    const volumeLabel = form.querySelector('[data-dm-sound-volume-label]');
     const previewButton = form.querySelector('[data-dm-sound-preview]');
     const customChoice = @json(User::DM_NOTIFICATION_SOUND_CUSTOM);
     const offChoice = @json(User::DM_NOTIFICATION_SOUND_OFF);
-    const supportedExtensions = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'webm'];
+    const supportedExtensions = ['mp3', 'ogg', 'wav', 'm4a'];
     const builtInFallbackUrl = @json(asset('audio/dm-default.wav'));
     let audioContext = null;
 
@@ -106,6 +132,21 @@
         }
 
         return audioContext;
+    }
+
+    function clampVolume(value) {
+        const normalized = parseInt(value || '0', 10);
+        if (!Number.isFinite(normalized)) return @json(User::DM_NOTIFICATION_VOLUME_DEFAULT);
+        return Math.max(0, Math.min(100, normalized));
+    }
+
+    function normalizedVolume() {
+        return clampVolume(volumeInput?.value || @json($selectedVolume)) / 100;
+    }
+
+    function updateVolumeLabel() {
+        if (!volumeLabel) return;
+        volumeLabel.textContent = `${clampVolume(volumeInput?.value || @json($selectedVolume))}%`;
     }
 
     function isSafeHostedAudioUrl(url) {
@@ -163,29 +204,29 @@
         const context = await ensureAudioContext();
         const now = context.currentTime + 0.02;
         const master = context.createGain();
-        master.gain.value = 0.12;
+        master.gain.value = normalizedVolume();
         master.connect(context.destination);
 
         if (choice === 'soft_chime') {
-            scheduleTone(context, master, 'sine', 587.33, now, 0.32, 0.18);
-            scheduleTone(context, master, 'sine', 783.99, now + 0.16, 0.48, 0.16);
+            scheduleTone(context, master, 'sine', 587.33, now, 0.32, 0.5);
+            scheduleTone(context, master, 'sine', 783.99, now + 0.16, 0.48, 0.45);
             return;
         }
 
         if (choice === 'bell') {
-            scheduleTone(context, master, 'triangle', 659.25, now, 0.52, 0.2);
-            scheduleTone(context, master, 'sine', 987.77, now + 0.02, 0.68, 0.08);
+            scheduleTone(context, master, 'triangle', 659.25, now, 0.52, 0.55);
+            scheduleTone(context, master, 'sine', 987.77, now + 0.02, 0.68, 0.22);
             return;
         }
 
         if (choice === 'click_tick') {
-            scheduleTone(context, master, 'square', 1046.5, now, 0.045, 0.09);
-            scheduleTone(context, master, 'square', 880, now + 0.12, 0.045, 0.08);
+            scheduleTone(context, master, 'square', 1046.5, now, 0.045, 0.28);
+            scheduleTone(context, master, 'square', 880, now + 0.12, 0.045, 0.22);
             return;
         }
 
-        scheduleTone(context, master, 'triangle', 523.25, now, 0.18, 0.14);
-        scheduleTone(context, master, 'triangle', 783.99, now + 0.14, 0.28, 0.14);
+        scheduleTone(context, master, 'triangle', 523.25, now, 0.18, 0.42);
+        scheduleTone(context, master, 'triangle', 783.99, now + 0.14, 0.28, 0.4);
     }
 
     async function playCustomPreview(url) {
@@ -195,14 +236,14 @@
 
         const audio = new Audio(url);
         audio.preload = 'none';
-        audio.volume = 0.8;
+        audio.volume = normalizedVolume();
         await audio.play();
     }
 
     async function playBuiltInFallbackPreview() {
         const audio = new Audio(builtInFallbackUrl);
         audio.preload = 'auto';
-        audio.volume = 0.8;
+        audio.volume = normalizedVolume();
         await audio.play();
     }
 
@@ -219,12 +260,19 @@
             urlInput.disabled = !customSelected;
         }
 
+        if (volumeRow) {
+            volumeRow.classList.toggle('hidden', !enabled);
+        }
+
         if (previewButton) {
             previewButton.disabled = !enabled;
         }
+
+        updateVolumeLabel();
     }
 
     choiceInput?.addEventListener('change', syncFormState);
+    volumeInput?.addEventListener('input', updateVolumeLabel);
     syncFormState();
 
     previewButton?.addEventListener('click', async () => {

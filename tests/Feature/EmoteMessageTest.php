@@ -62,6 +62,32 @@ class EmoteMessageTest extends TestCase
         ]);
     }
 
+    public function test_multiline_me_command_creates_an_emote_message(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Victor');
+        $room = $this->createPublicRoom($user);
+
+        $body = "/me Victor hadn't moved in the slightest.\n\nHe squared his shoulders and waited.";
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $character->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $character),
+                'body' => $body,
+            ])
+            ->assertOk()
+            ->assertJsonPath('type', Message::TYPE_EMOTE)
+            ->assertJsonPath('body', "Victor hadn't moved in the slightest.\n\nHe squared his shoulders and waited.");
+
+        $this->assertDatabaseHas('messages', [
+            'room_id' => $room->id,
+            'character_id' => $character->id,
+            'type' => Message::TYPE_EMOTE,
+            'body' => "Victor hadn't moved in the slightest.\n\nHe squared his shoulders and waited.",
+        ]);
+    }
+
     public function test_emote_renders_as_character_name_followed_by_action_text(): void
     {
         [$user, $character] = $this->createUserWithCharacter('Victor');

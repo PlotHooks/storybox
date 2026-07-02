@@ -32,6 +32,9 @@ class ProfileController extends Controller
         $customSoundUrl = array_key_exists('dm_notification_sound_url', $validated)
             ? $this->nullableTrim($validated['dm_notification_sound_url'] ?? null)
             : $user->dm_notification_sound_url;
+        $volume = array_key_exists('dm_notification_volume', $validated)
+            ? User::clampDmNotificationVolume((int) $validated['dm_notification_volume'])
+            : User::clampDmNotificationVolume((int) ($user->dm_notification_volume ?? User::DM_NOTIFICATION_VOLUME_DEFAULT));
 
         $user->fill([
             'name' => $validated['name'],
@@ -39,6 +42,7 @@ class ProfileController extends Controller
             'dm_notification_sound_enabled' => $soundEnabled,
             'dm_notification_sound_choice' => $choice,
             'dm_notification_sound_url' => $customSoundUrl,
+            'dm_notification_volume' => $volume,
         ]);
 
         if ($user->isDirty('email')) {

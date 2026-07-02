@@ -14,7 +14,7 @@ class ChatInputParser
 
     public function parse(string $input): array
     {
-        if (preg_match('/^\/me\b(.*)$/i', $input, $matches) === 1) {
+        if (preg_match('/^\/me\b(.*)$/is', $input, $matches) === 1) {
             $action = trim($matches[1] ?? '');
 
             if ($action === '') {

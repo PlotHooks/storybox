@@ -21,6 +21,7 @@ class User extends Authenticatable implements FilamentUser
     public const DM_NOTIFICATION_SOUND_BELL = 'bell';
     public const DM_NOTIFICATION_SOUND_CLICK_TICK = 'click_tick';
     public const DM_NOTIFICATION_SOUND_CUSTOM = 'custom';
+    public const DM_NOTIFICATION_VOLUME_DEFAULT = 60;
 
     protected $fillable = [
         'name',
@@ -30,6 +31,7 @@ class User extends Authenticatable implements FilamentUser
         'dm_notification_sound_enabled',
         'dm_notification_sound_choice',
         'dm_notification_sound_url',
+        'dm_notification_volume',
     ];
 
     protected $hidden = [
@@ -45,6 +47,7 @@ class User extends Authenticatable implements FilamentUser
             'banned_until' => 'datetime',
             'password' => 'hashed',
             'dm_notification_sound_enabled' => 'boolean',
+            'dm_notification_volume' => 'integer',
         ];
     }
 
@@ -72,16 +75,23 @@ class User extends Authenticatable implements FilamentUser
         ];
     }
 
+    public static function clampDmNotificationVolume(int $volume): int
+    {
+        return max(0, min(100, $volume));
+    }
+
     public function dmNotificationSoundPreferences(): array
     {
         $choice = in_array($this->dm_notification_sound_choice, self::dmNotificationSoundChoices(), true)
             ? $this->dm_notification_sound_choice
             : self::DM_NOTIFICATION_SOUND_DEFAULT;
+        $volume = self::clampDmNotificationVolume((int) ($this->dm_notification_volume ?? self::DM_NOTIFICATION_VOLUME_DEFAULT));
 
         return [
             'enabled' => (bool) $this->dm_notification_sound_enabled && $choice !== self::DM_NOTIFICATION_SOUND_OFF,
             'choice' => $choice,
             'url' => $this->dm_notification_sound_url,
+            'volume' => $volume,
         ];
     }
 
