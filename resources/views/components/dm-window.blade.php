@@ -269,6 +269,7 @@
     let activeRealtimeConversationId = 0;
     let dmReconnectHandlerBound = false;
     let dmGlobalNotificationBound = false;
+    let dmGlobalNotificationChannel = null;
     let dmConversationFilter = '';
     const playedDmNotificationIds = [];
     const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a'];
@@ -1945,22 +1946,22 @@
 
 
     function startGlobalDmNotificationRealtime() {
-        if (dmGlobalNotificationBound) return;
-
         if (!window.Echo || !dmNotificationUserId) {
             logDmNotificationDiagnosticOnce('dm-notification-realtime-unavailable', 'DM notification realtime is unavailable.');
             return;
         }
 
+        if (dmGlobalNotificationBound && dmGlobalNotificationChannel) return;
+
         dmGlobalNotificationBound = true;
 
-        const channel = window.Echo.private(`dm-notifications.${dmNotificationUserId}`)
+        dmGlobalNotificationChannel = window.Echo.private(`dm-notifications.${dmNotificationUserId}`)
             .listen('.dm.notification.created', (event) => {
                 handleGlobalDmNotification(event || {});
             });
 
-        if (typeof channel?.error === 'function') {
-            channel.error((error) => {
+        if (typeof dmGlobalNotificationChannel?.error === 'function') {
+            dmGlobalNotificationChannel.error((error) => {
                 logDmNotificationDiagnosticOnce('dm-notification-subscription-error', 'DM notification realtime subscription failed.', error);
             });
         }
@@ -2232,6 +2233,10 @@
         startGlobalDmNotificationRealtime();
         fetchDmRooms({ showLoading: false, allowWhenClosed: true });
         if (isOpen() && activeDm.slug) pollConversation();
+    });
+
+    window.addEventListener('storybox:echo-ready', () => {
+        startGlobalDmNotificationRealtime();
     });
 
     /*

@@ -27,3 +27,5 @@ window.Echo = new Echo({
         },
     }),
 });
+
+window.dispatchEvent(new CustomEvent('storybox:echo-ready'));
