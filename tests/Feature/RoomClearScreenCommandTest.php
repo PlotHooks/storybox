@@ -12,6 +12,8 @@ use App\Models\RoomCharacterRole;
 use App\Models\User;
 use App\Services\ChatInputParser;
 use App\Services\RoomParticipationStateService;
+use Illuminate\Broadcasting\BroadcastException;
+use App\Http\Controllers\RoomController;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -288,6 +290,44 @@ class RoomClearScreenCommandTest extends TestCase
             ->assertOk()
             ->assertSee('History keeps this one.')
             ->assertSee('History keeps this too.');
+    }
+
+    public function test_cls_still_succeeds_when_room_display_clear_broadcast_fails(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $message = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $otherUser->id,
+            'character_id' => $otherCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'Persist this before clear.',
+        ]);
+
+        $controller = \Mockery::mock(RoomController::class, [app(\App\Services\RoomAccessService::class)])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $controller->shouldReceive('broadcastRoomDisplayCleared')
+            ->once()
+            ->andThrow(new BroadcastException('Pusher error: Internal server error'));
+        app()->instance(RoomController::class, $controller);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $ownerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $ownerCharacter),
+                'body' => '/cls',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('command', 'cls');
+
+        $room->refresh();
+        $this->assertSame($message->id, (int) $room->display_cleared_after_message_id);
+        $this->assertDatabaseHas('messages', ['id' => $message->id, 'room_id' => $room->id]);
     }
 
     public function test_cls_broadcast_is_only_for_the_target_room(): void

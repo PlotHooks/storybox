@@ -909,6 +909,12 @@ CSS;
             ->values();
     }
 
+    protected function broadcastRoomDisplayCleared(Room $room, Character $character): void
+    {
+        $pendingBroadcast = broadcast(new RoomDisplayCleared($room, $character))->toOthers();
+        unset($pendingBroadcast);
+    }
+
     private function applyLiveRoomDisplayClearScope($query, Room $room)
     {
         if (! $room->isPublicRoom()) {
@@ -1228,7 +1234,17 @@ CSS;
                 'display_cleared_after_message_id' => $displayClearMarker > 0 ? $displayClearMarker : null,
             ])->save();
 
-            broadcast(new RoomDisplayCleared($room->fresh(), $character))->toOthers();
+            try {
+                $this->broadcastRoomDisplayCleared($room->fresh(), $character);
+            } catch (\Throwable $exception) {
+                Log::warning('Room display clear broadcast failed', [
+                    'room_id' => (int) $room->id,
+                    'user_id' => (int) Auth::id(),
+                    'character_id' => (int) $character->id,
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'ok' => true,
