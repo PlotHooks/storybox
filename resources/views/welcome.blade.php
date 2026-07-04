@@ -23,7 +23,7 @@
                 <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.3)_0%,rgba(5,5,5,0.62)_42%,rgba(5,5,5,0.9)_72%,#050505_100%)]" aria-hidden="true"></div>
                 <div class="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,#050505_90%)]" aria-hidden="true"></div>
 
-                <div class="relative mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
+                <div class="relative z-20 mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
                     <div class="mx-auto flex max-w-2xl flex-col items-center text-center">
                         <x-storybox-logo class="h-16 w-auto sm:h-20" />
 
