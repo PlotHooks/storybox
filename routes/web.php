@@ -15,7 +15,26 @@ use App\Http\Controllers\RoomManagementController;
 use App\Http\Controllers\WorldBookController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/chat');
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('rooms.landing');
+    }
+
+    return view('welcome');
+})->name('landing');
+
+Route::get('/about', [SiteContentController::class, 'showPublicCategory'])
+    ->defaults('category', 'about-storybox')
+    ->name('public.about');
+Route::get('/rules-faq', [SiteContentController::class, 'showPublicCollection'])
+    ->defaults('collection', 'rules-faq')
+    ->name('public.rules-faq');
+Route::get('/privacy-policy', [SiteContentController::class, 'showPublicCategory'])
+    ->defaults('category', 'privacy-policy')
+    ->name('public.privacy-policy');
+Route::get('/terms-of-service', [SiteContentController::class, 'showPublicCategory'])
+    ->defaults('category', 'terms-of-service')
+    ->name('public.terms-of-service');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SiteContent;
 use App\Services\MessageRichTextRenderer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\View\View;
 
 class SiteContentController extends Controller
 {
@@ -34,10 +35,10 @@ class SiteContentController extends Controller
                     'slug' => $document->slug,
                     'collection' => $category,
                     'category_label' => SiteContent::categoryLabel($category),
-                'body' => $document->body,
-                'rendered_body_html' => $this->renderer->render($document->body),
-                'sort_order' => $document->sort_order,
-                'last_updated_at' => optional($document->updated_at)->toIso8601String(),
+                    'body' => $document->body,
+                    'rendered_body_html' => $this->renderer->render($document->body),
+                    'sort_order' => $document->sort_order,
+                    'last_updated_at' => optional($document->updated_at)->toIso8601String(),
                 ];
             })
             ->values();
@@ -60,6 +61,60 @@ class SiteContentController extends Controller
             'collection' => $collection,
             'default_category' => $defaultCategory['key'] ?? null,
             'categories' => $categories->all(),
+        ]);
+    }
+
+    public function showPublicCategory(string $category): View
+    {
+        $documents = SiteContent::query()
+            ->published()
+            ->forCategory($category)
+            ->ordered()
+            ->get()
+            ->map(fn (SiteContent $document): array => [
+                'title' => $document->title,
+                'rendered_body_html' => $this->renderer->render($document->body),
+                'updated_at' => optional($document->updated_at)?->toFormattedDateString(),
+            ])
+            ->values();
+
+        abort_if($documents->isEmpty(), 404);
+
+        return view('site-content.public', [
+            'pageTitle' => SiteContent::categoryLabel($category),
+            'headline' => SiteContent::categoryLabel($category),
+            'documents' => $documents,
+        ]);
+    }
+
+    public function showPublicCollection(string $collection): View
+    {
+        $documents = SiteContent::query()
+            ->published()
+            ->forPublicCollection($collection)
+            ->ordered()
+            ->get()
+            ->map(function (SiteContent $document): array {
+                $category = $document->collection === SiteContent::PUBLIC_COLLECTION_RULES_FAQ
+                    && in_array($document->slug, [SiteContent::CATEGORY_RULES, SiteContent::CATEGORY_FAQ], true)
+                    ? $document->slug
+                    : $document->collection;
+
+                return [
+                    'title' => $document->title,
+                    'category_label' => SiteContent::categoryLabel($category),
+                    'rendered_body_html' => $this->renderer->render($document->body),
+                    'updated_at' => optional($document->updated_at)?->toFormattedDateString(),
+                ];
+            })
+            ->values();
+
+        abort_if($documents->isEmpty(), 404);
+
+        return view('site-content.public', [
+            'pageTitle' => SiteContent::publicCollectionOptions()[$collection] ?? 'Storybox',
+            'headline' => SiteContent::publicCollectionOptions()[$collection] ?? 'Storybox',
+            'documents' => $documents,
         ]);
     }
 }

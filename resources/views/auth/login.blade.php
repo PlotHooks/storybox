@@ -26,7 +26,7 @@
             </label>
         </div>
 
-        <div class="flex flex-col gap-4 pt-2">
+        <div class="flex flex-col items-center gap-4 pt-2 text-center">
             <div class="text-sm text-[#b9ab8d]">
                 @if (Route::has('register'))
                     {{ __('New here?') }}
@@ -36,14 +36,14 @@
                 @endif
             </div>
 
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col items-center gap-3 pt-1">
                 @if (Route::has('password.request'))
                     <a class="rounded-md text-sm font-medium text-[#d6c8ad] underline decoration-amber-500/50 underline-offset-4 transition hover:text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#050505]" href="{{ route('password.request') }}">
                         {{ __('Forgot your password?') }}
                     </a>
                 @endif
 
-                <x-primary-button class="justify-center whitespace-nowrap px-5 sm:ms-auto">
+                <x-primary-button class="justify-center whitespace-nowrap px-5">
                     {{ __('Log in') }}
                 </x-primary-button>
             </div>

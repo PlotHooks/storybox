@@ -14,10 +14,20 @@ class RoomLandingRedirectTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_root_redirects_to_chat_landing(): void
+    public function test_root_shows_the_public_landing_page_for_guests(): void
     {
         $this->get('/')
-            ->assertRedirect('/chat');
+            ->assertOk()
+            ->assertSee('Collaborative roleplaying, built for writers.');
+    }
+
+    public function test_root_redirects_authenticated_users_to_chat_landing(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/')
+            ->assertRedirect(route('rooms.landing', absolute: false));
     }
 
     public function test_chat_landing_redirects_to_current_accessible_room(): void

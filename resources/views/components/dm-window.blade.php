@@ -1946,7 +1946,11 @@
 
 
     function startGlobalDmNotificationRealtime() {
-        if (!window.Echo || !dmNotificationUserId) {
+        if (!window.Echo) {
+            return;
+        }
+
+        if (!dmNotificationUserId) {
             logDmNotificationDiagnosticOnce('dm-notification-realtime-unavailable', 'DM notification realtime is unavailable.');
             return;
         }
