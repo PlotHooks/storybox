@@ -657,6 +657,12 @@
                         </button>
                     </div>
 
+                    <div
+                        id="message-error-notice"
+                        class="hidden mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200"
+                        role="alert"
+                    ></div>
+
                     <form method="POST" action="{{ route('rooms.messages.store', $room) }}" id="message-form">
                         @csrf
 
@@ -1021,6 +1027,7 @@
         const contentMirror = document.getElementById('content-mirror');
         const submitButton = form?.querySelector('button[type="submit"], [type="submit"]');
         const missingCharacterNotice = document.getElementById('missing-character-notice');
+        const composerErrorNotice = document.getElementById('message-error-notice');
         const composerStatus = document.getElementById('message-composer-status');
         let isSubmittingMessage = false;
 
@@ -1983,6 +1990,18 @@
             }
         }
 
+        function showComposerError(message = 'Could not send message.') {
+            if (!composerErrorNotice) return;
+            composerErrorNotice.textContent = message;
+            composerErrorNotice.classList.remove('hidden');
+        }
+
+        function clearComposerError() {
+            if (!composerErrorNotice) return;
+            composerErrorNotice.textContent = '';
+            composerErrorNotice.classList.add('hidden');
+        }
+
         function updateComposerAvailability() {
             const canPost = getTabCharacterId() > 0;
 
@@ -2006,6 +2025,8 @@
             }
         }
 
+        textarea?.addEventListener('input', clearComposerError);
+
         textarea?.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -2015,6 +2036,7 @@
         });
 
         form?.addEventListener('submit', async function(e) {
+            clearComposerError();
             syncContentMirror();
             const id = getTabCharacterId();
             if (hiddenChar) hiddenChar.value = String(id);
@@ -2074,6 +2096,15 @@
                     return;
                 }
 
+                const bodyMessage = Array.isArray(error?.data?.errors?.body) ? error.data.errors.body[0] : null;
+                const isClsCommand = body.toLowerCase() === '/cls';
+                const fallbackMessage = isClsCommand && error?.status === 403
+                    ? 'Only room owners, moderators, or admins can use /cls.'
+                    : (isClsCommand && error?.status === 422
+                        ? 'The /cls command is only available in rooms.'
+                        : 'Could not send message.');
+
+                showComposerError(bodyMessage || error?.data?.message || fallbackMessage);
                 return;
             } finally {
                 isSubmittingMessage = false;

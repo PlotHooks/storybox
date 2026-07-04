@@ -183,6 +183,113 @@ class RoomClearScreenCommandTest extends TestCase
         $this->assertSame(2, Message::query()->where('room_id', $room->id)->count());
     }
 
+    public function test_cls_persists_live_room_clear_marker_and_refresh_excludes_pre_clear_messages(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $firstMessage = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $ownerUser->id,
+            'character_id' => $ownerCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'Older message one.',
+        ]);
+
+        $secondMessage = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $otherUser->id,
+            'character_id' => $otherCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'Older message two.',
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $ownerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $ownerCharacter),
+                'body' => '/cls',
+            ])
+            ->assertOk();
+
+        $room->refresh();
+        $this->assertSame($secondMessage->id, (int) $room->display_cleared_after_message_id);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->assertDontSee('Older message one.')
+            ->assertDontSee('Older message two.');
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->getJson(route('rooms.messages.index', $room->slug))
+            ->assertOk()
+            ->assertJsonCount(0);
+
+        Message::create([
+            'room_id' => $room->id,
+            'user_id' => $ownerUser->id,
+            'character_id' => $ownerCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'Visible after clear.',
+        ]);
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->get(route('rooms.show', $room->slug))
+            ->assertOk()
+            ->assertSee('Visible after clear.')
+            ->assertDontSee('Older message one.')
+            ->assertDontSee('Older message two.');
+    }
+
+    public function test_room_history_still_includes_messages_from_before_cls(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        [$otherUser, $otherCharacter] = $this->createUserWithCharacter();
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $firstMessage = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $ownerUser->id,
+            'character_id' => $ownerCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'History keeps this one.',
+        ]);
+
+        $secondMessage = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $otherUser->id,
+            'character_id' => $otherCharacter->id,
+            'type' => Message::TYPE_NORMAL,
+            'body' => 'History keeps this too.',
+        ]);
+
+        $timestamp = now()->subHour();
+        $firstMessage->forceFill(['created_at' => $timestamp, 'updated_at' => $timestamp])->save();
+        $secondMessage->forceFill(['created_at' => $timestamp->copy()->addMinute(), 'updated_at' => $timestamp->copy()->addMinute()])->save();
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->postJson(route('rooms.messages.store', $room->slug), [
+                'character_id' => $ownerCharacter->id,
+                'room_participation_token' => $this->issueParticipationToken($room, $ownerCharacter),
+                'body' => '/cls',
+            ])
+            ->assertOk();
+
+        $this->actingAs($ownerUser)
+            ->withSession(['active_character_id' => $ownerCharacter->id])
+            ->get(route('rooms.history.show', ['room' => $room->slug, 'day' => $timestamp->toDateString()]))
+            ->assertOk()
+            ->assertSee('History keeps this one.')
+            ->assertSee('History keeps this too.');
+    }
+
     public function test_cls_broadcast_is_only_for_the_target_room(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();

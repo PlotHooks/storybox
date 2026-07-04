@@ -122,9 +122,12 @@ class RoomController extends Controller
             }
         }
 
-        $messages = $room->messages()
-            ->withTrashed()
-            ->with(['character', 'user'])
+        $messages = $this->applyLiveRoomDisplayClearScope(
+            $room->messages()
+                ->withTrashed()
+                ->with(['character', 'user']),
+            $room,
+        )
             ->latest()
             ->take(50)
             ->get()
@@ -868,6 +871,8 @@ CSS;
             $query->withTrashed();
         }
 
+        $query = $this->applyLiveRoomDisplayClearScope($query, $conversation);
+
         if ($seek['mode'] === 'before') {
             return $query->where('id', '<', $seek['before_id'])
                 ->orderByDesc('id')
@@ -902,6 +907,21 @@ CSS;
             ->get()
             ->reverse()
             ->values();
+    }
+
+    private function applyLiveRoomDisplayClearScope($query, Room $room)
+    {
+        if (! $room->isPublicRoom()) {
+            return $query;
+        }
+
+        $displayClearMarker = (int) ($room->display_cleared_after_message_id ?? 0);
+
+        if ($displayClearMarker <= 0) {
+            return $query;
+        }
+
+        return $query->where('id', '>', $displayClearMarker);
     }
 
     private function serializeRoomMessage(Message $message): array
@@ -1197,13 +1217,18 @@ CSS;
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
 
         if (($parsedMessage['command'] ?? null) === 'cls') {
-            abort_if($room->type === Room::TYPE_DM, 422, 'The /cls command is only available in rooms.');
+            abort_unless($room->isPublicRoom(), 422, 'The /cls command is only available in rooms.');
 
             $character = $this->ownedCharacterById($characterId);
             abort_if($character === null, 403);
             abort_unless($this->roomAccess->canModerateRoom(Auth::user(), $room, $character), 403);
 
-            broadcast(new RoomDisplayCleared($room, $character))->toOthers();
+            $displayClearMarker = (int) ($room->messages()->withTrashed()->max('id') ?? 0);
+            $room->forceFill([
+                'display_cleared_after_message_id' => $displayClearMarker > 0 ? $displayClearMarker : null,
+            ])->save();
+
+            broadcast(new RoomDisplayCleared($room->fresh(), $character))->toOthers();
 
             return response()->json([
                 'ok' => true,

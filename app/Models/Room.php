@@ -53,6 +53,7 @@ class Room extends Model
         'profile_custom_css',
         'profile_custom_js',
         'last_posted_at',
+        'display_cleared_after_message_id',
     ];
 
     protected function casts(): array
