@@ -112,9 +112,11 @@ Use this exact sequence unless the task explicitly requires `npm run dev` or HMR
 4. `rm -f public/hot`
 5. `php artisan optimize:clear`
 6. `npm run build`
-7. `php artisan serve --host=0.0.0.0 --port=8000`
+7. `php artisan reverb:start --host=0.0.0.0 --port=8080`
+8. `php artisan serve --host=0.0.0.0 --port=8000`
 
 Rules:
 - Do not start `npm run dev` by default in Codespaces for this repo.
 - Remove `public/hot` before starting Laravel so built assets from `public/build` are used.
+- Start Reverb during local/Codespaces startup when `BROADCAST_CONNECTION=reverb`, or realtime-only commands like `/cls` will fail.
 - If CSS looks wrong in Codespaces, verify `public/hot` is absent before investigating routes or layouts.

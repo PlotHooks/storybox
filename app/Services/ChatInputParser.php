@@ -14,6 +14,14 @@ class ChatInputParser
 
     public function parse(string $input): array
     {
+        if (preg_match('/^\/cls\s*$/i', $input) === 1) {
+            return [
+                'type' => Message::TYPE_NORMAL,
+                'body' => '',
+                'command' => 'cls',
+            ];
+        }
+
         if (preg_match('/^\/me\b(.*)$/is', $input, $matches) === 1) {
             $action = trim($matches[1] ?? '');
 

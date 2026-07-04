@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\DmNotificationCreated;
 use App\Events\MessageCreated;
 use App\Events\ModerationMessageCreated;
+use App\Events\RoomDisplayCleared;
 use App\Models\Character;
 use App\Models\CharacterBlock;
 use App\Models\CharacterPresence;
@@ -1070,6 +1071,22 @@ CSS;
 
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
 
+        if (($parsedMessage['command'] ?? null) === 'cls') {
+            abort_if($room->type === Room::TYPE_DM, 422, 'The /cls command is only available in rooms.');
+
+            $character = $this->ownedCharacterById($characterId);
+            abort_if($character === null, 403);
+            abort_unless($this->roomAccess->canModerateRoom(Auth::user(), $room, $character), 403);
+
+            broadcast(new RoomDisplayCleared($room, $character))->toOthers();
+
+            return response()->json([
+                'ok' => true,
+                'command' => 'cls',
+                'room_id' => (int) $room->id,
+            ]);
+        }
+
         $message = $this->createConversationMessage($room, $characterId, $parsedMessage);
 
         if ($room->isPublicRoom()) {
@@ -1612,6 +1629,12 @@ CSS;
         $this->restoreDmForUser($room->id, Auth::id());
 
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
+
+        if (($parsedMessage['command'] ?? null) === 'cls') {
+            throw ValidationException::withMessages([
+                'body' => ['The /cls command is only available in rooms.'],
+            ]);
+        }
 
         $message = $this->createConversationMessage($room, $characterId, $parsedMessage)->load(['user', 'character']);
 

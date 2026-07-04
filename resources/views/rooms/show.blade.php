@@ -2034,7 +2034,7 @@
             if (submitButton) submitButton.disabled = true;
 
             try {
-                await fetchJson(form.action, {
+                const data = await fetchJson(form.action, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': csrf,
@@ -2051,6 +2051,12 @@
 
                 if (textarea) textarea.value = '';
                 syncContentMirror();
+
+                if (data?.command === 'cls') {
+                    clearActiveRoomMessagePane();
+                    return;
+                }
+
                 await fetchNewMessages();
             } catch (error) {
                 console.error('Send message error:', error);
@@ -2457,6 +2463,11 @@
             .catch(() => {});
         }
 
+        function clearActiveRoomMessagePane() {
+            if (!container) return;
+            container.innerHTML = '';
+        }
+
         function startRoomRealtime() {
             if (!window.Echo || !conversationId) return;
 
@@ -2467,6 +2478,15 @@
                     if (seenMessageIds.has(parseInt(event.id, 10))) return;
                     fetchNewMessages();
                     sendPresencePing();
+                })
+                .listen('.room.display-cleared', (event) => {
+                    const eventRoomId = parseInt(event.room_id ?? 0, 10) || 0;
+
+                    if (!eventRoomId || eventRoomId !== conversationId) {
+                        return;
+                    }
+
+                    clearActiveRoomMessagePane();
                 })
                 .listen('.room.character-kicked', (event) => {
                     const targetCharacterId = parseInt(event.target_character_id ?? 0, 10) || 0;
