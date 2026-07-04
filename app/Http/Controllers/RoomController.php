@@ -18,11 +18,13 @@ use App\Services\DiceMessageFormatter;
 use App\Services\MarkPublicRoomRead;
 use App\Services\MessageRichTextRenderer;
 use App\Services\RoomAccessService;
+use App\Services\RoomHistoryExportFormatter;
 use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -230,6 +232,104 @@ class RoomController extends Controller
         return $this->renderProfilePage($room, $canManageRoom);
     }
 
+    public function history(Room $room, Request $request): View
+    {
+        [$activeCharacterId] = $this->activeCharacterSelectionForConversation($room);
+        $activeCharacter = $this->ownedCharacterById($activeCharacterId);
+
+        abort_unless($room->isPublicRoom(), 404);
+        abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
+
+        $canManageRoom = $activeCharacter !== null
+            && $this->roomAccess->canManageRoom(Auth::user(), $room, $activeCharacter);
+
+        $today = now()->startOfDay();
+        $cutoffDate = $today->copy()->subDays(29);
+
+        $request->validate([
+            'day' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $activeDays = $room->messages()
+            ->withTrashed()
+            ->where('created_at', '>=', $cutoffDate)
+            ->selectRaw('DATE(created_at) as history_day, COUNT(*) as message_count')
+            ->groupBy('history_day')
+            ->orderBy('history_day')
+            ->get()
+            ->map(fn ($row): array => [
+                'date' => (string) $row->history_day,
+                'message_count' => (int) $row->message_count,
+            ])
+            ->values();
+
+        $activeDayDates = $activeDays->pluck('date')->values();
+        $activeDayCounts = $activeDays->pluck('message_count', 'date');
+        $selectedDay = $this->resolveRoomHistoryDay(
+            trim((string) $request->query('day', '')),
+            $activeDayDates->all(),
+            $cutoffDate,
+            $today,
+        );
+
+        $messages = $room->messages()
+            ->withTrashed()
+            ->with('character')
+            ->where('created_at', '>=', $cutoffDate)
+            ->whereBetween('created_at', [$selectedDay->copy()->startOfDay(), $selectedDay->copy()->endOfDay()])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $this->hydrateRenderedMessages($messages);
+
+        $selectedDayString = $selectedDay->toDateString();
+        $calendarDays = collect(range(0, 29))
+            ->map(function (int $offset) use ($today, $selectedDayString, $activeDayCounts, $room): array {
+                $day = $today->copy()->subDays($offset);
+                $date = $day->toDateString();
+                $messageCount = (int) ($activeDayCounts[$date] ?? 0);
+
+                return [
+                    'date' => $date,
+                    'label' => $day->format('D, M j'),
+                    'day_number' => $day->format('j'),
+                    'month_label' => strtoupper($day->format('M')),
+                    'is_selected' => $date === $selectedDayString,
+                    'is_active' => $messageCount > 0,
+                    'message_count' => $messageCount,
+                    'url' => route('rooms.history.show', ['room' => $room->slug, 'day' => $date]),
+                ];
+            })
+            ->values();
+
+        $previousActiveDay = $activeDayDates
+            ->filter(fn (string $date): bool => $date < $selectedDayString)
+            ->last();
+
+        $nextActiveDay = $activeDayDates->first(
+            fn (string $date): bool => $date > $selectedDayString
+        );
+
+        return view('rooms.history', [
+            'room' => $room,
+            'canManageRoom' => $canManageRoom,
+            'selectedDay' => $selectedDay,
+            'selectedDayString' => $selectedDayString,
+            'selectedDayHasMessages' => (bool) ($activeDayCounts[$selectedDayString] ?? false),
+            'selectedDayMessageCount' => (int) ($activeDayCounts[$selectedDayString] ?? 0),
+            'calendarDays' => $calendarDays,
+            'messages' => $messages,
+            'historyExportRows' => app(RoomHistoryExportFormatter::class)->rowsFromMessages($messages),
+            'previousActiveDayUrl' => $previousActiveDay
+                ? route('rooms.history.show', ['room' => $room->slug, 'day' => $previousActiveDay])
+                : null,
+            'nextActiveDayUrl' => $nextActiveDay
+                ? route('rooms.history.show', ['room' => $room->slug, 'day' => $nextActiveDay])
+                : null,
+        ]);
+    }
+
     public function profileFrame(Room $room): Response
     {
         [$activeCharacterId] = $this->activeCharacterSelectionForConversation($room);
@@ -249,6 +349,31 @@ class RoomController extends Controller
                 ),
             ])
         );
+    }
+
+    private function resolveRoomHistoryDay(string $requestedDay, array $activeDayDates, Carbon $cutoffDate, Carbon $today): Carbon
+    {
+        if ($requestedDay !== '') {
+            try {
+                $selectedDay = Carbon::createFromFormat('Y-m-d', $requestedDay, config('app.timezone'))->startOfDay();
+
+                if ($selectedDay->betweenIncluded($cutoffDate, $today)) {
+                    return $selectedDay;
+                }
+            } catch (\Throwable) {
+                // Invalid day input falls back to the default selection.
+            }
+        }
+
+        if (in_array($today->toDateString(), $activeDayDates, true)) {
+            return $today->copy();
+        }
+
+        if ($activeDayDates !== []) {
+            return Carbon::createFromFormat('Y-m-d', (string) end($activeDayDates), config('app.timezone'))->startOfDay();
+        }
+
+        return $today->copy();
     }
 
     private function renderProfilePage(Room $room, bool $canManageRoom): View

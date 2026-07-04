@@ -65,7 +65,7 @@
                                 <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Pinned Notes</button>
                             @endif
                             @if ($room->isPublicRoom())
-                                <button type="button" data-context-tool="follow" class="context-tool-btn rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">{{ $isFollowingRoom ? '✓ Follow Room' : 'Follow Room' }}</button>
+                                <a href="{{ route('rooms.history.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Logs</a>
                             @endif
                         </div>
                     </div>
@@ -96,11 +96,18 @@
                         </div>
                     @endif
                     @if ($room->isPublicRoom())
-                        <div data-context-panel="follow" class="context-tool-panel hidden rounded-md border border-[#332817] bg-[#101012] p-3">
-                            <h3 class="text-sm font-semibold text-[#f2dfb5]">Follow Room</h3>
-                            <p class="mt-2 text-[11px] leading-relaxed text-[#8f8675]">
-                                Only followed rooms show unread indicators in your room list.
-                            </p>
+                        <div class="rounded-md border border-[#332817] bg-[#101012] p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-[#f2dfb5]">Follow Room</h3>
+                                    <p class="mt-2 text-[11px] leading-relaxed text-[#8f8675]">
+                                        Only followed rooms show unread indicators in your room list.
+                                    </p>
+                                </div>
+                                <a href="{{ route('rooms.history.show', $room->slug) }}" target="_blank" rel="noreferrer" class="inline-flex items-center rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">
+                                    View History
+                                </a>
+                            </div>
                             <form method="POST" action="{{ route('rooms.follow', $room->slug) }}" class="mt-3">
                                 @csrf
                                 @method('PUT')
@@ -1311,7 +1318,7 @@
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
         const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));
-        const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : ($room->isPublicRoom() ? 'follow' : null)));
+        const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : null));
         function showContextTool(tool) {
             contextToolButtons.forEach((button) => {
                 const isActiveTool = button.dataset.contextTool === tool;
