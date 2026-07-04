@@ -23,8 +23,8 @@
                 <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.3)_0%,rgba(5,5,5,0.62)_42%,rgba(5,5,5,0.9)_72%,#050505_100%)]" aria-hidden="true"></div>
                 <div class="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,#050505_90%)]" aria-hidden="true"></div>
 
-                <div class="relative z-20 mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
-                    <div class="mx-auto flex max-w-2xl flex-col items-center text-center">
+                <div class="relative z-30 mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
+                    <div class="relative z-30 mx-auto flex max-w-2xl flex-col items-center text-center">
                         <x-storybox-logo class="h-16 w-auto sm:h-20" />
 
                         <h1 class="mt-8 text-5xl font-semibold tracking-[-0.05em] text-[#fff4d2] sm:text-6xl lg:text-7xl">
@@ -39,7 +39,7 @@
                             Create characters. Join rooms. Tell stories.
                         </p>
 
-                        <div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
+                        <div class="relative z-40 mt-8 flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:justify-center">
                             <a
                                 href="{{ route('register') }}"
                                 class="inline-flex items-center justify-center rounded-md border border-amber-400 bg-amber-500 px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#120b02] transition duration-150 ease-in-out hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#050505]"
@@ -57,13 +57,17 @@
                 </div>
             </section>
 
-            <section class="relative z-10 -mt-28 px-6 sm:-mt-32 sm:px-8 lg:px-10">
+            <section class="relative z-10 -mt-20 px-6 sm:-mt-24 sm:px-8 lg:px-10">
                 <div class="mx-auto max-w-5xl">
-                    <img
-                        src="{{ asset('images/welcomescreenshot.png') }}"
-                        alt="Storybox application screenshot"
-                        class="mx-auto w-full rounded-[1.75rem] border border-[#2d2418] bg-[#0b0b0c] shadow-[0_30px_90px_rgba(0,0,0,0.55)]"
-                    >
+                    <div class="relative aspect-[2048/1180] w-full overflow-hidden rounded-[1.75rem] border border-[#2d2418] bg-[#0b0b0c] shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+                        <img
+                            src="{{ asset('images/welcomescreenshot.png') }}"
+                            alt="Storybox application screenshot"
+                            width="2048"
+                            height="1180"
+                            class="absolute inset-0 h-full w-full object-cover"
+                        >
+                    </div>
                 </div>
             </section>
 
