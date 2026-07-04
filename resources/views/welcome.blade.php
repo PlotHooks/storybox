@@ -23,7 +23,7 @@
                 <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.3)_0%,rgba(5,5,5,0.62)_42%,rgba(5,5,5,0.9)_72%,#050505_100%)]" aria-hidden="true"></div>
                 <div class="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,#050505_90%)]" aria-hidden="true"></div>
 
-                <div class="relative z-30 mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-14">
+                <div class="relative z-30 mx-auto flex min-h-[56vh] max-w-6xl items-center justify-center px-6 pb-20 pt-10 sm:px-8 sm:pb-24 sm:pt-12 lg:px-10 lg:pb-28 lg:pt-14">
                     <div class="relative z-30 mx-auto flex max-w-2xl flex-col items-center text-center">
                         <x-storybox-logo class="h-16 w-auto sm:h-20" />
 
@@ -57,7 +57,7 @@
                 </div>
             </section>
 
-            <section class="relative z-10 -mt-20 px-6 sm:-mt-24 sm:px-8 lg:px-10">
+            <section class="relative z-10 -mt-10 px-6 sm:-mt-14 sm:px-8 lg:-mt-16 lg:px-10">
                 <div class="mx-auto max-w-5xl">
                     <div class="relative aspect-[2048/1180] w-full overflow-hidden rounded-[1.75rem] border border-[#2d2418] bg-[#0b0b0c] shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
                         <img
