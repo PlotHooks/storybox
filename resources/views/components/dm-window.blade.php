@@ -103,6 +103,16 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-2">
+                    <a
+                        id="dm-history-link"
+                        href="#"
+                        target="_blank"
+                        rel="noreferrer"
+                        class="hidden rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-xs text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]"
+                    >
+                        History
+                    </a>
+
                     <button
                         id="dm-archive-active-btn"
                         type="button"
@@ -238,6 +248,7 @@
     const newDmBtn = document.getElementById('dm-new-btn');
 
     const threadHeader = document.getElementById('dm-thread-header');
+    const dmHistoryLink = document.getElementById('dm-history-link');
     const archiveActiveBtn = document.getElementById('dm-archive-active-btn');
     const blockToggleBtn = document.getElementById('dm-block-toggle');
     const threadEl = document.getElementById('dm-thread');
@@ -1814,6 +1825,16 @@
                 : 'Select a conversation.';
         }
 
+        if (dmHistoryLink) {
+            if (activeDm.slug) {
+                dmHistoryLink.href = `/dms/${encodeURIComponent(activeDm.slug)}/history`;
+                dmHistoryLink.classList.remove('hidden');
+            } else {
+                dmHistoryLink.href = '#';
+                dmHistoryLink.classList.add('hidden');
+            }
+        }
+
         syncDmBlockToggle();
         syncActiveDmArchiveControl();
         setThreadEnabled(!!activeDm.myCharacterId);
@@ -1838,6 +1859,10 @@
         pollInFlight = false;
 
         if (threadHeader) threadHeader.textContent = 'Select a conversation.';
+        if (dmHistoryLink) {
+            dmHistoryLink.href = '#';
+            dmHistoryLink.classList.add('hidden');
+        }
         syncDmBlockToggle();
         syncActiveDmArchiveControl();
         if (threadEl) threadEl.innerHTML = `<div class="text-[#8f8675]">No conversation selected.</div>`;

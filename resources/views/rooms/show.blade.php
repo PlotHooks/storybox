@@ -65,7 +65,7 @@
                                 <button type="button" disabled aria-disabled="true" class="rounded border border-dashed border-[#332817] bg-[#101012] px-2 py-1.5 text-left text-[#6f675b] cursor-not-allowed opacity-70">Pinned Notes</button>
                             @endif
                             @if ($room->isPublicRoom())
-                                <a href="{{ route('rooms.history.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Logs</a>
+                                <a href="{{ route('rooms.history.show', $room->slug) }}" target="_blank" rel="noreferrer" class="rounded border border-[#332817] bg-[#141416] px-2 py-1.5 text-left text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5]">Room History</a>
                             @endif
                         </div>
                     </div>

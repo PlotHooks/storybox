@@ -97,14 +97,17 @@ class RoomHistoryExportFormatterTest extends TestCase
         $rows = $formatter->rowsFromMessages($messages);
 
         $this->assertSame('[deleted]', $rows[3]['body']);
+        $this->assertSame($room->id, $rows[0]['dm_thread_id']);
+        $this->assertSame('Archivist', $rows[0]['sender_character_name']);
+        $this->assertSame($character->id, $rows[0]['sender_character_id']);
         $this->assertTrue($rows[0]['edited']);
         $this->assertSame('/me glances toward the archive shelves.', $rows[1]['storybox_line']);
         $this->assertSame('/roll 2d6', $rows[2]['storybox_line']);
         $this->assertStringContainsString('Archivist: Plain room line', $formatter->formatTranscript($rows));
         $this->assertStringContainsString('Archivist glances toward the archive shelves.', $formatter->formatTranscript($rows));
         $this->assertStringContainsString('Archivist rolled 2d6: [4] [5] = 9', $formatter->formatTranscript($rows));
-        $this->assertStringContainsString("timestamp\tcharacter_name\tcharacter_id", $formatter->formatTsv($rows));
-        $this->assertStringContainsString('roll_expression,roll_result,edited,deleted', $formatter->formatCsv($rows));
+        $this->assertStringContainsString("timestamp\tsender_character_name\tsender_character_id\tdm_thread_id", $formatter->formatTsv($rows));
+        $this->assertStringContainsString('dm_thread_id,message_type,body,roll_expression,roll_result,edited,deleted', $formatter->formatCsv($rows));
         $this->assertStringContainsString(',2d6,', $formatter->formatCsv($rows));
     }
 }

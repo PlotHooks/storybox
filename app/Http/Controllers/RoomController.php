@@ -246,90 +246,36 @@ class RoomController extends Controller
         $canManageRoom = $activeCharacter !== null
             && $this->roomAccess->canManageRoom(Auth::user(), $room, $activeCharacter);
 
-        $today = now()->startOfDay();
-        $cutoffDate = $today->copy()->subDays(29);
-
-        $request->validate([
-            'day' => ['nullable', 'date_format:Y-m-d'],
-        ]);
-
-        $activeDays = $room->messages()
-            ->withTrashed()
-            ->where('created_at', '>=', $cutoffDate)
-            ->selectRaw('DATE(created_at) as history_day, COUNT(*) as message_count')
-            ->groupBy('history_day')
-            ->orderBy('history_day')
-            ->get()
-            ->map(fn ($row): array => [
-                'date' => (string) $row->history_day,
-                'message_count' => (int) $row->message_count,
-            ])
-            ->values();
-
-        $activeDayDates = $activeDays->pluck('date')->values();
-        $activeDayCounts = $activeDays->pluck('message_count', 'date');
-        $selectedDay = $this->resolveRoomHistoryDay(
-            trim((string) $request->query('day', '')),
-            $activeDayDates->all(),
-            $cutoffDate,
-            $today,
-        );
-
-        $messages = $room->messages()
-            ->withTrashed()
-            ->with('character')
-            ->where('created_at', '>=', $cutoffDate)
-            ->whereBetween('created_at', [$selectedDay->copy()->startOfDay(), $selectedDay->copy()->endOfDay()])
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get();
-
-        $this->hydrateRenderedMessages($messages);
-
-        $selectedDayString = $selectedDay->toDateString();
-        $calendarDays = collect(range(0, 29))
-            ->map(function (int $offset) use ($today, $selectedDayString, $activeDayCounts, $room): array {
-                $day = $today->copy()->subDays($offset);
-                $date = $day->toDateString();
-                $messageCount = (int) ($activeDayCounts[$date] ?? 0);
-
-                return [
-                    'date' => $date,
-                    'label' => $day->format('D, M j'),
-                    'day_number' => $day->format('j'),
-                    'month_label' => strtoupper($day->format('M')),
-                    'is_selected' => $date === $selectedDayString,
-                    'is_active' => $messageCount > 0,
-                    'message_count' => $messageCount,
-                    'url' => route('rooms.history.show', ['room' => $room->slug, 'day' => $date]),
-                ];
-            })
-            ->values();
-
-        $previousActiveDay = $activeDayDates
-            ->filter(fn (string $date): bool => $date < $selectedDayString)
-            ->last();
-
-        $nextActiveDay = $activeDayDates->first(
-            fn (string $date): bool => $date > $selectedDayString
-        );
-
         return view('rooms.history', [
             'room' => $room,
             'canManageRoom' => $canManageRoom,
-            'selectedDay' => $selectedDay,
-            'selectedDayString' => $selectedDayString,
-            'selectedDayHasMessages' => (bool) ($activeDayCounts[$selectedDayString] ?? false),
-            'selectedDayMessageCount' => (int) ($activeDayCounts[$selectedDayString] ?? 0),
-            'calendarDays' => $calendarDays,
-            'messages' => $messages,
-            'historyExportRows' => app(RoomHistoryExportFormatter::class)->rowsFromMessages($messages),
-            'previousActiveDayUrl' => $previousActiveDay
-                ? route('rooms.history.show', ['room' => $room->slug, 'day' => $previousActiveDay])
-                : null,
-            'nextActiveDayUrl' => $nextActiveDay
-                ? route('rooms.history.show', ['room' => $room->slug, 'day' => $nextActiveDay])
-                : null,
+            ...$this->conversationHistoryViewData($room, $request, 'rooms.history.show'),
+        ]);
+    }
+
+    public function dmHistory(Room $room, Request $request): View
+    {
+        abort_unless($room->isDm(), 404);
+
+        $characterId = $this->getLockedDmCharacterId($room);
+        $this->assertConversationParticipant($room, $characterId);
+
+        $otherParticipant = DB::table('dm_participants as other')
+            ->join('characters', 'characters.id', '=', 'other.character_id')
+            ->where('other.room_id', $room->id)
+            ->where('other.user_id', '!=', Auth::id())
+            ->select([
+                'characters.id',
+                'characters.name',
+            ])
+            ->first();
+
+        return view('dms.history', [
+            'room' => $room,
+            'viewerCharacterId' => $characterId,
+            'otherParticipantName' => (string) ($otherParticipant->name ?? 'Unknown'),
+            'otherParticipantId' => (int) ($otherParticipant->id ?? 0),
+            ...$this->conversationHistoryViewData($room, $request, 'dms.history.show'),
         ]);
     }
 
@@ -377,6 +323,94 @@ class RoomController extends Controller
         }
 
         return $today->copy();
+    }
+
+
+    private function conversationHistoryViewData(Room $room, Request $request, string $routeName): array
+    {
+        $today = now()->startOfDay();
+        $cutoffDate = $today->copy()->subDays(29);
+
+        $request->validate([
+            'day' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $activeDays = $room->messages()
+            ->withTrashed()
+            ->where('created_at', '>=', $cutoffDate)
+            ->selectRaw('DATE(created_at) as history_day, COUNT(*) as message_count')
+            ->groupBy('history_day')
+            ->orderBy('history_day')
+            ->get()
+            ->map(fn ($row): array => [
+                'date' => (string) $row->history_day,
+                'message_count' => (int) $row->message_count,
+            ])
+            ->values();
+
+        $activeDayDates = $activeDays->pluck('date')->values();
+        $activeDayCounts = $activeDays->pluck('message_count', 'date');
+        $selectedDay = $this->resolveRoomHistoryDay(
+            trim((string) $request->query('day', '')),
+            $activeDayDates->all(),
+            $cutoffDate,
+            $today,
+        );
+
+        $messages = $room->messages()
+            ->withTrashed()
+            ->with('character')
+            ->where('created_at', '>=', $cutoffDate)
+            ->whereBetween('created_at', [$selectedDay->copy()->startOfDay(), $selectedDay->copy()->endOfDay()])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $this->hydrateRenderedMessages($messages);
+
+        $selectedDayString = $selectedDay->toDateString();
+        $calendarDays = collect(range(0, 29))
+            ->map(function (int $offset) use ($today, $selectedDayString, $activeDayCounts, $routeName, $room): array {
+                $day = $today->copy()->subDays($offset);
+                $date = $day->toDateString();
+                $messageCount = (int) ($activeDayCounts[$date] ?? 0);
+
+                return [
+                    'date' => $date,
+                    'label' => $day->format('D, M j'),
+                    'day_number' => $day->format('j'),
+                    'month_label' => strtoupper($day->format('M')),
+                    'is_selected' => $date === $selectedDayString,
+                    'is_active' => $messageCount > 0,
+                    'message_count' => $messageCount,
+                    'url' => route($routeName, ['room' => $room->slug, 'day' => $date]),
+                ];
+            })
+            ->values();
+
+        $previousActiveDay = $activeDayDates
+            ->filter(fn (string $date): bool => $date < $selectedDayString)
+            ->last();
+
+        $nextActiveDay = $activeDayDates->first(
+            fn (string $date): bool => $date > $selectedDayString
+        );
+
+        return [
+            'selectedDay' => $selectedDay,
+            'selectedDayString' => $selectedDayString,
+            'selectedDayHasMessages' => (bool) ($activeDayCounts[$selectedDayString] ?? false),
+            'selectedDayMessageCount' => (int) ($activeDayCounts[$selectedDayString] ?? 0),
+            'calendarDays' => $calendarDays,
+            'messages' => $messages,
+            'historyExportRows' => app(RoomHistoryExportFormatter::class)->rowsFromMessages($messages),
+            'previousActiveDayUrl' => $previousActiveDay
+                ? route($routeName, ['room' => $room->slug, 'day' => $previousActiveDay])
+                : null,
+            'nextActiveDayUrl' => $nextActiveDay
+                ? route($routeName, ['room' => $room->slug, 'day' => $nextActiveDay])
+                : null,
+        ];
     }
 
     private function renderProfilePage(Room $room, bool $canManageRoom): View

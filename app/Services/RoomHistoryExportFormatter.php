@@ -42,8 +42,9 @@ class RoomHistoryExportFormatter
     {
         $headers = [
             'timestamp',
-            'character_name',
-            'character_id',
+            'sender_character_name',
+            'sender_character_id',
+            'dm_thread_id',
             'message_type',
             'body',
             'roll_expression',
@@ -57,8 +58,9 @@ class RoomHistoryExportFormatter
         foreach ($rows as $row) {
             $values = [
                 $row['timestamp'] ?? '',
-                $row['character_name'] ?? '',
-                $row['character_id'] ?? '',
+                $row['sender_character_name'] ?? $row['character_name'] ?? '',
+                $row['sender_character_id'] ?? $row['character_id'] ?? '',
+                $row['dm_thread_id'] ?? '',
                 $row['message_type'] ?? '',
                 $row['body'] ?? '',
                 $row['roll_expression'] ?? '',
@@ -82,8 +84,9 @@ class RoomHistoryExportFormatter
 
         fputcsv($handle, [
             'timestamp',
-            'character_name',
-            'character_id',
+            'sender_character_name',
+            'sender_character_id',
+            'dm_thread_id',
             'message_type',
             'body',
             'roll_expression',
@@ -95,8 +98,9 @@ class RoomHistoryExportFormatter
         foreach ($rows as $row) {
             fputcsv($handle, [
                 $row['timestamp'] ?? '',
-                $row['character_name'] ?? '',
-                $row['character_id'] ?? '',
+                $row['sender_character_name'] ?? $row['character_name'] ?? '',
+                $row['sender_character_id'] ?? $row['character_id'] ?? '',
+                $row['dm_thread_id'] ?? '',
                 $row['message_type'] ?? '',
                 str_replace(["\r", "\n"], [' ', ' '], (string) ($row['body'] ?? '')),
                 $row['roll_expression'] ?? '',
@@ -156,7 +160,10 @@ class RoomHistoryExportFormatter
             'id' => (int) $message->id,
             'timestamp' => $timestamp,
             'character_name' => $characterName,
+            'sender_character_name' => $characterName,
             'character_id' => $message->character_id !== null ? (int) $message->character_id : null,
+            'sender_character_id' => $message->character_id !== null ? (int) $message->character_id : null,
+            'dm_thread_id' => $message->room_id !== null ? (int) $message->room_id : null,
             'message_type' => (string) ($message->type ?? Message::TYPE_NORMAL),
             'body' => $body,
             'roll_expression' => $rollExpression,

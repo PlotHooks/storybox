@@ -179,6 +179,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/dms/{room:slug}/restore', [RoomController::class, 'dmRestore'])
         ->middleware('throttle:dm-action')
         ->name('dms.restore');
+    Route::get('/dms/{room:slug}/history', [RoomController::class, 'dmHistory'])->name('dms.history.show');
     Route::get('/dms/{room:slug}/messages', [RoomController::class, 'dmMessages'])->name('dms.messages.index');
     Route::post('/dms/{room:slug}/messages', [RoomController::class, 'dmSend'])
         ->middleware([
