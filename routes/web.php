@@ -151,8 +151,12 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::post('/rooms/{room:slug}/messages', [RoomController::class, 'storeMessage'])
         ->middleware([
             'resolve_chat_message_character',
+            'message_timing_checkpoint:before_chat_message_character_throttle',
             'throttle:chat-message-character',
+            'message_timing_checkpoint:after_chat_message_character_throttle',
+            'message_timing_checkpoint:before_chat_message_user_throttle',
             'throttle:chat-message-user',
+            'message_timing_checkpoint:after_chat_message_user_throttle',
         ])
         ->name('rooms.messages.store');
 

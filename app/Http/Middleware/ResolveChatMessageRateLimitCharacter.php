@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Character;
+use App\Support\MessageRequestTiming;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,7 @@ class ResolveChatMessageRateLimitCharacter
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $startedAt = microtime(true);
         $characterId = (int) $request->input('character_id', 0);
 
         $ownedCharacter = $characterId > 0 && $request->user()
@@ -32,6 +34,8 @@ class ResolveChatMessageRateLimitCharacter
                 'reason' => 'rate_limit_character_not_owned',
             ]);
         }
+
+        MessageRequestTiming::recordDuration($request, 'resolve_chat_message_character', $startedAt);
 
         return $next($request);
     }

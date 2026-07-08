@@ -21,7 +21,7 @@ use App\Services\RoomAccessService;
 use App\Services\RoomHistoryExportFormatter;
 use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
-use Illuminate\Database\Events\QueryExecuted;
+use App\Support\MessageRequestTiming;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Illuminate\Validation\ValidationException;
@@ -1227,27 +1228,13 @@ CSS;
 
     public function storeMessage(Request $request, Room $room)
     {
-        $timingEnabled = (bool) config('app.message_timing_log', false);
-        $timingLogContext = [
-            'room_id' => (int) $room->id,
-            'room_type' => (string) $room->type,
-            'user_id' => (int) Auth::id(),
-            'expects_json' => $request->wantsJson(),
-        ];
+        MessageRequestTiming::checkpoint($request, 'controller_entry');
+
+        $timingEnabled = MessageRequestTiming::enabled($request);
         $sectionTimings = [];
+        $validationBreakdown = [];
         $controllerStart = microtime(true);
         $sectionStart = $controllerStart;
-        $queryCount = 0;
-        $dbTimeMs = 0.0;
-
-        if ($timingEnabled) {
-            Log::info('storeMessage timing start', $timingLogContext);
-
-            DB::listen(function (QueryExecuted $query) use (&$queryCount, &$dbTimeMs): void {
-                $queryCount++;
-                $dbTimeMs += (float) $query->time;
-            });
-        }
 
         $recordSectionTiming = function (string $sectionName) use (&$sectionTimings, &$sectionStart, $timingEnabled): void {
             if (! $timingEnabled) {
@@ -1259,16 +1246,25 @@ CSS;
             $sectionStart = $now;
         };
 
-        $request->validate([
+        $validationMakeStart = microtime(true);
+        $validator = Validator::make($request->all(), [
             'body' => 'required|string|max:2000',
         ]);
+        $validationBreakdown['validator_make'] = round((microtime(true) - $validationMakeStart) * 1000, 2);
+
+        $validationRunStart = microtime(true);
+        $validator->validate();
+        $validationBreakdown['validator_validate'] = round((microtime(true) - $validationRunStart) * 1000, 2);
         $recordSectionTiming('validation');
 
         if ($room->isPublicRoom()) {
             $selectedCharacterId = (int) $request->input('character_id', 0);
 
             if ($selectedCharacterId <= 0 && $request->wantsJson()) {
-                return $this->missingCharacterResponse();
+                $response = $this->missingCharacterResponse();
+                $this->finalizeStoreMessageTiming($request, $controllerStart, $sectionTimings, $validationBreakdown);
+
+                return $response;
             }
         }
 
@@ -1317,11 +1313,14 @@ CSS;
                 ]);
             }
 
-            return response()->json([
+            $response = response()->json([
                 'ok' => true,
                 'command' => 'cls',
                 'room_id' => (int) $room->id,
             ]);
+            $this->finalizeStoreMessageTiming($request, $controllerStart, $sectionTimings, $validationBreakdown, null, $characterId);
+
+            return $response;
         }
 
         $message = $this->createConversationMessage(
@@ -1341,33 +1340,42 @@ CSS;
         if ($request->wantsJson()) {
             $response = response()->json($this->serializeRoomMessage($message->load('character')));
             $recordSectionTiming('response_serialization');
-
-            if ($timingEnabled) {
-                Log::info('storeMessage timing complete', $timingLogContext + [
-                    'message_id' => (int) $message->id,
-                    'character_id' => (int) $characterId,
-                    'sections_ms' => $sectionTimings,
-                    'total_ms' => round((microtime(true) - $controllerStart) * 1000, 2),
-                    'query_count' => $queryCount,
-                    'db_time_ms' => round($dbTimeMs, 2),
-                ]);
-            }
+            $this->finalizeStoreMessageTiming($request, $controllerStart, $sectionTimings, $validationBreakdown, (int) $message->id, $characterId);
 
             return $response;
         }
 
-        if ($timingEnabled) {
-            Log::info('storeMessage timing complete', $timingLogContext + [
-                'message_id' => (int) $message->id,
-                'character_id' => (int) $characterId,
-                'sections_ms' => $sectionTimings,
-                'total_ms' => round((microtime(true) - $controllerStart) * 1000, 2),
-                'query_count' => $queryCount,
-                'db_time_ms' => round($dbTimeMs, 2),
-            ]);
+        $response = back();
+        $this->finalizeStoreMessageTiming($request, $controllerStart, $sectionTimings, $validationBreakdown, (int) $message->id, $characterId);
+
+        return $response;
+    }
+
+    private function finalizeStoreMessageTiming(
+        Request $request,
+        float $controllerStart,
+        array $sectionTimings,
+        array $validationBreakdown,
+        ?int $messageId = null,
+        ?int $characterId = null
+    ): void {
+        if (! MessageRequestTiming::enabled($request)) {
+            return;
         }
 
-        return back();
+        MessageRequestTiming::set($request, 'controller.total_ms', round((microtime(true) - $controllerStart) * 1000, 2));
+        MessageRequestTiming::set($request, 'controller.sections_ms', $sectionTimings);
+        MessageRequestTiming::set($request, 'controller.validation_breakdown_ms', $validationBreakdown);
+
+        if ($messageId !== null) {
+            MessageRequestTiming::set($request, 'controller.message_id', $messageId);
+        }
+
+        if ($characterId !== null) {
+            MessageRequestTiming::set($request, 'controller.character_id', $characterId);
+        }
+
+        MessageRequestTiming::checkpoint($request, 'controller_return');
     }
 
     private function missingCharacterResponse()
