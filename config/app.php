@@ -43,6 +43,8 @@ return [
 
     'message_timing_log' => (bool) env('MESSAGE_TIMING_LOG', false),
 
+    'message_broadcast_after_response' => (bool) env('MESSAGE_BROADCAST_AFTER_RESPONSE', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL

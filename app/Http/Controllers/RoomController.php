@@ -1115,6 +1115,14 @@ CSS;
             'broadcasts_events',
             'message_created_broadcast_dispatch',
             function () use ($messageCreatedEvent): void {
+                if ((bool) config('app.message_broadcast_after_response', false)) {
+                    app()->terminating(function () use ($messageCreatedEvent): void {
+                        broadcast($messageCreatedEvent)->toOthers();
+                    });
+
+                    return;
+                }
+
                 broadcast($messageCreatedEvent)->toOthers();
             }
         );
