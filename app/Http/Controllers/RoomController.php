@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
@@ -521,10 +522,8 @@ CSS;
 
     private function assertCharacterOwnedByUser(int $characterId): void
     {
-        $ok = DB::table('characters')
-            ->where('id', $characterId)
-            ->where('user_id', Auth::id())
-            ->exists();
+        $character = $this->resolveOwnedCharacterById($characterId);
+        $ok = $character !== null;
 
         if (! $ok) {
             $this->logSuspiciousAuthorizationFailure('character_not_owned', [
@@ -647,14 +646,7 @@ CSS;
 
     private function ownedCharacterById(?int $characterId): ?Character
     {
-        if (($characterId ?? 0) <= 0) {
-            return null;
-        }
-
-        return Character::query()
-            ->where('id', $characterId)
-            ->where('user_id', Auth::id())
-            ->first();
+        return $this->resolveOwnedCharacterById($characterId);
     }
 
     private function canModerate(): bool
@@ -768,10 +760,8 @@ CSS;
             return false;
         }
 
-        $ownsCharacter = DB::table('characters')
-            ->where('id', $characterId)
-            ->where('user_id', Auth::id())
-            ->exists();
+        $character = $this->resolveOwnedCharacterById($characterId);
+        $ownsCharacter = $character !== null;
 
         if (! $ownsCharacter) {
             return false;
@@ -786,10 +776,8 @@ CSS;
         }
 
         if ($conversation->type === Room::TYPE_PUBLIC) {
-            $character = $this->ownedCharacterById($characterId);
-
             return $character !== null
-                && $this->roomAccess->canViewRoom(Auth::user(), $conversation, $character);
+                && $this->canViewConversationAs(Auth::user(), $conversation, $character);
         }
 
         return false;
@@ -1242,15 +1230,21 @@ CSS;
             }
         }
 
+        $character = null;
         $characterId = $this->messageCharacterIdForConversation($room, $request);
-        $this->assertConversationParticipant($room, $characterId);
+
+        if ($room->isPublicRoom()) {
+            $character = $this->resolveOwnedCharacterById($characterId);
+            abort_if($character === null, 403);
+        } else {
+            $this->assertConversationParticipant($room, $characterId);
+        }
 
         if ($room->type === Room::TYPE_DM) {
             $this->assertDmMessageAllowed($room);
         } else {
-            $character = $this->ownedCharacterById($characterId);
-            abort_if($character === null, 403);
-            abort_unless($this->roomAccess->canMessageRoom(Auth::user(), $room, $character), 403);
+            abort_unless($character !== null, 403);
+            abort_unless($this->canMessageConversationAs(Auth::user(), $room, $character), 403);
             $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
 
@@ -1259,7 +1253,6 @@ CSS;
         if (($parsedMessage['command'] ?? null) === 'cls') {
             abort_unless($room->isPublicRoom(), 422, 'The /cls command is only available in rooms.');
 
-            $character = $this->ownedCharacterById($characterId);
             abort_if($character === null, 403);
             abort_unless($this->roomAccess->canModerateRoom(Auth::user(), $room, $character), 403);
 
@@ -1310,22 +1303,31 @@ CSS;
 
     public function latest(Room $room, Request $request)
     {
+        $viewerCharacter = null;
+
         if ($room->type === Room::TYPE_DM) {
             $viewerCharacterId = $this->getLockedDmCharacterId($room);
         } else {
             $requestedCharacterId = (int) $request->query('character_id', 0);
             if ($requestedCharacterId > 0) {
                 $this->assertCharacterOwnedByUser($requestedCharacterId);
-                $viewerCharacterId = $requestedCharacterId;
+                $viewerCharacter = $this->resolveOwnedCharacterById($requestedCharacterId);
             } else {
-                $viewerCharacterId = $this->activeOwnedCharacterId();
+                $viewerCharacter = $this->activeOwnedCharacter();
             }
+
+            $viewerCharacterId = $viewerCharacter?->id;
         }
 
         if ($viewerCharacterId) {
-            $this->assertConversationParticipant($room, $viewerCharacterId);
+            if ($room->type === Room::TYPE_PUBLIC) {
+                abort_unless($viewerCharacter !== null, 403);
+                abort_unless($this->canViewConversationAs(Auth::user(), $room, $viewerCharacter), 403);
+            } else {
+                $this->assertConversationParticipant($room, $viewerCharacterId);
+            }
         } elseif ($room->isPublicRoom()) {
-            abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, null), 403);
+            abort_unless($this->canViewConversationAs(Auth::user(), $room, null), 403);
         }
 
         $messages = $this->conversationMessages($room, $request);
@@ -1859,5 +1861,99 @@ CSS;
 
         abort_if($cid <= 0, 403);
         return $cid;
+    }
+
+    private function resolveOwnedCharacterById(?int $characterId): ?Character
+    {
+        if (($characterId ?? 0) <= 0) {
+            return null;
+        }
+
+        $request = request();
+
+        if ($request instanceof SymfonyRequest) {
+            $resolvedCharacter = $request->attributes->get('resolved_owned_character');
+
+            if ($resolvedCharacter instanceof Character && (int) $resolvedCharacter->id === (int) $characterId) {
+                return $resolvedCharacter;
+            }
+
+            $cacheKey = $this->ownedCharacterCacheKey($characterId);
+
+            if ($request->attributes->has($cacheKey)) {
+                $cachedCharacter = $request->attributes->get($cacheKey);
+
+                return $cachedCharacter instanceof Character ? $cachedCharacter : null;
+            }
+        }
+
+        $character = Character::query()
+            ->where('id', $characterId)
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if ($request instanceof SymfonyRequest) {
+            $request->attributes->set($this->ownedCharacterCacheKey($characterId), $character);
+
+            if ($character instanceof Character) {
+                $request->attributes->set('resolved_owned_character', $character);
+            }
+        }
+
+        return $character;
+    }
+
+    private function canViewConversationAs($user, Room $conversation, ?Character $character): bool
+    {
+        return $this->cachedConversationAccessDecision(
+            'view',
+            $conversation,
+            $character,
+            fn () => $this->roomAccess->canViewRoom($user, $conversation, $character),
+        );
+    }
+
+    private function canMessageConversationAs($user, Room $conversation, Character $character): bool
+    {
+        return $this->cachedConversationAccessDecision(
+            'message',
+            $conversation,
+            $character,
+            fn () => $this->roomAccess->canMessageRoom($user, $conversation, $character),
+        );
+    }
+
+    private function cachedConversationAccessDecision(
+        string $ability,
+        Room $conversation,
+        ?Character $character,
+        callable $resolver
+    ): bool {
+        $request = request();
+
+        if ($request instanceof SymfonyRequest) {
+            $cacheKey = sprintf(
+                'conversation_access.%s.%d.%d',
+                $ability,
+                (int) $conversation->id,
+                (int) ($character?->id ?? 0),
+            );
+
+            if ($request->attributes->has($cacheKey)) {
+                return (bool) $request->attributes->get($cacheKey);
+            }
+
+            $allowed = (bool) $resolver();
+            $request->attributes->set($cacheKey, $allowed);
+
+            return $allowed;
+        }
+
+        return (bool) $resolver();
+    }
+
+    private function ownedCharacterCacheKey(int $characterId): string
+    {
+        return 'owned_character.'.$characterId;
     }
 }

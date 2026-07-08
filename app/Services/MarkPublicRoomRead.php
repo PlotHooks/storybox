@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Message;
 use App\Models\UserRoomState;
+use Illuminate\Support\Facades\DB;
 
 class MarkPublicRoomRead
 {
@@ -19,16 +20,7 @@ class MarkPublicRoomRead
 
         $now = now();
 
-        UserRoomState::query()->insertOrIgnore([
-            'user_id' => $userId,
-            'room_id' => $roomId,
-            'is_following' => false,
-            'last_read_message_id' => null,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        UserRoomState::query()
+        $updated = UserRoomState::query()
             ->where('user_id', $userId)
             ->where('room_id', $roomId)
             ->where(function ($query) use ($latestMessageId) {
@@ -39,5 +31,27 @@ class MarkPublicRoomRead
                 'last_read_message_id' => $latestMessageId,
                 'updated_at' => $now,
             ]);
+
+        if ($updated > 0) {
+            return;
+        }
+
+        $currentMessageId = UserRoomState::query()
+            ->where('user_id', $userId)
+            ->where('room_id', $roomId)
+            ->value('last_read_message_id');
+
+        if ($currentMessageId !== null && (int) $currentMessageId >= $latestMessageId) {
+            return;
+        }
+
+        DB::table('user_room_states')->insertOrIgnore([
+            'user_id' => $userId,
+            'room_id' => $roomId,
+            'is_following' => false,
+            'last_read_message_id' => $latestMessageId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 }

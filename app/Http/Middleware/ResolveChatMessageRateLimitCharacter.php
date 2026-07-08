@@ -2,9 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Character;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -14,13 +14,16 @@ class ResolveChatMessageRateLimitCharacter
     {
         $characterId = (int) $request->input('character_id', 0);
 
-        $ownedCharacter = $characterId > 0 && $request->user() && DB::table('characters')
-            ->where('id', $characterId)
-            ->where('user_id', $request->user()->id)
-            ->exists();
+        $ownedCharacter = $characterId > 0 && $request->user()
+            ? Character::query()
+                ->where('id', $characterId)
+                ->where('user_id', $request->user()->id)
+                ->first()
+            : null;
 
-        if ($ownedCharacter) {
+        if ($ownedCharacter !== null) {
             $request->attributes->set('rate_limited_character_id', $characterId);
+            $request->attributes->set('resolved_owned_character', $ownedCharacter);
         } elseif ($characterId > 0 && $request->user()) {
             Log::warning('Suspicious chat rate limit character mismatch', [
                 'user_id' => $request->user()->id,
