@@ -38,6 +38,8 @@ class MessageRequestTiming
             'checkpoints' => [],
             'durations_ms' => [],
             'controller' => [],
+            'active_query_scope' => null,
+            'active_query_step' => null,
         ]);
     }
 
@@ -86,6 +88,39 @@ class MessageRequestTiming
         return $durationMs;
     }
 
+    public static function profileStep(Request $request, string $scope, string $step, callable $callback): mixed
+    {
+        if (! self::enabled($request)) {
+            return $callback();
+        }
+
+        $startedAt = microtime(true);
+        $previousScope = self::get($request, 'active_query_scope');
+        $previousStep = self::get($request, 'active_query_step');
+
+        self::set($request, 'active_query_scope', $scope);
+        self::set($request, 'active_query_step', $step);
+
+        try {
+            return $callback();
+        } finally {
+            self::set($request, 'controller.expensive_steps_ms.' . $scope . '.' . $step, self::elapsedMs($startedAt, microtime(true)));
+            self::set($request, 'active_query_scope', $previousScope);
+            self::set($request, 'active_query_step', $previousStep);
+        }
+    }
+
+    public static function profileCurrentRequestStep(string $scope, string $step, callable $callback): mixed
+    {
+        $request = request();
+
+        if (! $request instanceof Request) {
+            return $callback();
+        }
+
+        return self::profileStep($request, $scope, $step, $callback);
+    }
+
     public static function recordQuery(Request $request, QueryExecuted $query): void
     {
         if (! self::enabled($request)) {
@@ -97,6 +132,23 @@ class MessageRequestTiming
 
         self::set($request, 'query_count', $queryCount);
         self::set($request, 'db_time_ms', $dbTimeMs);
+
+        $scope = self::get($request, 'active_query_scope');
+        $step = self::get($request, 'active_query_step');
+
+        if (! is_string($scope) || $scope === '' || ! is_string($step) || $step === '') {
+            return;
+        }
+
+        $queries = self::get($request, 'controller.expensive_queries.' . $scope, []);
+        $queries[] = [
+            'step' => $step,
+            'duration_ms' => round((float) $query->time, 2),
+            'table' => self::tableTouched((string) $query->sql),
+            'sql' => self::sanitizeSql((string) $query->sql),
+        ];
+
+        self::set($request, 'controller.expensive_queries.' . $scope, $queries);
     }
 
     public static function logSummary(Request $request, Response $response): void
@@ -137,6 +189,8 @@ class MessageRequestTiming
             'route_model_binding_controller_gap_ms' => self::elapsedMs($afterUserThrottleAt, $controllerEntryAt),
             'controller_sections_ms' => self::get($request, 'controller.sections_ms', []),
             'controller_validation_breakdown_ms' => self::get($request, 'controller.validation_breakdown_ms', []),
+            'controller_expensive_steps_ms' => self::get($request, 'controller.expensive_steps_ms', []),
+            'controller_expensive_queries' => self::get($request, 'controller.expensive_queries', []),
             'query_count' => self::get($request, 'query_count', 0),
             'db_time_ms' => self::get($request, 'db_time_ms', 0.0),
         ];
@@ -161,5 +215,29 @@ class MessageRequestTiming
         }
 
         return round(($end - $start) * 1000, 2);
+    }
+
+    private static function sanitizeSql(string $sql): string
+    {
+        return preg_replace('/\s+/', ' ', trim($sql)) ?? trim($sql);
+    }
+
+    private static function tableTouched(string $sql): ?string
+    {
+        $patterns = [
+            '/\binsert\s+into\s+[`\"]?([\w\.]+)[`\"]?/i',
+            '/\bupdate\s+[`\"]?([\w\.]+)[`\"]?/i',
+            '/\bdelete\s+from\s+[`\"]?([\w\.]+)[`\"]?/i',
+            '/\bfrom\s+[`\"]?([\w\.]+)[`\"]?/i',
+            '/\bjoin\s+[`\"]?([\w\.]+)[`\"]?/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $sql, $matches) === 1) {
+                return $matches[1] ?? null;
+            }
+        }
+
+        return null;
     }
 }

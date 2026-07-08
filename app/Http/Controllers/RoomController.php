@@ -1026,35 +1026,104 @@ CSS;
     ): Message
     {
         $messageType = $parsedMessage['type'] ?? Message::TYPE_NORMAL;
-        $messageBody = $parsedMessage['body'];
+        $messageBody = MessageRequestTiming::profileCurrentRequestStep(
+            'createConversationMessage',
+            'message_body_prepare',
+            fn () => $parsedMessage['body']
+        );
+        $structuredData = MessageRequestTiming::profileCurrentRequestStep(
+            'createConversationMessage',
+            'structured_data_prepare',
+            fn () => $parsedMessage['structured_data'] ?? null
+        );
 
         if ($messageType === Message::TYPE_DICE) {
-            $characterName = (string) (Character::query()->whereKey($characterId)->value('name') ?? 'Unknown');
-            $messageBody = app(DiceMessageFormatter::class)->renderStoredBody($characterName, $parsedMessage['structured_data'] ?? null);
+            $characterName = MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'dice_character_name_lookup',
+                fn () => (string) (Character::query()->whereKey($characterId)->value('name') ?? 'Unknown')
+            );
+
+            $messageBody = MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'structured_data_rendering',
+                fn () => app(DiceMessageFormatter::class)->renderStoredBody($characterName, $structuredData)
+            );
         }
 
-        $message = $conversation->messages()->create([
-            'user_id' => Auth::id(),
-            'character_id' => $characterId,
-            'type' => $messageType,
-            'body' => $messageBody,
-            'structured_data' => $parsedMessage['structured_data'] ?? null,
-        ]);
+        $message = MessageRequestTiming::profileCurrentRequestStep(
+            'createConversationMessage',
+            'message_model_construction',
+            fn () => $conversation->messages()->make([
+                'user_id' => Auth::id(),
+                'character_id' => $characterId,
+                'type' => $messageType,
+                'body' => $messageBody,
+                'structured_data' => $structuredData,
+            ])
+        );
+
+        MessageRequestTiming::profileCurrentRequestStep(
+            'createConversationMessage',
+            'message_save',
+            function () use ($message): void {
+                $message->save();
+            }
+        );
         $recordSectionTiming?->__invoke('message_insert');
 
         if ($conversation->isPublicRoom()) {
-            app(\App\Services\RoomRetentionService::class)->recordPublicRoomPost($conversation, $message->created_at);
+            MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'room_retention_helper',
+                fn () => app(\App\Services\RoomRetentionService::class)->recordPublicRoomPost($conversation, $message->created_at)
+            );
         }
         $recordSectionTiming?->__invoke('room_retention_update');
 
         if ($conversation->type === Room::TYPE_DM) {
-            $conversation->touch();
-            $this->restoreDmForOtherParticipants($conversation->id, Auth::id());
-            $this->broadcastDmNotificationToRecipients($conversation, $message, $characterId);
+            MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'dm_touch',
+                fn () => $conversation->touch()
+            );
+            MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'restore_dm_for_other_participants',
+                fn () => $this->restoreDmForOtherParticipants($conversation->id, Auth::id())
+            );
+            MessageRequestTiming::profileCurrentRequestStep(
+                'createConversationMessage',
+                'broadcast_dm_notifications',
+                fn () => $this->broadcastDmNotificationToRecipients($conversation, $message, $characterId)
+            );
         }
 
-        broadcast(new MessageCreated($message))->toOthers();
-        event(new ModerationMessageCreated($message));
+        $messageCreatedEvent = MessageRequestTiming::profileCurrentRequestStep(
+            'broadcasts_events',
+            'message_created_construction',
+            fn () => new MessageCreated($message)
+        );
+        MessageRequestTiming::profileCurrentRequestStep(
+            'broadcasts_events',
+            'message_created_broadcast_dispatch',
+            function () use ($messageCreatedEvent): void {
+                broadcast($messageCreatedEvent)->toOthers();
+            }
+        );
+
+        $moderationEvent = MessageRequestTiming::profileCurrentRequestStep(
+            'broadcasts_events',
+            'moderation_message_created_construction',
+            fn () => new ModerationMessageCreated($message)
+        );
+        MessageRequestTiming::profileCurrentRequestStep(
+            'broadcasts_events',
+            'moderation_event_dispatch',
+            function () use ($moderationEvent): void {
+                event($moderationEvent);
+            }
+        );
         $recordSectionTiming?->__invoke('broadcasts_events');
 
         return $message;
