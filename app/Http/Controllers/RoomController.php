@@ -1112,16 +1112,13 @@ CSS;
             }
         );
 
-        $moderationEvent = MessageRequestTiming::profileCurrentRequestStep(
-            'broadcasts_events',
-            'moderation_message_created_construction',
-            fn () => new ModerationMessageCreated($message)
-        );
         MessageRequestTiming::profileCurrentRequestStep(
             'broadcasts_events',
-            'moderation_event_dispatch',
-            function () use ($moderationEvent): void {
-                event($moderationEvent);
+            'moderation_after_response_schedule',
+            function () use ($message): void {
+                app()->terminating(function () use ($message): void {
+                    event(new ModerationMessageCreated($message));
+                });
             }
         );
         $recordSectionTiming?->__invoke('broadcasts_events');
