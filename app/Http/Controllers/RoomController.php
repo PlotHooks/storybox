@@ -1102,7 +1102,14 @@ CSS;
         $messageCreatedEvent = MessageRequestTiming::profileCurrentRequestStep(
             'broadcasts_events',
             'message_created_construction',
-            fn () => new MessageCreated($message)
+            fn () => new MessageCreated(
+                (int) $message->room_id,
+                (int) $message->id,
+                (string) ($message->type ?? Message::TYPE_NORMAL),
+                $message->body,
+                $message->character_id !== null ? (int) $message->character_id : null,
+                $message->created_at?->toISOString(),
+            )
         );
         MessageRequestTiming::profileCurrentRequestStep(
             'broadcasts_events',
