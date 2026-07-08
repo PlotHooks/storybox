@@ -21,6 +21,7 @@ use App\Services\RoomAccessService;
 use App\Services\RoomHistoryExportFormatter;
 use App\Services\RoomParticipationStateService;
 use App\Services\RoomToolIndicatorService;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -1016,7 +1017,12 @@ CSS;
         return app(MessageRichTextRenderer::class)->render($body);
     }
 
-    private function createConversationMessage(Room $conversation, int $characterId, array $parsedMessage): Message
+    private function createConversationMessage(
+        Room $conversation,
+        int $characterId,
+        array $parsedMessage,
+        ?callable $recordSectionTiming = null
+    ): Message
     {
         $messageType = $parsedMessage['type'] ?? Message::TYPE_NORMAL;
         $messageBody = $parsedMessage['body'];
@@ -1033,10 +1039,12 @@ CSS;
             'body' => $messageBody,
             'structured_data' => $parsedMessage['structured_data'] ?? null,
         ]);
+        $recordSectionTiming?->__invoke('message_insert');
 
         if ($conversation->isPublicRoom()) {
             app(\App\Services\RoomRetentionService::class)->recordPublicRoomPost($conversation, $message->created_at);
         }
+        $recordSectionTiming?->__invoke('room_retention_update');
 
         if ($conversation->type === Room::TYPE_DM) {
             $conversation->touch();
@@ -1046,6 +1054,7 @@ CSS;
 
         broadcast(new MessageCreated($message))->toOthers();
         event(new ModerationMessageCreated($message));
+        $recordSectionTiming?->__invoke('broadcasts_events');
 
         return $message;
     }
@@ -1218,9 +1227,42 @@ CSS;
 
     public function storeMessage(Request $request, Room $room)
     {
+        $timingEnabled = (bool) config('app.message_timing_log', false);
+        $timingLogContext = [
+            'room_id' => (int) $room->id,
+            'room_type' => (string) $room->type,
+            'user_id' => (int) Auth::id(),
+            'expects_json' => $request->wantsJson(),
+        ];
+        $sectionTimings = [];
+        $controllerStart = microtime(true);
+        $sectionStart = $controllerStart;
+        $queryCount = 0;
+        $dbTimeMs = 0.0;
+
+        if ($timingEnabled) {
+            Log::info('storeMessage timing start', $timingLogContext);
+
+            DB::listen(function (QueryExecuted $query) use (&$queryCount, &$dbTimeMs): void {
+                $queryCount++;
+                $dbTimeMs += (float) $query->time;
+            });
+        }
+
+        $recordSectionTiming = function (string $sectionName) use (&$sectionTimings, &$sectionStart, $timingEnabled): void {
+            if (! $timingEnabled) {
+                return;
+            }
+
+            $now = microtime(true);
+            $sectionTimings[$sectionName] = round(($now - $sectionStart) * 1000, 2);
+            $sectionStart = $now;
+        };
+
         $request->validate([
             'body' => 'required|string|max:2000',
         ]);
+        $recordSectionTiming('validation');
 
         if ($room->isPublicRoom()) {
             $selectedCharacterId = (int) $request->input('character_id', 0);
@@ -1239,6 +1281,7 @@ CSS;
         } else {
             $this->assertConversationParticipant($room, $characterId);
         }
+        $recordSectionTiming('character_access_resolution');
 
         if ($room->type === Room::TYPE_DM) {
             $this->assertDmMessageAllowed($room);
@@ -1247,6 +1290,7 @@ CSS;
             abort_unless($this->canMessageConversationAs(Auth::user(), $room, $character), 403);
             $this->assertValidPublicRoomParticipationState($request, $room, $character);
         }
+        $recordSectionTiming('participation_validation');
 
         $parsedMessage = app(ChatInputParser::class)->parse($request->body);
 
@@ -1280,14 +1324,47 @@ CSS;
             ]);
         }
 
-        $message = $this->createConversationMessage($room, $characterId, $parsedMessage);
+        $message = $this->createConversationMessage(
+            $room,
+            $characterId,
+            $parsedMessage,
+            function (string $sectionName) use ($recordSectionTiming): void {
+                $recordSectionTiming($sectionName);
+            }
+        );
 
         if ($room->isPublicRoom()) {
             $this->markPublicRoomRead($room->id, $message->id);
         }
+        $recordSectionTiming('markPublicRoomRead');
 
         if ($request->wantsJson()) {
-            return response()->json($this->serializeRoomMessage($message->load('character')));
+            $response = response()->json($this->serializeRoomMessage($message->load('character')));
+            $recordSectionTiming('response_serialization');
+
+            if ($timingEnabled) {
+                Log::info('storeMessage timing complete', $timingLogContext + [
+                    'message_id' => (int) $message->id,
+                    'character_id' => (int) $characterId,
+                    'sections_ms' => $sectionTimings,
+                    'total_ms' => round((microtime(true) - $controllerStart) * 1000, 2),
+                    'query_count' => $queryCount,
+                    'db_time_ms' => round($dbTimeMs, 2),
+                ]);
+            }
+
+            return $response;
+        }
+
+        if ($timingEnabled) {
+            Log::info('storeMessage timing complete', $timingLogContext + [
+                'message_id' => (int) $message->id,
+                'character_id' => (int) $characterId,
+                'sections_ms' => $sectionTimings,
+                'total_ms' => round((microtime(true) - $controllerStart) * 1000, 2),
+                'query_count' => $queryCount,
+                'db_time_ms' => round($dbTimeMs, 2),
+            ]);
         }
 
         return back();

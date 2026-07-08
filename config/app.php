@@ -41,6 +41,8 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    'message_timing_log' => (bool) env('MESSAGE_TIMING_LOG', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL
