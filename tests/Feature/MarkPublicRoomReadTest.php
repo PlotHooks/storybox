@@ -17,6 +17,40 @@ class MarkPublicRoomReadTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_it_creates_missing_user_room_state_without_auto_following(): void
+    {
+        $user = User::factory()->create();
+        $character = Character::create([
+            'user_id' => $user->id,
+            'name' => 'Character '.Str::random(8),
+            'slug' => 'character-'.Str::random(16),
+        ]);
+
+        $room = Room::create([
+            'name' => 'Room '.Str::random(8),
+            'slug' => 'room-'.Str::random(16),
+            'user_id' => $user->id,
+            'created_by' => $user->id,
+            'type' => Room::TYPE_PUBLIC,
+        ]);
+
+        $message = Message::create([
+            'room_id' => $room->id,
+            'user_id' => $user->id,
+            'character_id' => $character->id,
+            'body' => 'Latest message.',
+        ]);
+
+        app(MarkPublicRoomRead::class)($user->id, $room->id, $message->id);
+
+        $this->assertDatabaseHas('user_room_states', [
+            'user_id' => $user->id,
+            'room_id' => $room->id,
+            'is_following' => false,
+            'last_read_message_id' => $message->id,
+        ]);
+    }
+
     public function test_it_does_not_touch_current_user_room_state(): void
     {
         Carbon::setTestNow('2026-07-07 12:00:00');
