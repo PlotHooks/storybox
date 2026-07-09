@@ -8,6 +8,7 @@ use App\Models\RoomCharacterRole;
 use App\Models\RoomNotice;
 use App\Models\RoomPinnedNote;
 use App\Models\RoomRule;
+use App\Models\RpAd;
 use App\Models\UserRoomState;
 use App\Models\WorldBookEntry;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -183,6 +184,11 @@ class Room extends Model
         return $this->hasMany(RoomRule::class)
             ->orderBy('sort_order')
             ->orderBy('id');
+    }
+
+    public function rpAds(): HasMany
+    {
+        return $this->hasMany(RpAd::class);
     }
 
     /*

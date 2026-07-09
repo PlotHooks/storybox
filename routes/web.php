@@ -6,6 +6,7 @@ use App\Http\Controllers\CharacterProfileController;
 use App\Http\Controllers\NoticeBoardController;
 use App\Http\Controllers\PinnedNotesController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RpAdController;
 use App\Http\Controllers\RulesController;
 use App\Http\Controllers\SiteContentController;
 use App\Http\Controllers\RoomToolReadController;
@@ -93,6 +94,11 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
     Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
     Route::post('/chat/current-character', [RoomController::class, 'setCurrentCharacter'])->name('rooms.current-character');
     Route::get('/site-content/{collection}', [SiteContentController::class, 'index'])->name('site-content.index');
+    Route::get('/rp-ads', [RpAdController::class, 'index'])->name('rp-ads.index');
+    Route::post('/rp-ads', [RpAdController::class, 'store'])->name('rp-ads.store');
+    Route::patch('/rp-ads/{rpAd}', [RpAdController::class, 'update'])->name('rp-ads.update');
+    Route::post('/rp-ads/{rpAd}/refresh', [RpAdController::class, 'refresh'])->name('rp-ads.refresh');
+    Route::delete('/rp-ads/{rpAd}', [RpAdController::class, 'destroy'])->name('rp-ads.destroy');
 
     // Rooms
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');

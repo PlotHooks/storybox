@@ -35,6 +35,7 @@
         </div>
         <x-dm-window />
         @auth
+            <x-rp-ads-window />
             <x-site-content-window />
             @include('characters.panel')
         @endauth

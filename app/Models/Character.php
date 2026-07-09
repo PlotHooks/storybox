@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\CharacterBlock;
+use App\Models\RpAd;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -52,6 +53,11 @@ class Character extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
+    }
+
+    public function rpAds(): HasMany
+    {
+        return $this->hasMany(RpAd::class);
     }
 
     public function profile(): HasOne

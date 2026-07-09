@@ -713,6 +713,15 @@
                     <div class="mb-2">
                         <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Nexus</div>
                     </div>
+                    <div class="mb-2">
+                        <button
+                            id="open-rp-ads-btn"
+                            type="button"
+                            class="flex w-full items-center justify-between rounded border border-[#332817] bg-[#101012] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8f8675] hover:border-amber-500/40 hover:text-[#f2dfb5] focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        >
+                            <span>RP Ads</span>
+                        </button>
+                    </div>
                     <div class="grid grid-cols-2 gap-1 text-xs font-semibold">
                         <button id="tab-rooms" type="button" class="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200">Rooms</button>
                         <button id="tab-users" type="button" class="rounded border border-[#332817] px-2 py-1.5 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]">Users</button>
@@ -1232,6 +1241,7 @@
         const worldBookToolButton = document.getElementById('open-world-book-btn');
         const pinnedNotesToolButton = document.getElementById('open-pinned-notes-btn');
         const noticeBoardToolButton = document.getElementById('open-notice-board-btn');
+        const rpAdsToolButton = document.getElementById('open-rp-ads-btn');
         const roomToolButtons = {
             rules: rulesToolButton,
             world_book: worldBookToolButton,
@@ -1318,6 +1328,9 @@
 
         noticeBoardToolButton?.addEventListener('click', () => {
             window.dispatchEvent(new CustomEvent('open-notice-board-window'));
+        });
+        rpAdsToolButton?.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('open-rp-ads-window'));
         });
 
         window.addEventListener('room-tool-opened', (event) => {
