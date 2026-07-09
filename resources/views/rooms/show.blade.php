@@ -2111,7 +2111,7 @@
             const viewerCharacterId = getViewerCharacterId();
             const messageCharacterId = parseInt(message.character?.id ?? message.character_id ?? 0, 10) || 0;
             const previousCharacterId = options.previousCharacterId ?? (parseInt(getLastMessageRow()?.dataset.characterId || '0', 10) || 0);
-            const isGrouped = !isPending && !isFailed && messageCharacterId > 0 && previousCharacterId === messageCharacterId;
+            const isGrouped = !isFailed && messageCharacterId > 0 && previousCharacterId === messageCharacterId;
             const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
             const blockClass = isBlockedByViewer ? 'text-[#8f8675] hover:text-[#d6c8ad]' : 'text-red-400 hover:text-red-300';
             const blockButtonHtml = (!isPending && !isFailed && !isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
@@ -2120,9 +2120,6 @@
 
             const row = document.createElement('div');
             row.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5'} msg-row` + (isBlockedByViewer ? ' opacity-70' : '');
-            if (isPending) {
-                row.className += ' opacity-80';
-            }
             if (isFailed) {
                 row.className += ' border-red-500/30 bg-red-500/5';
             }
@@ -2146,16 +2143,13 @@
                 ? message.rendered_body_html
                 : escHtml(text);
             const safeAvatarAttr = escAttr(avatar);
-            const safeCreatedAt = escHtml(message.created_at_human ?? (isPending ? 'sending...' : isFailed ? 'send failed' : ''));
+            const safeCreatedAt = escHtml(message.created_at_human ?? (isFailed ? 'send failed' : ''));
             const safeHandleAttr = escAttr(message.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
             const nameStyle = escAttr(JSON.stringify({ c1, c2, c3, c4, fade: fadeName }));
             const bodyStyle = escAttr(JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg }));
             const avatarMarkup = (isGrouped || isInlineMessage) ? `
                         <div class="w-7 shrink-0"></div>
                     ` : `<div class="w-7 shrink-0">${avatarHtml(avatar, name, 'h-7 w-7')}</div>`;
-            const pendingBadge = isPending
-                ? '<span class="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-amber-200/80">Sending</span>'
-                : '';
             const failedBadge = isFailed
                 ? '<span class="ml-2 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-red-200">Failed</span>'
                 : '';
@@ -2172,7 +2166,6 @@
                             </button>
 
                             <span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span>
-                            ${pendingBadge}
                             ${failedBadge}
                             <span class="msg-edited text-[10px] text-[#8f8675] ml-2 hidden">(edited)</span>
                             <span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
@@ -2221,7 +2214,6 @@
                         </div>
 
                         <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                            ${isPending ? '<span class="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-100/80">Sending...</span>' : ''}
                             ${retryActions}
                             ${!isPending && !isFailed ? `<button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>` : ''}
                             ${blockButtonHtml}
@@ -2286,7 +2278,7 @@
                 body,
                 content: body,
                 rendered_body_html: escHtml(body),
-                created_at_human: 'sending...',
+                created_at_human: 'just now',
                 is_deleted: false,
                 is_blocked_by_viewer: false,
                 can_edit: false,
