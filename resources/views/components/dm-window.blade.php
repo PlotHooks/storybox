@@ -238,6 +238,7 @@
     const defaultDmFromCharacterId = parseInt(@json((int) ($dmDefaultFromCharacter?->id ?? 0)), 10) || 0;
     const dmNotificationSoundConfig = @json($dmNotificationSoundPreferences);
     const dmNotificationUserId = parseInt(@json($dmNotificationUserId), 10) || 0;
+    const disableChatPolling = @json(config('app.disable_chat_polling'));
 
     const listEl = document.getElementById('dm-convo-list');
     const convoFilterInput = document.getElementById('dm-convo-filter');
@@ -1945,6 +1946,8 @@
     }
 
     function startDmPolling() {
+        if (disableChatPolling) return;
+
         stopDmPolling();
         pollDmTimer = setInterval(() => {
             if (!isOpen() || !activeDm.slug) return;
@@ -2060,6 +2063,8 @@
     }
 
     function startListRefresh() {
+        if (disableChatPolling) return;
+
         stopListRefresh();
         refreshListTimer = setInterval(() => {
             if (!isOpen()) return;
@@ -2333,10 +2338,12 @@
     bindDmNotificationAudioUnlock();
     startGlobalDmNotificationRealtime();
     fetchDmRooms({ showLoading: false, allowWhenClosed: true });
-    window.setInterval(() => {
-        if (document.hidden) return;
-        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
-    }, 30000);
+    if (!disableChatPolling) {
+        window.setInterval(() => {
+            if (document.hidden) return;
+            fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+        }, 30000);
+    }
 
 })();
 </script>

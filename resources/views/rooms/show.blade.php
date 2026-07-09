@@ -1009,17 +1009,36 @@
         .char-row { position: relative; }
     </style>
 
+    @php
+        $ownedRoomCharactersJson = $characters
+            ->map(function ($character) {
+                return [
+                    'id' => (int) $character->id,
+                    'name' => $character->name,
+                    'avatar' => $character->avatar,
+                    'public_handle' => $character->public_handle,
+                    'settings' => $character->settings,
+                ];
+            })
+            ->keyBy('id')
+            ->all();
+    @endphp
+
     <script>
         let lastMessageId = {{ $messages->last()?->id ?? 0 }};
         const conversationId = {{ (int) $room->id }};
         const conversationChannelName = `private-conversation.${conversationId}`;
         const roomSlug = @json($room->slug);
         const csrf = @json(csrf_token());
+        const disableChatPolling = @json(config('app.disable_chat_polling'));
         const currentCharacterUrl = @json(route('rooms.current-character'));
         const isAdmin = {{ (int) ((Auth::user()->is_admin ?? false) ? 1 : 0) }};
         const ownedCharacterIds = @json($characters->pluck('id')->map(fn ($id) => (int) $id)->values());
+        const ownedRoomCharacters = @json($ownedRoomCharactersJson);
         const roomParticipationTokens = @json($roomParticipationTokens ?? []);
         const seenMessageIds = new Set();
+        const pendingRoomMessages = new Map();
+        let nextPendingRoomMessageId = 1;
 
         const container  = document.getElementById('message-container');
         const form       = document.getElementById('message-form');
@@ -1916,7 +1935,9 @@
             });
         }
         sendPresencePing().finally(() => startRoomRealtime());
-        setInterval(sendPresencePing, 30000);
+        if (!disableChatPolling) {
+            setInterval(sendPresencePing, 30000);
+        }
 
         /* leave room */
         function leaveRoom() {
@@ -2025,6 +2046,366 @@
             }
         }
 
+        function isSlashCommand(body) {
+            return String(body || '').trim().startsWith('/');
+        }
+
+        function nextPendingMessageId() {
+            const id = `pending-room-${nextPendingRoomMessageId}`;
+            nextPendingRoomMessageId += 1;
+            return id;
+        }
+
+        function parseCharacterSettings(settings) {
+            if (!settings || typeof settings !== 'object') {
+                if (typeof settings === 'string') {
+                    try {
+                        const parsed = JSON.parse(settings);
+                        return parsed && typeof parsed === 'object' ? parsed : {};
+                    } catch (error) {
+                        return {};
+                    }
+                }
+
+                return {};
+            }
+
+            return settings;
+        }
+
+        function getLastMessageRow() {
+            if (!container) return null;
+            return container.querySelector('.msg-row:last-of-type');
+        }
+
+        function buildRoomMessageRow(message, options = {}) {
+            const pendingId = options.pendingId || null;
+            const state = options.state || 'confirmed';
+            const isPending = state === 'pending';
+            const isFailed = state === 'failed';
+            const messageId = parseInt(message?.id, 10) || 0;
+
+            const name = (message.character && message.character.name)
+                ? message.character.name
+                : 'Unknown';
+            const avatar = message.character?.avatar || '';
+            const settings = parseCharacterSettings(message.character?.settings);
+
+            const c1 = settings.text_color_1 || '#D8F3FF';
+            const c2 = settings.text_color_2 || null;
+            const c3 = settings.text_color_3 || null;
+            const c4 = settings.text_color_4 || null;
+
+            const fadeMsg = !!settings.fade_message;
+            const fadeName = !!settings.fade_name;
+
+            const isDeleted = !!message.deleted_at || !!message.is_deleted || (message.body === '[deleted]') || (message.content === '[deleted]');
+            const messageType = message.type || 'normal';
+            const isEmote = messageType === 'emote';
+            const isDice = messageType === 'dice';
+            const isInlineMessage = isEmote || isDice;
+            const text = isDeleted ? '[deleted]' : String(message.content ?? message.body ?? '').trim();
+            const isBlockedByViewer = !isAdmin && parseBool(message.is_blocked_by_viewer);
+
+            const canEdit = !isPending && !isFailed && !isDice && (!!isAdmin || parseBool(message.can_edit));
+            const viewerCharacterId = getViewerCharacterId();
+            const messageCharacterId = parseInt(message.character?.id ?? message.character_id ?? 0, 10) || 0;
+            const previousCharacterId = options.previousCharacterId ?? (parseInt(getLastMessageRow()?.dataset.characterId || '0', 10) || 0);
+            const isGrouped = !isPending && !isFailed && messageCharacterId > 0 && previousCharacterId === messageCharacterId;
+            const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
+            const blockClass = isBlockedByViewer ? 'text-[#8f8675] hover:text-[#d6c8ad]' : 'text-red-400 hover:text-red-300';
+            const blockButtonHtml = (!isPending && !isFailed && !isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
+                ? `<button type="button" class="text-xs ${blockClass} ml-1" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
+                : '';
+
+            const row = document.createElement('div');
+            row.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5'} msg-row` + (isBlockedByViewer ? ' opacity-70' : '');
+            if (isPending) {
+                row.className += ' opacity-80';
+            }
+            if (isFailed) {
+                row.className += ' border-red-500/30 bg-red-500/5';
+            }
+
+            if (messageId) {
+                row.dataset.messageId = String(messageId);
+            }
+            row.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
+            row.dataset.canEdit = canEdit ? '1' : '0';
+            row.dataset.deleted = isDeleted ? '1' : '0';
+            row.dataset.messageType = messageType;
+            row.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
+            row.dataset.pendingState = state;
+            if (pendingId) {
+                row.dataset.pendingId = pendingId;
+            }
+
+            const safeNameAttr = escAttr(name);
+            const safeNameHtml = escHtml(name);
+            const renderedBodyHtml = typeof message.rendered_body_html === 'string' && message.rendered_body_html.length
+                ? message.rendered_body_html
+                : escHtml(text);
+            const safeAvatarAttr = escAttr(avatar);
+            const safeCreatedAt = escHtml(message.created_at_human ?? (isPending ? 'sending...' : isFailed ? 'send failed' : ''));
+            const safeHandleAttr = escAttr(message.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
+            const nameStyle = escAttr(JSON.stringify({ c1, c2, c3, c4, fade: fadeName }));
+            const bodyStyle = escAttr(JSON.stringify({ c1, c2, c3, c4, fade: fadeMsg }));
+            const avatarMarkup = (isGrouped || isInlineMessage) ? `
+                        <div class="w-7 shrink-0"></div>
+                    ` : `<div class="w-7 shrink-0">${avatarHtml(avatar, name, 'h-7 w-7')}</div>`;
+            const pendingBadge = isPending
+                ? '<span class="ml-2 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-amber-200/80">Sending</span>'
+                : '';
+            const failedBadge = isFailed
+                ? '<span class="ml-2 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em] text-red-200">Failed</span>'
+                : '';
+            const nameMarkup = (isGrouped || isInlineMessage) ? '' : `
+                        <div class="mb-0 flex items-baseline gap-2">
+                            <button type="button"
+                                class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                data-style='${nameStyle}'
+                                data-character-id="${messageCharacterId || ''}"
+                                data-character-name="${safeNameAttr}"
+                                data-character-handle="${safeHandleAttr}"
+                                data-character-avatar="${safeAvatarAttr}">
+                                ${safeNameHtml}
+                            </button>
+
+                            <span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span>
+                            ${pendingBadge}
+                            ${failedBadge}
+                            <span class="msg-edited text-[10px] text-[#8f8675] ml-2 hidden">(edited)</span>
+                            <span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
+                        </div>
+                    `;
+            const retryActions = isFailed ? `
+                                <button type="button" class="msg-retry-btn rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20">Retry</button>
+                                <button type="button" class="msg-restore-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]">Restore</button>
+                            ` : '';
+
+            row.innerHTML = `
+                        ${avatarMarkup}
+
+                        <div class="min-w-0 flex-1 pr-28" data-body-raw="${escAttr(String(message.body ?? message.content ?? ''))}">
+                            ${nameMarkup}
+
+                            ${isBlockedByViewer ? `
+                                <div class="msg-blocked-notice text-xs text-[#8f8675] mt-1">
+                                    Message hidden from a blocked character.
+                                </div>
+                            ` : ''}
+
+                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isInlineMessage && !isDeleted ? `
+                                <span class="leading-snug">
+                                    <span
+                                        role="button"
+                                        tabindex="0"
+                                        class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                        data-style='${nameStyle}'
+                                        data-character-id="${messageCharacterId || ''}"
+                                        data-character-name="${safeNameAttr}"
+                                        data-character-handle="${safeHandleAttr}"
+                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>` : ''}
+                                </span>
+                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
+
+                            ${canEdit ? `
+                                <div class="msg-editbox hidden mt-2">
+                                    <textarea class="msg-edit-textarea w-full rounded border border-[#332817] bg-[#0b0b0c] text-base text-[#d6c8ad] leading-relaxed p-2 focus:border-amber-500 focus:ring-amber-500" rows="3"></textarea>
+                                    <div class="mt-2 flex gap-2 justify-end">
+                                        <button type="button" class="msg-cancel-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[#d6c8ad] hover:border-amber-500/50 hover:bg-[#191511] focus:outline-none focus:ring-2 focus:ring-amber-500/50">Cancel</button>
+                                        <button type="button" class="msg-save-btn rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50">Save</button>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                            ${isPending ? '<span class="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-100/80">Sending...</span>' : ''}
+                            ${retryActions}
+                            ${!isPending && !isFailed ? `<button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>` : ''}
+                            ${blockButtonHtml}
+                            ${canEdit ? `
+                                <button type="button" class="msg-edit-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Edit</button>
+                                <button type="button" class="msg-del-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Delete</button>
+                            ` : ''}
+                        </div>
+                    `;
+
+            return row;
+        }
+
+        function appendRoomMessageRow(message, options = {}) {
+            if (!container) return null;
+
+            const row = buildRoomMessageRow(message, options);
+            container.appendChild(row);
+            applyStylesIn(row);
+
+            const messageId = parseInt(message?.id, 10) || 0;
+            if (!options.skipSeenId && messageId > 0) {
+                seenMessageIds.add(messageId);
+                if (messageId > lastMessageId) lastMessageId = messageId;
+            }
+
+            return row;
+        }
+
+        function replaceRoomMessageRow(targetRow, message, options = {}) {
+            if (!container || !targetRow) return null;
+
+            const previousCharacterId = parseInt(targetRow.previousElementSibling?.dataset?.characterId || '0', 10) || 0;
+            const nextRow = buildRoomMessageRow(message, {
+                ...options,
+                previousCharacterId,
+            });
+            targetRow.replaceWith(nextRow);
+            applyStylesIn(nextRow);
+
+            const messageId = parseInt(message?.id, 10) || 0;
+            if (!options.skipSeenId && messageId > 0) {
+                seenMessageIds.add(messageId);
+                if (messageId > lastMessageId) lastMessageId = messageId;
+            }
+
+            return nextRow;
+        }
+
+        function buildOptimisticRoomMessage(body, characterId) {
+            const ownedCharacter = ownedRoomCharacters[String(characterId)] || null;
+            const switcherOption = switcher?.selectedOptions?.[0];
+            const characterName = ownedCharacter?.name || switcherOption?.textContent?.trim() || 'You';
+            const characterAvatar = ownedCharacter?.avatar || '';
+            const characterHandle = ownedCharacter?.public_handle || '';
+            const characterSettings = parseCharacterSettings(ownedCharacter?.settings || {});
+
+            return {
+                id: 0,
+                character_id: characterId,
+                type: 'normal',
+                body,
+                content: body,
+                rendered_body_html: escHtml(body),
+                created_at_human: 'sending...',
+                is_deleted: false,
+                is_blocked_by_viewer: false,
+                can_edit: false,
+                character: {
+                    id: characterId,
+                    name: characterName,
+                    avatar: characterAvatar,
+                    settings: characterSettings,
+                    public_handle: characterHandle,
+                },
+            };
+        }
+
+        function createPendingRoomMessage(body, characterId) {
+            const pendingId = nextPendingMessageId();
+            const pendingMessage = {
+                id: pendingId,
+                body,
+                characterId,
+                state: 'pending',
+            };
+            pendingRoomMessages.set(pendingId, pendingMessage);
+
+            const row = appendRoomMessageRow(buildOptimisticRoomMessage(body, characterId), {
+                pendingId,
+                state: 'pending',
+                skipSeenId: true,
+            });
+
+            pendingMessage.row = row;
+            if (container) container.scrollTop = container.scrollHeight;
+
+            return pendingMessage;
+        }
+
+        function markPendingRoomMessageFailed(pendingId, errorMessage = '') {
+            const pendingMessage = pendingRoomMessages.get(pendingId);
+            if (!pendingMessage || !pendingMessage.row) return;
+
+            pendingMessage.state = 'failed';
+            pendingMessage.errorMessage = errorMessage;
+            pendingMessage.row = replaceRoomMessageRow(
+                pendingMessage.row,
+                {
+                    ...buildOptimisticRoomMessage(pendingMessage.body, pendingMessage.characterId),
+                    created_at_human: 'send failed',
+                },
+                {
+                    pendingId,
+                    state: 'failed',
+                    skipSeenId: true,
+                }
+            );
+        }
+
+        function resolvePendingRoomMessage(pendingId, message) {
+            const pendingMessage = pendingRoomMessages.get(pendingId);
+            pendingRoomMessages.delete(pendingId);
+
+            const confirmedId = parseInt(message?.id, 10) || 0;
+            const existingConfirmedRow = confirmedId > 0
+                ? container?.querySelector(`.msg-row[data-message-id="${confirmedId}"]`)
+                : null;
+
+            if (existingConfirmedRow) {
+                pendingMessage?.row?.remove();
+                seenMessageIds.add(confirmedId);
+                if (confirmedId > lastMessageId) lastMessageId = confirmedId;
+                return existingConfirmedRow;
+            }
+
+            if (!pendingMessage?.row) {
+                return appendRoomMessageRow(message);
+            }
+
+            return replaceRoomMessageRow(pendingMessage.row, message);
+        }
+
+        function restoreFailedRoomMessageToComposer(pendingId) {
+            const pendingMessage = pendingRoomMessages.get(pendingId);
+            if (!pendingMessage || !textarea) return;
+
+            textarea.value = pendingMessage.body;
+            syncContentMirror();
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+
+        async function sendRoomMessage(body, characterId, pendingId = null) {
+            const data = await fetchJson(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    character_id: characterId,
+                    body,
+                    room_participation_token: currentRoomParticipationToken(),
+                }),
+            }, 'Send message');
+
+            if (data?.command === 'cls') {
+                clearActiveRoomMessagePane();
+                if (pendingId) pendingRoomMessages.delete(pendingId);
+                return data;
+            }
+
+            if (pendingId) {
+                resolvePendingRoomMessage(pendingId, data);
+            } else {
+                await fetchNewMessages();
+            }
+
+            return data;
+        }
+
         textarea?.addEventListener('input', clearComposerError);
 
         textarea?.addEventListener('keydown', function(e) {
@@ -2062,35 +2443,29 @@
             isSubmittingMessage = true;
             if (submitButton) submitButton.disabled = true;
 
-            try {
-                const data = await fetchJson(form.action, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrf,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                        character_id: id,
-                        body,
-                        room_participation_token: currentRoomParticipationToken(),
-                    }),
-                }, 'Send message');
+            const isOptimisticEligible = !isSlashCommand(body);
+            let pendingId = null;
 
+            if (isOptimisticEligible) {
+                pendingId = createPendingRoomMessage(body, id).id;
                 if (textarea) textarea.value = '';
                 syncContentMirror();
+            }
 
-                if (data?.command === 'cls') {
-                    clearActiveRoomMessagePane();
-                    return;
+            try {
+                await sendRoomMessage(body, id, pendingId);
+                if (!isOptimisticEligible) {
+                    if (textarea) textarea.value = '';
+                    syncContentMirror();
                 }
-
-                await fetchNewMessages();
             } catch (error) {
                 console.error('Send message error:', error);
 
                 if (error?.status === 422 && error?.data?.code === 'missing_character') {
+                    if (pendingId) {
+                        pendingRoomMessages.get(pendingId)?.row?.remove();
+                        pendingRoomMessages.delete(pendingId);
+                    }
                     showMissingCharacterNotice(error.data.message);
                     updateComposerAvailability();
                     return;
@@ -2103,6 +2478,13 @@
                     : (isClsCommand && error?.status === 422
                         ? 'The /cls command is only available in rooms.'
                         : 'Could not send message.');
+
+                if (pendingId) {
+                    markPendingRoomMessageFailed(pendingId, bodyMessage || error?.data?.message || fallbackMessage);
+                } else {
+                    if (textarea) textarea.value = body;
+                    syncContentMirror();
+                }
 
                 showComposerError(bodyMessage || error?.data?.message || fallbackMessage);
                 return;
@@ -2240,6 +2622,47 @@
             const id = row.dataset.messageId;
             const isDeleted = row.dataset.deleted === '1';
 
+            if (actionBtn.classList.contains('msg-retry-btn')) {
+                const pendingId = row.dataset.pendingId || '';
+                const pendingMessage = pendingRoomMessages.get(pendingId);
+                if (!pendingMessage || isSubmittingMessage) return;
+
+                clearComposerError();
+                isSubmittingMessage = true;
+                updateComposerAvailability();
+
+                pendingMessage.state = 'pending';
+                pendingMessage.row = replaceRoomMessageRow(
+                    row,
+                    buildOptimisticRoomMessage(pendingMessage.body, pendingMessage.characterId),
+                    {
+                        pendingId,
+                        state: 'pending',
+                        skipSeenId: true,
+                    }
+                );
+
+                try {
+                    await sendRoomMessage(pendingMessage.body, pendingMessage.characterId, pendingId);
+                } catch (error) {
+                    console.error('Retry send message error:', error);
+                    const bodyMessage = Array.isArray(error?.data?.errors?.body) ? error.data.errors.body[0] : null;
+                    const fallbackMessage = error?.data?.message || 'Could not send message.';
+                    markPendingRoomMessageFailed(pendingId, bodyMessage || fallbackMessage);
+                    showComposerError(bodyMessage || fallbackMessage);
+                } finally {
+                    isSubmittingMessage = false;
+                    updateComposerAvailability();
+                }
+                return;
+            }
+
+            if (actionBtn.classList.contains('msg-restore-btn')) {
+                const pendingId = row.dataset.pendingId || '';
+                restoreFailedRoomMessageToComposer(pendingId);
+                return;
+            }
+
             if (actionBtn.classList.contains('msg-report-btn')) {
                 openReportModal(row);
                 return;
@@ -2359,141 +2782,7 @@
                 data.forEach(msg => {
                     const mid = parseInt(msg.id, 10);
                     if (!mid || seenMessageIds.has(mid)) return;
-                    seenMessageIds.add(mid);
-
-                    const name = (msg.character && msg.character.name)
-                        ? msg.character.name
-                        : 'Unknown';
-                    const avatar = msg.character?.avatar || '';
-
-                    let s = msg.character?.settings || {};
-                    if (typeof s === 'string') { try { s = JSON.parse(s); } catch(e) { s = {}; } }
-
-                    const c1 = s.text_color_1 || '#D8F3FF';
-                    const c2 = s.text_color_2 || null;
-                    const c3 = s.text_color_3 || null;
-                    const c4 = s.text_color_4 || null;
-
-                    const fadeMsg = !!s.fade_message;
-                    const fadeName = !!s.fade_name;
-
-                    const isDeleted = !!msg.deleted_at || !!msg.is_deleted || (msg.body === '[deleted]') || (msg.content === '[deleted]');
-                    const messageType = msg.type || 'normal';
-                    const isEmote = messageType === 'emote';
-                    const isDice = messageType === 'dice';
-                    const isInlineMessage = isEmote || isDice;
-                    const text = isDeleted ? '[deleted]' : String(msg.content ?? msg.body ?? '').trim();
-                    const isBlockedByViewer = !isAdmin && parseBool(msg.is_blocked_by_viewer);
-
-                    const canEdit = !isDice && (!!isAdmin || parseBool(msg.can_edit));
-                    const viewerCharacterId = getViewerCharacterId();
-                    const messageCharacterId = parseInt(msg.character?.id ?? msg.character_id ?? 0, 10) || 0;
-                    const previousRow = Array.from(container.querySelectorAll('.msg-row')).pop();
-                    const previousCharacterId = parseInt(previousRow?.dataset.characterId || '0', 10) || 0;
-                    const isGrouped = messageCharacterId > 0 && previousCharacterId === messageCharacterId;
-                    const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
-                    const blockClass = isBlockedByViewer ? 'text-[#8f8675] hover:text-[#d6c8ad]' : 'text-red-400 hover:text-red-300';
-                    const blockButtonHtml = (!isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
-                        ? `<button type="button" class="text-xs ${blockClass} ml-1" onclick="setCharacterBlock(${viewerCharacterId}, ${messageCharacterId}, ${isBlockedByViewer ? 'false' : 'true'})">${blockLabel}</button>`
-                        : '';
-
-                    const div = document.createElement('div');
-                    div.className = `group relative flex flex-none gap-2 px-2 ${isGrouped ? 'border-0 rounded-none py-0' : 'border-t border-[#16120c] py-0.5'} msg-row` + (isBlockedByViewer ? " opacity-70" : "");
-                    div.dataset.messageId = String(msg.id);
-                    div.dataset.characterId = messageCharacterId ? String(messageCharacterId) : '';
-                    div.dataset.canEdit = canEdit ? '1' : '0';
-                    div.dataset.deleted = isDeleted ? '1' : '0';
-                    div.dataset.messageType = messageType;
-                    div.dataset.blockedByViewer = isBlockedByViewer ? '1' : '0';
-
-                    const safeNameAttr = escAttr(name);
-                    const safeNameHtml = escHtml(name);
-                    const renderedBodyHtml = typeof msg.rendered_body_html === 'string' && msg.rendered_body_html.length
-                        ? msg.rendered_body_html
-                        : escHtml(text);
-                    const safeAvatarAttr = escAttr(avatar);
-                    const safeCreatedAt = escHtml(msg.created_at_human ?? '');
-                    const safeHandleAttr = escAttr(msg.character?.public_handle ?? (messageCharacterId ? `${name}#${shortSigil(messageCharacterId)}` : name));
-                    const nameStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeName}));
-                    const bodyStyle = escAttr(JSON.stringify({c1,c2,c3,c4,fade:fadeMsg}));
-                    const avatarMarkup = (isGrouped || isInlineMessage) ? `
-                        <div class="w-7 shrink-0"></div>
-                    ` : `<div class="w-7 shrink-0">${avatarHtml(avatar, name, 'h-7 w-7')}</div>`;
-                    const nameMarkup = (isGrouped || isInlineMessage) ? '' : `
-                        <div class="mb-0 flex items-baseline gap-2">
-                            <button type="button"
-                                class="char-trigger msg-name text-base font-bold leading-none text-left cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
-                                data-style='${nameStyle}'
-                                data-character-id="${messageCharacterId || ''}"
-                                data-character-name="${safeNameAttr}"
-                                data-character-handle="${safeHandleAttr}"
-                                data-character-avatar="${safeAvatarAttr}">
-                                ${safeNameHtml}
-                            </button>
-
-                            <span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span>
-                            <span class="msg-edited text-[10px] text-[#8f8675] ml-2 hidden">(edited)</span>
-                            <span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>
-                        </div>
-                    `;
-
-                    div.innerHTML = `
-                        ${avatarMarkup}
-
-                        <div class="min-w-0 flex-1 pr-28" data-body-raw="${escAttr(String(msg.body ?? msg.content ?? ''))}">
-                            ${nameMarkup}
-
-                            ${isBlockedByViewer ? `
-                                <div class="msg-blocked-notice text-xs text-[#8f8675] mt-1">
-                                    Message hidden from a blocked character.
-                                </div>
-                            ` : ''}
-
-                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isInlineMessage && !isDeleted ? `
-                                <span class="leading-snug">
-                                    <span
-                                        role="button"
-                                        tabindex="0"
-                                        class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
-                                        data-style='${nameStyle}'
-                                        data-character-id="${messageCharacterId || ''}"
-                                        data-character-name="${safeNameAttr}"
-                                        data-character-handle="${safeHandleAttr}"
-                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>` : ''}
-                                </span>
-                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
-
-                            ${canEdit ? `
-                                <div class="msg-editbox hidden mt-2">
-                                    <textarea class="msg-edit-textarea w-full rounded border border-[#332817] bg-[#0b0b0c] text-base text-[#d6c8ad] leading-relaxed p-2 focus:border-amber-500 focus:ring-amber-500" rows="3"></textarea>
-                                    <div class="mt-2 flex gap-2 justify-end">
-                                        <button type="button" class="msg-cancel-btn rounded border border-[#332817] bg-[#141416] px-2 py-1 text-[#d6c8ad] hover:border-amber-500/50 hover:bg-[#191511] focus:outline-none focus:ring-2 focus:ring-amber-500/50">Cancel</button>
-                                        <button type="button" class="msg-save-btn rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/50">Save</button>
-                                    </div>
-                                </div>
-                            ` : ''}
-                        </div>
-
-                        ${canEdit ? `
-                            <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                                <button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
-                                ${blockButtonHtml}
-                                <button type="button" class="msg-edit-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Edit</button>
-                                <button type="button" class="msg-del-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Delete</button>
-                            </div>
-                        ` : `
-                            <div class="msg-actions absolute right-2 top-1 flex items-center gap-1 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                                <button type="button" class="msg-report-btn rounded border border-[#332817] bg-[#0b0b0c]/90 px-2 py-1 text-[#8f8675] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5] disabled:opacity-40" ${isDeleted ? 'disabled' : ''}>Report</button>
-                                ${blockButtonHtml}
-                            </div>
-                        `}
-
-                    `;
-
-                    container.appendChild(div);
-                    applyStylesIn(div);
-
-                    if (mid > lastMessageId) lastMessageId = mid;
+                    appendRoomMessageRow(msg);
                 });
 
                 if (wasNearBottom) container.scrollTop = container.scrollHeight;
@@ -2549,20 +2838,26 @@
         }
 
         function refreshActiveRoomSession() {
+            if (disableChatPolling) return Promise.resolve();
+
             return sendPresencePing().finally(() => {
                 fetchNewMessages();
                 if (panelUsers && !panelUsers.classList.contains('hidden')) refreshUserList();
             });
         }
 
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) refreshActiveRoomSession();
-        });
+        if (!disableChatPolling) {
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) refreshActiveRoomSession();
+            });
 
-        window.addEventListener('focus', () => refreshActiveRoomSession());
-        window.addEventListener('pageshow', () => refreshActiveRoomSession());
+            window.addEventListener('focus', () => refreshActiveRoomSession());
+            window.addEventListener('pageshow', () => refreshActiveRoomSession());
+        }
 
-        setInterval(fetchNewMessages, 2500);
+        if (!disableChatPolling) {
+            setInterval(fetchNewMessages, 2500);
+        }
 
         /* roster */
         function refreshUserList() {

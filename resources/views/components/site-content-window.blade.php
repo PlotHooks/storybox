@@ -66,6 +66,7 @@
     const dragHandle = document.getElementById('site-content-drag-handle');
     const resizeHandle = document.getElementById('site-content-resize');
     const globalSiteContentButtons = Array.from(document.querySelectorAll('[data-global-site-content-button]'));
+    const disableChatPolling = @json(config('app.disable_chat_polling'));
 
     const MOBILE_INSET = 8;
     const DESKTOP_INSET = 16;
@@ -492,16 +493,20 @@
         windowEl.dataset.mobileLayout = '0';
     });
 
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) return;
-        refreshRulesFaqIndicator();
-    });
+    if (!disableChatPolling) {
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) return;
+            refreshRulesFaqIndicator();
+        });
+    }
 
     refreshRulesFaqIndicator();
-    window.setInterval(() => {
-        if (document.hidden) return;
-        refreshRulesFaqIndicator();
-    }, 300000);
+    if (!disableChatPolling) {
+        window.setInterval(() => {
+            if (document.hidden) return;
+            refreshRulesFaqIndicator();
+        }, 300000);
+    }
 
     window.addEventListener('open-site-content-window', (event) => openWindow(event.detail || {}));
 })();

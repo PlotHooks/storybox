@@ -45,6 +45,9 @@ return [
 
     'message_broadcast_after_response' => (bool) env('MESSAGE_BROADCAST_AFTER_RESPONSE', false),
 
+    // Temporary diagnostic flag to isolate frontend polling from message POST latency.
+    'disable_chat_polling' => (bool) env('DISABLE_CHAT_POLLING', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL
