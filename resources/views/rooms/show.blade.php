@@ -137,7 +137,7 @@
                                 </div>
 
                                 <div class="mt-3 text-[10px] uppercase tracking-[0.16em] text-[#8f8675]">Basic</div>
-                                    <form method="POST" action="{{ route('rooms.update', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 space-y-2">
+                                    <form method="POST" action="{{ route('rooms.update', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 space-y-2" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                         @csrf
                                         @method('PATCH')
                                         <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
@@ -201,7 +201,7 @@
                                     <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
                                         Whitelist entries grant access to hidden rooms.
                                     </p>
-                                    <form method="POST" action="{{ route('rooms.whitelist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                    <form method="POST" action="{{ route('rooms.whitelist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                         @csrf
                                         <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
                                         <input type="hidden" name="context_tool" value="settings">
@@ -225,7 +225,7 @@
                                                 <div class="min-w-0">                                                    <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
                                                     <div class="text-[10px] text-[#8f8675]">{{ $entry->character->public_handle }}</div>
                                                 </div>
-                                                <form method="POST" action="{{ route('rooms.whitelist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}">
+                                                <form method="POST" action="{{ route('rooms.whitelist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                                     @csrf
                                                     @method('DELETE')
                                                     <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
@@ -249,7 +249,7 @@
                                     <p class="mt-1 text-[11px] leading-relaxed text-[#8f8675]">
                                         Room bans deny access even to public rooms. Room bans always win over whitelist except for admin override.
                                     </p>
-                                    <form method="POST" action="{{ route('rooms.blacklist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                    <form method="POST" action="{{ route('rooms.blacklist.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                         @csrf
                                         <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
                                         <input type="hidden" name="context_tool" value="settings">
@@ -274,7 +274,7 @@
                                                     <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $entry->character->name }}</div>
                                                     <div class="text-[10px] text-[#8f8675]">{{ $entry->character->public_handle }}</div>
                                                 </div>
-                                                <form method="POST" action="{{ route('rooms.blacklist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}">
+                                                <form method="POST" action="{{ route('rooms.blacklist.destroy', ['room' => $room->slug, 'character' => $entry->character, 'tool' => 'settings']) }}" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                                     @csrf
                                                     @method('DELETE')
                                                     <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
@@ -297,7 +297,7 @@
                                         <h4 class="text-sm font-semibold text-[#f2dfb5]">Moderators</h4>
                                         <span class="text-[10px] text-[#8f8675]">{{ $roomModerators->count() }} active</span>
                                     </div>
-                                    <form method="POST" action="{{ route('rooms.moderators.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2">
+                                    <form method="POST" action="{{ route('rooms.moderators.store', ['room' => $room->slug, 'tool' => 'settings']) }}" class="mt-2 flex gap-2" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                         @csrf
                                         <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
                                         <input type="hidden" name="context_tool" value="settings">
@@ -322,7 +322,7 @@
                                                     <div class="truncate text-[11px] font-semibold text-[#d6c8ad]">{{ $moderator->character->name }}</div>
                                                     <div class="text-[10px] text-[#8f8675]">{{ $moderator->character->public_handle }}</div>
                                                 </div>
-                                                <form method="POST" action="{{ route('rooms.moderators.destroy', ['room' => $room->slug, 'character' => $moderator->character, 'tool' => 'settings']) }}">
+                                                <form method="POST" action="{{ route('rooms.moderators.destroy', ['room' => $room->slug, 'character' => $moderator->character, 'tool' => 'settings']) }}" data-room-management-form="1" data-room-management-success-url="{{ route('rooms.show', ['room' => $room->slug, 'tool' => 'settings']) }}">
                                                     @csrf
                                                     @method('DELETE')
                                                     <input type="hidden" name="character_id" value="{{ $activeCharacterId }}">
@@ -1014,6 +1014,37 @@
         </div>
     </div>
 
+    <x-modal name="room-management-error-modal" maxWidth="md">
+        <div class="border border-[#332817] bg-[#101012] text-[#d6c8ad]">
+            <div class="border-b border-[#332817] px-4 py-3">
+                <h3 id="room-management-error-title" class="text-sm font-semibold text-[#f2dfb5]">Couldn't Update Room</h3>
+            </div>
+            <div class="space-y-3 px-4 py-4 text-sm">
+                <p id="room-management-error-message" class="leading-relaxed text-[#d6c8ad]"></p>
+                <ul id="room-management-error-fields" class="hidden list-disc space-y-1 pl-5 text-xs text-red-200"></ul>
+                <div class="rounded-md border border-[#332817] bg-[#141416] px-3 py-2 text-xs text-[#8f8675]">
+                    <div>
+                        Error code:
+                        <span id="room-management-error-code" class="font-mono text-[#d6c8ad]"></span>
+                    </div>
+                    <div id="room-management-error-reference-row" class="hidden mt-1">
+                        Reference:
+                        <span id="room-management-error-reference" class="font-mono text-[#d6c8ad]"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end border-t border-[#332817] px-4 py-3">
+                <button
+                    type="button"
+                    x-on:click="$dispatch('close-modal', 'room-management-error-modal')"
+                    class="rounded border border-[#332817] bg-[#141416] px-3 py-1.5 text-sm font-semibold text-[#d6c8ad] hover:border-amber-500/40 hover:text-[#f2dfb5]"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    </x-modal>
+
     <style>
         .char-row { position: relative; }
     </style>
@@ -1357,6 +1388,7 @@
 
         const contextToolButtons = Array.from(document.querySelectorAll('[data-context-tool]'));
         const contextToolPanels = Array.from(document.querySelectorAll('[data-context-panel]'));
+        const roomManagementForms = Array.from(document.querySelectorAll('[data-room-management-form]'));
         const initialContextTool = @json(request()->query('tool', $errors->any() ? 'settings' : null));
         function showContextTool(tool) {
             contextToolButtons.forEach((button) => {
@@ -1373,6 +1405,137 @@
             button.addEventListener('click', () => showContextTool(button.dataset.contextTool));
         });
         showContextTool(initialContextTool);
+
+        const roomManagementErrorTitle = document.getElementById('room-management-error-title');
+        const roomManagementErrorMessage = document.getElementById('room-management-error-message');
+        const roomManagementErrorCode = document.getElementById('room-management-error-code');
+        const roomManagementErrorReference = document.getElementById('room-management-error-reference');
+        const roomManagementErrorReferenceRow = document.getElementById('room-management-error-reference-row');
+        const roomManagementErrorFields = document.getElementById('room-management-error-fields');
+
+        function flattenRoomManagementFields(fields) {
+            const entries = [];
+
+            Object.values(fields || {}).forEach((messages) => {
+                if (Array.isArray(messages)) {
+                    messages.forEach((message) => {
+                        if (message) entries.push(String(message));
+                    });
+                }
+            });
+
+            return entries;
+        }
+
+        function showRoomManagementError(error) {
+            const title = error?.title || "Couldn't Update Room";
+            const message = error?.message || 'Something went wrong while updating the room. Please try again.';
+            const code = error?.code || 'ROOM_MANAGEMENT_FAILED';
+            const reference = error?.reference || '';
+            const fieldMessages = flattenRoomManagementFields(error?.fields || {});
+
+            if (roomManagementErrorTitle) roomManagementErrorTitle.textContent = title;
+            if (roomManagementErrorMessage) roomManagementErrorMessage.textContent = message;
+            if (roomManagementErrorCode) roomManagementErrorCode.textContent = code;
+
+            if (roomManagementErrorReference && roomManagementErrorReferenceRow) {
+                roomManagementErrorReference.textContent = reference;
+                roomManagementErrorReferenceRow.classList.toggle('hidden', !reference);
+            }
+
+            if (roomManagementErrorFields) {
+                roomManagementErrorFields.innerHTML = '';
+                roomManagementErrorFields.classList.toggle('hidden', fieldMessages.length === 0);
+
+                fieldMessages.forEach((fieldMessage) => {
+                    const item = document.createElement('li');
+                    item.textContent = fieldMessage;
+                    roomManagementErrorFields.appendChild(item);
+                });
+            }
+
+            window.dispatchEvent(new CustomEvent('open-modal', {
+                detail: 'room-management-error-modal',
+            }));
+        }
+
+        async function parseRoomManagementErrorResponse(response, fallbackMessage) {
+            const fallback = {
+                title: "Couldn't Update Room",
+                message: response.status === 419
+                    ? 'Your session expired. Refresh the room and try again.'
+                    : (fallbackMessage || 'Something went wrong while updating the room. Please try again.'),
+                code: response.status === 419 ? 'SESSION_EXPIRED' : 'ROOM_MANAGEMENT_FAILED',
+                reference: response.headers.get('X-Storybox-Error-Reference') || '',
+                fields: {},
+            };
+
+            const contentType = response.headers.get('content-type') || '';
+
+            if (!contentType.includes('application/json')) {
+                return fallback;
+            }
+
+            try {
+                const payload = await response.json();
+                const error = payload?.error;
+
+                if (!error || typeof error !== 'object') {
+                    return fallback;
+                }
+
+                return {
+                    title: error.code === 'VALIDATION_FAILED' ? 'Check Room Details' : "Couldn't Update Room",
+                    message: error.message || fallback.message,
+                    code: error.code || fallback.code,
+                    reference: error.reference || fallback.reference,
+                    fields: error.fields || {},
+                };
+            } catch (e) {
+                return fallback;
+            }
+        }
+
+        async function performRoomManagementRequest(url, options, fallbackMessage) {
+            const response = await fetch(url, options);
+
+            if (!response.ok) {
+                throw await parseRoomManagementErrorResponse(response, fallbackMessage);
+            }
+
+            return response;
+        }
+
+        roomManagementForms.forEach((form) => {
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const submitter = event.submitter;
+                if (submitter instanceof HTMLButtonElement) {
+                    submitter.disabled = true;
+                }
+
+                try {
+                    await performRoomManagementRequest(form.action, {
+                        method: (form.method || 'POST').toUpperCase(),
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                        body: new FormData(form),
+                    }, 'Something went wrong while updating the room. Please try again.');
+
+                    window.location.assign(form.dataset.roomManagementSuccessUrl || window.location.href);
+                } catch (error) {
+                    showRoomManagementError(error);
+                } finally {
+                    if (submitter instanceof HTMLButtonElement) {
+                        submitter.disabled = false;
+                    }
+                }
+            });
+        });
 
         function escAttr(s) {
             return String(s)
@@ -1573,27 +1736,24 @@
                 try {
                     await onClick();
                 } catch (error) {
-                    window.alert(error instanceof Error ? error.message : 'Room moderation action failed.');
+                    showRoomManagementError(error);
                 }
             });
             return button;
         }
 
         async function submitRoomModerationAction(url, method, payload, failureMessage) {
-            const response = await fetch(url, {
+            await performRoomManagementRequest(url, {
                 method,
                 headers: {
                     'X-CSRF-TOKEN': csrf,
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                throw new Error(failureMessage);
-            }
+            }, failureMessage);
 
             window.location.reload();
         }

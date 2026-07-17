@@ -348,6 +348,46 @@ class RoomAccessControlTest extends TestCase
         ]);
     }
 
+    public function test_owner_can_whitelist_another_character_from_their_own_account(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        $ownerAltCharacter = $this->createCharacter($ownerUser);
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $this->actingAs($ownerUser)
+            ->postJson(route('rooms.whitelist.store', $room->slug), [
+                'character_id' => $ownerCharacter->id,
+                'target_character_id' => $ownerAltCharacter->id,
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('room_access_entries', [
+            'room_id' => $room->id,
+            'character_id' => $ownerAltCharacter->id,
+            'type' => RoomAccessEntry::TYPE_WHITELIST,
+        ]);
+    }
+
+    public function test_owner_cannot_blacklist_another_character_from_their_own_account(): void
+    {
+        [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
+        $ownerAltCharacter = $this->createCharacter($ownerUser);
+        $room = $this->createRoom($ownerUser, $ownerCharacter);
+
+        $this->actingAs($ownerUser)
+            ->postJson(route('rooms.blacklist.store', $room->slug), [
+                'character_id' => $ownerCharacter->id,
+                'target_character_id' => $ownerAltCharacter->id,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('room_access_entries', [
+            'room_id' => $room->id,
+            'character_id' => $ownerAltCharacter->id,
+            'type' => RoomAccessEntry::TYPE_BLACKLIST,
+        ]);
+    }
+
     public function test_moderator_can_manage_whitelist_and_blacklist_but_not_owner_or_moderator_roles(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
