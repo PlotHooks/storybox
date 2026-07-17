@@ -32,8 +32,12 @@
                             @foreach ($recoverableRooms as $room)
                                 <li class="py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div>
-                                        <div class="text-sm font-semibold text-amber-300">
-                                            {{ $room['name'] }}
+                                        <div class="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-300">
+                                            <span>{{ $room['name'] }}</span>
+
+                                            @if (($room['visibility'] ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                                <x-room-hidden-badge />
+                                            @endif
                                         </div>
 
                                         @if ($room['description'])

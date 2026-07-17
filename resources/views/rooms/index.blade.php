@@ -84,22 +84,22 @@
                             @foreach ($rooms as $room)
                                 <li class="py-3 flex items-center justify-between">
                                     <div>
-                                        <a
-                                            href="{{ route('rooms.show', $room->slug) }}"
-                                            class="text-sm font-semibold text-amber-300 hover:text-amber-200"
-                                        >
-                                            {{ $room->name }}
-                                        </a>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <a
+                                                href="{{ route('rooms.show', $room->slug) }}"
+                                                class="text-sm font-semibold text-amber-300 hover:text-amber-200"
+                                            >
+                                                {{ $room->name }}
+                                            </a>
+
+                                            @if (($room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                                <x-room-hidden-badge />
+                                            @endif
+                                        </div>
 
                                         @if ($room->description)
                                             <div class="text-xs text-[#8f8675]">
                                                 {{ $room->description }}
-                                            </div>
-                                        @endif
-
-                                        @if (($room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
-                                            <div class="text-[10px] uppercase tracking-[0.18em] text-amber-500/80">
-                                                Hidden
                                             </div>
                                         @endif
                                     </div>

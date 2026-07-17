@@ -388,9 +388,12 @@
                                 {{ $characterSelectionNotice }}
                             </div>
                         @endif
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="h-2 w-2 rounded-sm bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.55)]"></span>
                             <h1 class="truncate text-lg font-semibold text-[#f2dfb5] md:text-xl">{{ $room->name }}</h1>
+                            @if (($room->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                <x-room-hidden-badge />
+                            @endif
                         </div>
                         @if (! empty($room->description))
                             <p class="mt-1 max-w-3xl truncate text-sm text-[#8f8675]">{{ $room->description }}</p>
@@ -784,7 +787,12 @@
                                                 onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
                                                 class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
                                                 <span aria-hidden="true" class="shrink-0 text-amber-300">★</span>
-                                                <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
+                                                <span class="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
+                                                    <span class="min-w-0 truncate font-medium">{{ $r->name }}</span>
+                                                    @if (($r->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                                        <x-room-hidden-badge />
+                                                    @endif
+                                                </span>
                                                 <span
                                                     data-room-unread-badge="{{ $r->id }}"
                                                     data-unread-count="{{ $unreadCount }}"
@@ -827,7 +835,12 @@
                                             data-room-active-users="{{ (int) ($r->active_users ?? 0) }}"
                                             onclick="window.location.href='{{ route('rooms.show', $r->slug) }}'"
                                             class="room-list-item w-full rounded border px-3 py-2 text-left flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50 {{ $isCurrentRoom ? 'border-amber-500/40 bg-amber-500/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.10)]' : 'border-[#332817] bg-[#101012] text-[#d6c8ad] hover:border-amber-500/40 hover:bg-[#141416] hover:text-[#f2dfb5]' }}">
-                                            <span class="min-w-0 flex-1 truncate font-medium">{{ $r->name }}</span>
+                                            <span class="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
+                                                <span class="min-w-0 truncate font-medium">{{ $r->name }}</span>
+                                                @if (($r->visibility ?? \App\Models\Room::VISIBILITY_PUBLIC) === \App\Models\Room::VISIBILITY_HIDDEN)
+                                                    <x-room-hidden-badge />
+                                                @endif
+                                            </span>
                                             <span
                                                 data-room-unread-badge="{{ $r->id }}"
                                                 data-unread-count="{{ $unreadCount }}"

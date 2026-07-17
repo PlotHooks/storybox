@@ -35,6 +35,7 @@ class RoomRecoveryTest extends TestCase
             ->assertOk()
             ->assertSee('Recoverable Rooms')
             ->assertSee('Owner Hidden Room')
+            ->assertSee('data-room-hidden-badge="1"', false)
             ->assertDontSee('Other Recoverable Room');
     }
 

@@ -52,7 +52,8 @@ class RoomAccessControlTest extends TestCase
             ->withSession(['active_character_id' => $character->id])
             ->get(route('rooms.index'))
             ->assertOk()
-            ->assertSee($room->name);
+            ->assertSee($room->name)
+            ->assertDontSee('data-room-hidden-badge="1"', false);
     }
 
     public function test_hidden_room_is_not_listed_or_viewable_without_access(): void
@@ -132,12 +133,14 @@ class RoomAccessControlTest extends TestCase
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.index'))
             ->assertOk()
-            ->assertSee($room->name);
+            ->assertSee($room->name)
+            ->assertSee('data-room-hidden-badge="1"', false);
 
         $this->actingAs($viewerUser)
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.show', $room->slug))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('data-room-hidden-badge="1"', false);
 
         $this->actingAs($viewerUser)
             ->postJson(route('rooms.presence', $room->slug), [
@@ -179,17 +182,20 @@ class RoomAccessControlTest extends TestCase
         $this->actingAs($ownerUser)
             ->withSession(['active_character_id' => $ownerCharacter->id])
             ->get(route('rooms.show', $room->slug))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('data-room-hidden-badge="1"', false);
 
         $this->actingAs($moderatorUser)
             ->withSession(['active_character_id' => $moderatorCharacter->id])
             ->get(route('rooms.show', $room->slug))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('data-room-hidden-badge="1"', false);
 
         $this->actingAs($admin)
             ->withSession(['active_character_id' => $adminCharacter->id])
             ->get(route('rooms.show', $room->slug))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('data-room-hidden-badge="1"', false);
     }
 
     public function test_owner_and_moderator_see_room_settings_but_ordinary_character_and_dm_view_do_not(): void
@@ -228,7 +234,8 @@ class RoomAccessControlTest extends TestCase
             ->get(route('dms.messages.index', $dmRoom->slug))
             ->assertOk()
             ->assertDontSee('Follow Room')
-            ->assertDontSee('Room Settings');
+            ->assertDontSee('Room Settings')
+            ->assertDontSee('data-room-hidden-badge="1"', false);
     }
 
     public function test_blacklisted_character_cannot_access_public_or_hidden_room_and_blacklist_beats_whitelist(): void
