@@ -556,7 +556,7 @@
                 >
                     <div class="flex items-center gap-2">
                         ${avatarHtml(target.avatar, target.name, 'h-8 w-8')}
-                        <div class="min-w-0 flex-1" data-body-raw="${escapeAttr(bodyRaw)}">
+                        <div class="min-w-0 flex-1">
                             <div class="truncate text-sm font-semibold text-[#f2dfb5]">${escapeHtml(target.name)}</div>
                             <div class="truncate text-[11px] text-[#8f8675]">${escapeHtml(target.handle)}</div>
                         </div>
