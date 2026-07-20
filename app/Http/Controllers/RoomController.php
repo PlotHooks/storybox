@@ -685,6 +685,7 @@ CSS;
                 'rooms.name',
                 'rooms.description',
                 'rooms.slug',
+                'rooms.visibility',
                 'rooms.updated_at',
                 DB::raw('COALESCE(active_presence_counts.active_users, 0) as active_users'),
                 DB::raw('COALESCE(urs.is_following, 0) as is_following')

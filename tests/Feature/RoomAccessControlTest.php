@@ -138,6 +138,15 @@ class RoomAccessControlTest extends TestCase
 
         $this->actingAs($viewerUser)
             ->withSession(['active_character_id' => $viewerCharacter->id])
+            ->getJson(route('rooms.sidebar'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $room->id,
+                'visibility' => Room::VISIBILITY_HIDDEN,
+            ]);
+
+        $this->actingAs($viewerUser)
+            ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.show', $room->slug))
             ->assertOk()
             ->assertSee('data-room-hidden-badge="1"', false);
