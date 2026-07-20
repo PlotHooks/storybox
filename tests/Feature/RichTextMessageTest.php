@@ -58,6 +58,15 @@ class RichTextMessageTest extends TestCase
         $this->assertStringContainsString('<span class="msg-rich-strike">Strike</span>', $content);
         $this->assertStringContainsString('<span class="msg-rich-small">Small</span>', $content);
         $this->assertStringContainsString('<span class="msg-rich-large">Large</span>', $content);
+        $this->assertGreaterThanOrEqual(2, substr_count($content, 'msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line'));
+        $this->assertStringContainsString('.msg-body strong {', $content);
+        $this->assertStringContainsString('font-size: 0.8em;', $content);
+        $this->assertStringContainsString('font-size: 1.25em;', $content);
+
+        preg_match_all('/<style[^>]*>(.*?)<\/style>/si', $content, $styleBlocks);
+
+        $this->assertGreaterThanOrEqual(2, count(array_filter($styleBlocks[1], fn ($block) => str_contains($block, '.msg-body strong {'))));
+        $this->assertStringNotContainsString('.msg-body strong {', preg_replace('/<style[^>]*>.*?<\/style>/si', '', $content));
     }
 
     public function test_dm_message_payload_contains_rendered_rich_text_html(): void

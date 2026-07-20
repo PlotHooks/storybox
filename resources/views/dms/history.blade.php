@@ -4,6 +4,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>DM History | Storybox</title>
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-[#050505] text-[#e9dcc2] antialiased">
@@ -171,13 +173,13 @@
                                                 </div>
                                             @endunless
 
-                                            <div class="msg-body-wrapper mt-0 text-sm leading-snug">
+                                            <div class="msg-body-wrapper mt-0 text-base font-medium leading-6">
                                                 @if ($inlineMessage && ! $isDeleted)
-                                                    <span class="leading-snug">
-                                                        <span class="msg-name text-sm font-bold leading-snug align-baseline text-[#f2dfb5]">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line">{!! $message->rendered_body_html !!}</span><span class="ml-2 text-[11px] text-[#8f8675]">{{ $absoluteTimestamp }}</span>
+                                                    <span class="leading-6">
+                                                        <span class="msg-name text-base font-bold leading-6 align-baseline text-[#f2dfb5]">{{ $name }}</span>&nbsp;<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line">{!! $message->rendered_body_html !!}</span><span class="ml-2 text-[11px] text-[#8f8675]">{{ $absoluteTimestamp }}</span>
                                                     </span>
                                                 @else
-                                                    <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line">{!! $message->rendered_body_html !!}</span>
+                                                    <span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line">{!! $message->rendered_body_html !!}</span>
                                                 @endif
                                             </div>
                                         </div>

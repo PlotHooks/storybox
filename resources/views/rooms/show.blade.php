@@ -10,14 +10,19 @@
             text-decoration: line-through;
         }
 
-        .msg-rich-small {
-            font-size: 0.85em;
+        .msg-body .msg-rich-small {
+            font-size: 0.8em;
         }
 
-        .msg-rich-large {
-            font-size: 1.15em;
+        .msg-body .msg-rich-large {
+            font-size: 1.25em;
+        }
+
+        .msg-body strong {
+            font-weight: 800;
         }
     </style>
+
 
     <div class="box-border h-[calc(100dvh-6.5rem)] sm:h-[calc(100dvh-4rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
         <div class="max-w-none w-full mx-auto h-full min-h-0 overflow-hidden flex flex-col lg:flex-row gap-3 px-2 md:px-4">
@@ -569,21 +574,21 @@
                                     </div>
                                 @endif
 
-                                <div class="msg-body-wrapper mt-0 text-sm leading-snug {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
+                                <div class="msg-body-wrapper mt-0 text-base font-medium leading-6 {{ $isBlockedByViewer && ! $isAdminBlade ? 'hidden msg-blocked-body' : '' }}">
                                     @if ($inlineMessage && ! $isDeleted)
-                                        <span class="leading-snug">
+                                        <span class="leading-6">
                                             <span
                                                 role="button"
                                                 tabindex="0"
-                                                class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                                class="char-trigger msg-name text-base font-bold leading-6 cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                                 data-style='{!! $nameStyleJson !!}'
                                                 data-character-id="{{ $c?->id ?? '' }}"
                                                 data-character-name="{{ e($name) }}"
                                                 data-character-handle="{{ e($c?->public_handle ?? '') }}"
-                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>@if ($isDice)<span class="text-[10px] text-[#8f8675] ml-2">{{ $message->created_at->diffForHumans() }}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>@endif
+                                                data-character-avatar="{{ e($avatar ?? '') }}">{{ $name }}</span>&nbsp;<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>@if ($isDice)<span class="text-[10px] text-[#8f8675] ml-2">{{ $message->created_at->diffForHumans() }}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 {{ $isDeleted ? '' : 'hidden' }}">(deleted)</span>@endif
                                         </span>
                                     @else
-                                        <span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
+                                        <span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style='{!! $bodyStyleJson !!}'>{!! $message->rendered_body_html !!}</span>
                                     @endif
                                 </div>
 
@@ -2374,19 +2379,19 @@
                                 </div>
                             ` : ''}
 
-                            <div class="msg-body-wrapper mt-0 text-sm leading-snug ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isInlineMessage && !isDeleted ? `
-                                <span class="leading-snug">
+                            <div class="msg-body-wrapper mt-0 text-base font-medium leading-6 ${isBlockedByViewer ? 'hidden msg-blocked-body' : ''}">${isInlineMessage && !isDeleted ? `
+                                <span class="leading-6">
                                     <span
                                         role="button"
                                         tabindex="0"
-                                        class="char-trigger msg-name text-sm font-bold leading-snug cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+                                        class="char-trigger msg-name text-base font-bold leading-6 cursor-pointer align-baseline hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
                                         data-style='${nameStyle}'
                                         data-character-id="${messageCharacterId || ''}"
                                         data-character-name="${safeNameAttr}"
                                         data-character-handle="${safeHandleAttr}"
-                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>` : ''}
+                                        data-character-avatar="${safeAvatarAttr}">${safeNameHtml}</span>&nbsp;<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${safeCreatedAt}</span><span class="msg-deleted text-[10px] text-[#8f8675] ml-2 ${isDeleted ? '' : 'hidden'}">(deleted)</span>` : ''}
                                 </span>
-                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
+                            ` : `<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style='${bodyStyle}'>${renderedBodyHtml}</span>`}</div>
 
                             ${canEdit ? `
                                 <div class="msg-editbox hidden mt-2">

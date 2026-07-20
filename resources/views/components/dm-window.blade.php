@@ -210,14 +210,19 @@
         text-decoration: line-through;
     }
 
-    .msg-rich-small {
-        font-size: 0.85em;
+    .msg-body .msg-rich-small {
+        font-size: 0.8em;
     }
 
-    .msg-rich-large {
-        font-size: 1.15em;
+    .msg-body .msg-rich-large {
+        font-size: 1.25em;
+    }
+
+    .msg-body strong {
+        font-weight: 800;
     }
 </style>
+
 
 <script>
 (function () {
@@ -1769,10 +1774,10 @@
                     ${avatarMarkup}
                     <div class="min-w-0 flex-1">
                         ${nameMarkup}
-                        <div class="msg-body-wrapper mt-0 text-sm leading-snug">
+                        <div class="msg-body-wrapper mt-0 text-base font-medium leading-6">
                             ${isInlineMessage && !isDeleted ? `
-                                <span class="leading-snug"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-sm font-bold leading-snug" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${escapeHtml(m.created_at_human ?? '')}</span>` : ''}</span>
-                            ` : `<span class="msg-body text-sm text-[#d6c8ad] leading-snug whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>`}
+                                <span class="leading-6"><span role="button" tabindex="0" class="dm-char-trigger align-baseline rounded hover:underline focus:outline-none focus:ring-2 focus:ring-amber-500/40" data-character-id="${characterId}" data-character-name="${escapeAttr(who)}" data-character-handle="${escapeAttr(characterHandle || who)}" data-character-avatar="${escapeAttr(avatar)}"><span class="msg-name text-base font-bold leading-6" data-style="${escapeHtml(nameStyleJson)}">${escapeHtml(who)}</span></span>&nbsp;<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>${isDice ? `<span class="text-[10px] text-[#8f8675] ml-2">${escapeHtml(m.created_at_human ?? '')}</span>` : ''}</span>
+                            ` : `<span class="msg-body text-base font-medium text-[#d6c8ad] leading-6 whitespace-pre-line" data-style="${escapeHtml(bodyStyleJson)}">${renderedBodyHtml}</span>`}
                         </div>
                     </div>
                 `;
