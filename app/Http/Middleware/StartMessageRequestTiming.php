@@ -21,7 +21,13 @@ class StartMessageRequestTiming
             });
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        if (MessageRequestTiming::enabled($request) && (string) ($request->route()?->getName() ?? "") === "rooms.show") {
+            $response->headers->set("X-Room-Switch-Timing-Id", (string) MessageRequestTiming::get($request, "request_id"));
+        }
+
+        return $response;
     }
 
     public function terminate(Request $request, Response $response): void

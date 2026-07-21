@@ -103,10 +103,12 @@ class RoomController extends Controller
             ->with('status', 'Room created.');
     }
 
-    public function show(Room $room)
+    public function show(Room $room, Request $request)
     {
+        MessageRequestTiming::checkpoint($request, "controller_entry");
+        $controllerStartedAt = microtime(true);
         // rooms table is the conversation model.
-        [$activeCharacterId, $characterSelectionNotice] = $this->activeCharacterSelectionForConversation($room);
+        [$activeCharacterId, $characterSelectionNotice] = MessageRequestTiming::profileStep($request, "room_switch", "active_character_selection_and_access_checks", fn () => $this->activeCharacterSelectionForConversation($room));
         $activeCharacter = $this->ownedCharacterById($activeCharacterId);
 
         if ($room->isPublicRoom()) {
@@ -125,7 +127,7 @@ class RoomController extends Controller
             }
         }
 
-        $messages = $this->applyLiveRoomDisplayClearScope(
+        $messages = MessageRequestTiming::profileStep($request, "room_switch", "message_retrieval", fn () => $this->applyLiveRoomDisplayClearScope(
             $room->messages()
                 ->withTrashed()
                 ->with(['character', 'user']),
@@ -134,7 +136,7 @@ class RoomController extends Controller
             ->latest()
             ->take(50)
             ->get()
-            ->reverse();
+            ->reverse());
 
         $this->applyBlockedMessageFlags($messages, $activeCharacterId);
         $this->hydrateRenderedMessages($messages);
@@ -201,6 +203,11 @@ class RoomController extends Controller
             }
         }
 
+        $roomSwitchTimingEnabled = (bool) config('app.room_switch_timing_log', false);
+        $roomSwitchTimingId = MessageRequestTiming::get($request, 'request_id');
+        MessageRequestTiming::set($request, 'controller.total_ms', round((microtime(true) - $controllerStartedAt) * 1000, 2));
+        MessageRequestTiming::checkpoint($request, 'controller_return');
+
         return view('rooms.show', compact(
             'room',
             'messages',
@@ -217,7 +224,9 @@ class RoomController extends Controller
             'roomToolIndicators',
             'roomParticipationTokens',
             'showRecoveryLink',
-            'recoverableRoomCount'
+            'recoverableRoomCount',
+            'roomSwitchTimingEnabled',
+            'roomSwitchTimingId'
         ));
     }
 

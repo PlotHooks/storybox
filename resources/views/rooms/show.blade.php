@@ -1097,6 +1097,127 @@
         const seenMessageIds = new Set();
         const pendingRoomMessages = new Map();
         let nextPendingRoomMessageId = 1;
+        const roomSwitchTimingEnabled = @json($roomSwitchTimingEnabled ?? false);
+        const roomSwitchTimingId = @json($roomSwitchTimingId ?? null);
+
+        if (roomSwitchTimingEnabled) {
+            (() => {
+                const startedAt = performance.now();
+                const requestCounts = {};
+                const duplicateRequests = {};
+                const subscriptions = { attempts: 0, successes: 0, durations_ms: [] };
+                let windowLoaded = document.readyState === 'complete';
+                const round = (value) => Math.round(value * 100) / 100;
+                const log = (milestone, details = {}) => console.info('[room-switch-timing]', {
+                    correlation_id: typeof roomSwitchTimingId === 'string' ? roomSwitchTimingId : null,
+                    milestone,
+                    elapsed_ms: round(performance.now() - startedAt),
+                    ...details,
+                });
+                const categoryFor = (input) => {
+                    try {
+                        const url = new URL(input instanceof Request ? input.url : input, window.location.origin);
+                        if (url.origin !== window.location.origin) return 'cross_origin';
+                        if (url.pathname === '/broadcasting/auth') return 'broadcasting_auth';
+                        if (/^\/rooms\//.test(url.pathname) && /\/messages$/.test(url.pathname)) return 'room_messages';
+                        if (/^\/rooms\//.test(url.pathname) && /\/roster$/.test(url.pathname)) return 'room_roster';
+                        if (url.pathname === '/rooms/current-character') return 'current_character';
+                        return 'same_origin_other';
+                    } catch (_) {
+                        return 'unknown';
+                    }
+                };
+                const recordRequest = (category, method, requestStartedAt, status) => {
+                    const key = `${method} ${category}`;
+                    requestCounts[key] = (requestCounts[key] ?? 0) + 1;
+                    const duplicate = requestCounts[key] > 1;
+                    if (duplicate) duplicateRequests[key] = (duplicateRequests[key] ?? 0) + 1;
+                    log('request_completed', { category, method, status, post_load: windowLoaded, duration_ms: round(performance.now() - requestStartedAt), duplicate });
+                };
+                const nativeFetch = window.fetch;
+                window.fetch = function (...args) {
+                    const requestStartedAt = performance.now();
+                    const category = categoryFor(args[0]);
+                    const method = (args[1]?.method ?? (args[0] instanceof Request ? args[0].method : 'GET')).toUpperCase();
+                    return nativeFetch.apply(this, args).then(
+                        (response) => { recordRequest(category, method, requestStartedAt, response.status); return response; },
+                        (error) => { recordRequest(category, method, requestStartedAt, 0); throw error; },
+                    );
+                };
+                const nativeXhrOpen = XMLHttpRequest.prototype.open;
+                const nativeXhrSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.open = function (method, url, ...args) {
+                    this.__roomSwitchTiming = { category: categoryFor(url), method: String(method ?? 'GET').toUpperCase() };
+                    return nativeXhrOpen.call(this, method, url, ...args);
+                };
+                XMLHttpRequest.prototype.send = function (...args) {
+                    const metadata = this.__roomSwitchTiming;
+                    if (metadata) {
+                        const requestStartedAt = performance.now();
+                        this.addEventListener('loadend', () => recordRequest(metadata.category, metadata.method, requestStartedAt, this.status), { once: true });
+                    }
+                    return nativeXhrSend.apply(this, args);
+                };
+                const composerReady = () => {
+                    const composerForm = document.getElementById('message-form');
+                    const composerTextarea = document.getElementById('body');
+                    const composerSubmit = composerForm?.querySelector('button[type="submit"], [type="submit"]');
+                    log('composer_ready', {
+                        form_present: !!composerForm,
+                        textarea_present: !!composerTextarea,
+                        submit_present: !!composerSubmit,
+                        submit_enabled: !!composerSubmit && !composerSubmit.disabled,
+                    });
+                };
+                const navigationMilestones = () => {
+                    const navigation = performance.getEntriesByType('navigation')[0];
+                    log('navigation_milestones', navigation ? {
+                        redirect_ms: round(navigation.redirectDuration),
+                        response_end_ms: round(navigation.responseEnd),
+                        dom_interactive_ms: round(navigation.domInteractive),
+                        dom_content_loaded_ms: round(navigation.domContentLoadedEventEnd),
+                        load_event_ms: round(navigation.loadEventEnd),
+                    } : {});
+                };
+                const observeLongTasks = () => {
+                    if (!window.PerformanceObserver) return log('long_task_observer_unavailable');
+                    try {
+                        new PerformanceObserver((list) => list.getEntries().forEach((entry) => log('long_task', {
+                            start_ms: round(entry.startTime), duration_ms: round(entry.duration),
+                        }))).observe({ type: 'longtask', buffered: true });
+                    } catch (_) {
+                        log('long_task_observer_unavailable');
+                    }
+                };
+                document.addEventListener('DOMContentLoaded', () => log('dom_content_loaded'), { once: true });
+                window.addEventListener('load', () => { windowLoaded = true; log('window_load'); composerReady(); navigationMilestones(); }, { once: true });
+                requestAnimationFrame(composerReady);
+                observeLongTasks();
+                const nativePrivate = window.Echo?.private?.bind(window.Echo);
+                if (nativePrivate) {
+                    window.Echo.private = function (...args) {
+                        subscriptions.attempts += 1;
+                        const subscriptionStartedAt = performance.now();
+                        log('reverb_subscription_attempt', { count: subscriptions.attempts });
+                        const channel = nativePrivate(...args);
+                        channel?.bind?.('pusher:subscription_succeeded', () => {
+                            subscriptions.successes += 1;
+                            const duration = round(performance.now() - subscriptionStartedAt);
+                            subscriptions.durations_ms.push(duration);
+                            log('reverb_subscription_succeeded', { attempts: subscriptions.attempts, successes: subscriptions.successes, duration_ms: duration });
+                        });
+                        return channel;
+                    };
+                } else {
+                    log('reverb_subscription_unavailable');
+                }
+                window.addEventListener('pagehide', () => log('summary', {
+                    request_counts: requestCounts,
+                    duplicate_requests: duplicateRequests,
+                    reverb_subscriptions: subscriptions,
+                }));
+            })();
+        }
 
         const container  = document.getElementById('message-container');
         const form       = document.getElementById('message-form');

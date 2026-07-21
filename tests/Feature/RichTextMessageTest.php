@@ -198,6 +198,13 @@ class RichTextMessageTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message.body', '[b]Edited[/b] text')
             ->assertJsonPath('message.rendered_body_html', '<strong>Edited</strong> text');
+
+        $this->assertDatabaseHas('message_edits', [
+            'message_id' => $message->id,
+            'editor_user_id' => $user->id,
+            'old_body' => 'plain text',
+            'new_body' => '[b]Edited[/b] text',
+        ]);
     }
 
     public function test_plain_messages_still_render_unchanged(): void

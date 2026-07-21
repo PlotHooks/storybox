@@ -6,6 +6,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class MessageRequestTiming
@@ -14,11 +15,10 @@ class MessageRequestTiming
 
     public static function shouldTrack(Request $request): bool
     {
-        if (! (bool) config('app.message_timing_log', false)) {
-            return false;
-        }
+        $routeName = (string) ($request->route()?->getName() ?? '');
 
-        return (string) ($request->route()?->getName() ?? '') === 'rooms.messages.store';
+        return ((bool) config('app.message_timing_log', false) && $routeName === 'rooms.messages.store')
+            || ((bool) config('app.room_switch_timing_log', false) && $routeName === 'rooms.show');
     }
 
     public static function start(Request $request): void
@@ -29,6 +29,7 @@ class MessageRequestTiming
 
         $request->attributes->set(self::ATTRIBUTE, [
             'enabled' => true,
+            'request_id' => (string) Str::uuid(),
             'route_name' => (string) ($request->route()?->getName() ?? ''),
             'method' => $request->method(),
             'path' => $request->path(),
@@ -142,6 +143,7 @@ class MessageRequestTiming
 
         $queries = self::get($request, 'controller.expensive_queries.' . $scope, []);
         $queries[] = [
+            'request_id' => self::get($request, 'request_id'),
             'step' => $step,
             'duration_ms' => round((float) $query->time, 2),
             'table' => self::tableTouched((string) $query->sql),
@@ -195,7 +197,7 @@ class MessageRequestTiming
             'db_time_ms' => self::get($request, 'db_time_ms', 0.0),
         ];
 
-        Log::info('message request lifecycle timing', array_filter(
+        Log::info(self::get($request, 'route_name') === 'rooms.show' ? 'room switch timing' : 'message request lifecycle timing', array_filter(
             $summary,
             static fn (mixed $value): bool => $value !== null && $value !== []
         ));

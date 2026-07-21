@@ -43,6 +43,9 @@ return [
 
     'message_timing_log' => (bool) env('MESSAGE_TIMING_LOG', false),
 
+    // Temporary diagnostic flag for measuring room navigation latency in production.
+    'room_switch_timing_log' => (bool) env('ROOM_SWITCH_TIMING_LOG', false),
+
     'message_broadcast_after_response' => (bool) env('MESSAGE_BROADCAST_AFTER_RESPONSE', false),
 
     // Temporary diagnostic flag to isolate frontend polling from message POST latency.
