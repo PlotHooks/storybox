@@ -297,7 +297,6 @@
     let lastDmNotificationPlaybackAt = 0;
     const dmNotificationDiagnostics = new Set();
     let archivedSectionExpanded = false;
-    const dmListRealtimeConversationIds = new Set();
     const dmRoomsBySlug = new Map();
     const dmMessageCache = new Map();
     const lastDmSlugStorageKey = 'storybox_last_dm_slug';
@@ -1557,7 +1556,6 @@
 
         listEl.scrollTop = previousScrollTop;
         bindRoomListInteractions();
-        syncDmListRealtimeSubscriptions(normalizedRooms);
     }
 
     function fetchDmRooms(options = {}) {
@@ -2026,38 +2024,6 @@
             });
     }
 
-    function syncDmListRealtimeSubscriptions(rooms) {
-        if (!window.Echo || !Array.isArray(rooms)) return;
-
-        rooms.forEach((room) => {
-            const conversationId = parseInt(room.roomId || 0, 10) || 0;
-            const characterId = parseInt(room.myCharacterId || 0, 10) || 0;
-
-            if (!conversationId || !characterId || dmListRealtimeConversationIds.has(conversationId)) {
-                return;
-            }
-
-            dmListRealtimeConversationIds.add(conversationId);
-
-            const channelName = `private-conversation.${conversationId}`;
-            window.StoryboxChannelCharacters[channelName] = characterId;
-
-            window.Echo.private(`conversation.${conversationId}`)
-                .listen('.message.created', (event) => {
-                    const eventId = parseInt(event.id, 10);
-                    if (!eventId) return;
-
-                    if (isOpen() && activeDm.conversationId === conversationId) {
-                        pollConversation();
-                        fetchDmRooms({ showLoading: false });
-                        return;
-                    }
-
-                    incrementDmUnread(conversationId);
-                    fetchDmRooms({ showLoading: false });
-                });
-        });
-    }
 
     function stopDmRealtime() {
         if (!window.Echo || !activeRealtimeConversationId) return;
