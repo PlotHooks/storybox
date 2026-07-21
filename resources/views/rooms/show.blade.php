@@ -3156,7 +3156,9 @@
             });
 
             window.addEventListener('focus', () => refreshActiveRoomSession());
-            window.addEventListener('pageshow', () => refreshActiveRoomSession());
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted) refreshActiveRoomSession();
+            });
         }
 
         if (!disableChatPolling) {
