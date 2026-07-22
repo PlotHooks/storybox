@@ -3069,6 +3069,8 @@
             }
         }
 
+        let hasConnectedRoomRealtime = false;
+
         /* fetch new messages */
         function fetchNewMessages() {
             fetch(`/rooms/${roomSlug}/messages?after=${lastMessageId}&character_id=${getTabCharacterId()}`, {
@@ -3138,7 +3140,10 @@
                     });
                 });
 
-            window.Echo.connector?.pusher?.connection?.bind('connected', () => fetchNewMessages());
+            window.Echo.connector?.pusher?.connection?.bind('connected', () => {
+                if (hasConnectedRoomRealtime) fetchNewMessages();
+                hasConnectedRoomRealtime = true;
+            });
         }
 
         function refreshActiveRoomSession() {

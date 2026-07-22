@@ -17,6 +17,14 @@
         'volume' => \App\Models\User::DM_NOTIFICATION_VOLUME_DEFAULT,
     ];
     $dmNotificationUserId = (int) auth()->id();
+    $dmInitialUnreadTotal = auth()->check() ? \Illuminate\Support\Facades\DB::table("dm_participants as mine")
+        ->join("rooms", "rooms.id", "=", "mine.room_id")
+        ->leftJoin("character_conversation_reads as ccr", fn ($join) => $join->on("ccr.conversation_id", "=", "rooms.id")->whereColumn("ccr.character_id", "mine.character_id"))
+        ->where("mine.user_id", auth()->id())->where("rooms.type", \App\Models\Room::TYPE_DM)->whereNull("rooms.deleted_at")
+        ->whereExists(function ($query) {
+            $query->selectRaw("1")->from("messages as m")->whereColumn("m.room_id", "rooms.id")->whereNull("m.deleted_at")
+                ->whereColumn("m.id", ">", \Illuminate\Support\Facades\DB::raw("COALESCE(ccr.last_read_message_id, 0)"));
+        })->count() : 0;
 @endphp
 
 <div
@@ -266,6 +274,7 @@
     let pollDmTimer = null;
     let pollInFlight = false;
     let roomsLoaded = false;
+    let dmRoomsRequest = null;
     let dmComposeSearchTimer = null;
     let dmComposeSearchController = null;
 
@@ -289,6 +298,7 @@
     let dmGlobalNotificationChannel = null;
     let dmConversationFilter = '';
     const playedDmNotificationIds = [];
+    let globalDmUnreadTotal = dmInitialUnreadTotal;
     const supportedDmNotificationAudioExtensions = ['mp3', 'ogg', 'wav', 'm4a'];
     const builtInDmNotificationFallbackUrl = @json(asset('audio/dm-default.wav'));
     const dmNotificationCooldownMs = 1250;
@@ -1086,7 +1096,7 @@
         const recipientCharacterId = parseInt(event?.recipient_character_id || 0, 10) || 0;
         const sound = resolveDmNotificationSound();
 
-        if (!sound.enabled || !messageId || !roomId || !rememberDmNotification(messageId)) {
+        if (!sound.enabled || !messageId || !roomId) {
             return false;
         }
 
@@ -1136,11 +1146,11 @@
     }
 
     function handleGlobalDmNotification(event) {
-        if (shouldPlayDmNotificationEvent(event)) {
-            playDmNotificationSound({ bypassCooldown: true });
-        }
-
-        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
+        const messageId = parseInt(event?.message_id || 0, 10) || 0;
+        const roomId = parseInt(event?.room_id || 0, 10) || 0;
+        if (!messageId || !roomId || !rememberDmNotification(messageId)) return;
+        if (shouldPlayDmNotificationEvent(event)) playDmNotificationSound({ bypassCooldown: true });
+        incrementDmUnread(roomId);
     }
 
     function formatUnreadCount(count) {
@@ -1166,13 +1176,14 @@
         });
     }
 
-    function updateGlobalUnreadBadge() {
-        const total = Array.from(dmRoomsBySlug.values()).reduce((sum, room) => {
-            return sum + parseUnreadCount(room.unreadCount);
-        }, 0);
+    function setGlobalUnreadTotal(total) {
+        globalDmUnreadTotal = Math.max(0, parseUnreadCount(total));
+        globalUnreadBadges.forEach((badge) => setUnreadBadge(badge, globalDmUnreadTotal));
+        syncGlobalDmButtons(globalDmUnreadTotal > 0);
+    }
 
-        globalUnreadBadges.forEach((badge) => setUnreadBadge(badge, total));
-        syncGlobalDmButtons(total > 0);
+    function updateGlobalUnreadBadge() {
+        setGlobalUnreadTotal(Array.from(dmRoomsBySlug.values()).reduce((sum, room) => sum + parseUnreadCount(room.unreadCount), 0));
     }
 
     function updateGlobalUnreadBadgeFromRooms(rooms) {
@@ -1180,8 +1191,7 @@
             return sum + parseUnreadCount(room.unreadCount ?? room.unread_count);
         }, 0);
 
-        globalUnreadBadges.forEach((badge) => setUnreadBadge(badge, total));
-        syncGlobalDmButtons(total > 0);
+        setGlobalUnreadTotal(total);
     }
 
     function findRoomByConversationId(conversationId) {
@@ -1223,7 +1233,8 @@
 
         const badge = listEl?.querySelector(`[data-dm-unread-badge="${normalizedConversationId}"]`);
         incrementUnreadBadge(badge);
-        updateGlobalUnreadBadge();
+        if (room?.slug) updateGlobalUnreadBadge();
+        else setGlobalUnreadTotal(globalDmUnreadTotal + 1);
     }
 
     function getMessageCache(slug) {
@@ -1559,6 +1570,7 @@
     }
 
     function fetchDmRooms(options = {}) {
+        if (dmRoomsRequest) return dmRoomsRequest;
         const { showLoading = false, allowWhenClosed = false } = options;
 
         try {
@@ -1574,7 +1586,7 @@
 
         const previousRooms = Array.from(dmRoomsBySlug.values());
 
-        return fetch('/dms', {
+        dmRoomsRequest = fetch('/dms', {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
@@ -1603,7 +1615,9 @@
             console.error('DM list error:', err);
             if (!roomsLoaded) setRoomListMessage('Could not load DMs.', true);
             return [];
-        });
+        }).finally(() => { dmRoomsRequest = null; });
+
+        return dmRoomsRequest;
     }
 
     function buildStops(s) {
@@ -2217,7 +2231,6 @@
         storeActiveConversationScroll();
         dmWindow.classList.add('hidden');
         stopDmRealtime();
-        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
     });
 
     sendBtn?.addEventListener('click', () => sendDmMessage());
@@ -2236,7 +2249,6 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
         startGlobalDmNotificationRealtime();
-        fetchDmRooms({ showLoading: false, allowWhenClosed: true });
         if (isOpen() && activeDm.slug) pollConversation();
     });
 
@@ -2308,13 +2320,7 @@
 
     bindDmNotificationAudioUnlock();
     startGlobalDmNotificationRealtime();
-    fetchDmRooms({ showLoading: false, allowWhenClosed: true });
-    if (!disableChatPolling) {
-        window.setInterval(() => {
-            if (document.hidden) return;
-            fetchDmRooms({ showLoading: false, allowWhenClosed: true });
-        }, 30000);
-    }
+    setGlobalUnreadTotal(dmInitialUnreadTotal);
 
 })();
 </script>

@@ -87,6 +87,10 @@ Examples include:
 - php artisan migrate:status
 - php artisan config:show
 - running read-only diagnostic commands
+- running tests that do not modify persistent data
+- querying the local database without modifying it
+- using local browser automation for investigation
+- checking installed tools, packages, and built assets
 
 The purpose of investigation mode is to understand the current system before proposing changes.
 

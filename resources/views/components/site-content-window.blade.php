@@ -493,21 +493,6 @@
         windowEl.dataset.mobileLayout = '0';
     });
 
-    if (!disableChatPolling) {
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) return;
-            refreshRulesFaqIndicator();
-        });
-    }
-
-    refreshRulesFaqIndicator();
-    if (!disableChatPolling) {
-        window.setInterval(() => {
-            if (document.hidden) return;
-            refreshRulesFaqIndicator();
-        }, 300000);
-    }
-
     window.addEventListener('open-site-content-window', (event) => openWindow(event.detail || {}));
 })();
 </script>
