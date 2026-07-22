@@ -91,6 +91,23 @@ class CurrentCharacterSelectionTest extends TestCase
             ->assertSee('Posting as reset to '.$firstCharacter->name.' for this room.');
     }
 
+    public function test_room_switch_commits_only_after_confirmation_and_disables_composer_while_pending(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter('Switcher');
+        $room = $this->createRoom($user, $character, 'Tavern');
+
+        $html = $this->actingAs($user)
+            ->withSession(['active_character_id' => $character->id])
+            ->get(route('rooms.show', $room->slug))
+            ->getContent();
+
+        $this->assertStringContainsString('let confirmedCharacterId = 0;', $html);
+        $this->assertStringContainsString('let pendingCharacterId = null;', $html);
+        $this->assertStringContainsString('pendingCharacterId !== null', $html);
+        $this->assertStringNotContainsString('syncCurrentCharacter(preferred)', $html);
+    }
+
+
     private function createUserWithCharacter(string $name): array
     {
         $user = User::factory()->create([

@@ -2122,37 +2122,78 @@
 
         /* active character */
         const serverActiveCharacterId = {{ (int) ($activeCharacterId ?? 0) }};
+        const characterDiagnosticsEnabled = localStorage.getItem('storybox.characterSwitchDiagnostics') === '1';
+        let confirmedCharacterId = 0;
+        let pendingCharacterId = null;
+        let characterSwitchRequestSequence = 0;
+        let messageRequestSequence = 0;
 
-        function getTabCharacterId() {
+        function readStoredTabCharacterId() {
             const v = sessionStorage.getItem('active_character_id');
             return v ? parseInt(v, 10) : 0;
+        }
+
+        function logCharacterDiagnostic(event, details = {}) {
+            if (!characterDiagnosticsEnabled) return;
+            console.info('[Storybox character diagnostic]', event, {
+                at: new Date().toISOString(),
+                confirmed_character_id: confirmedCharacterId || null,
+                pending_character_id: pendingCharacterId || null,
+                selector_character_id: parseInt(switcher?.value || '0', 10) || null,
+                session_storage_character_id: readStoredTabCharacterId() || null,
+                hidden_input_character_id: parseInt(hiddenChar?.value || '0', 10) || null,
+                ...details,
+            });
+        }
+
+        function getTabCharacterId() {
+            return confirmedCharacterId || readStoredTabCharacterId();
         }
         function getViewerCharacterId() {
             const id = getTabCharacterId();
             return ownedCharacterIds.includes(id) ? id : 0;
         }
         function setTabCharacterId(id) {
+            confirmedCharacterId = id;
             sessionStorage.setItem('active_character_id', String(id));
             if (hiddenChar) hiddenChar.value = String(id);
             syncRoomParticipationToken();
         }
 
+        async function syncCurrentCharacter(id, requestId) {
+            if (!id) return { ok: false, message: 'A character is required.' };
 
-        function syncCurrentCharacter(id) {
-            if (!id) return Promise.resolve(false);
+            try {
+                const response = await fetch(currentCharacterUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ character_id: id }),
+                });
+                const data = await response.json().catch(() => null);
+                const ok = response.ok && data?.ok === true && parseInt(data.character_id || 0, 10) === id;
+                logCharacterDiagnostic('switch_response', {
+                    switch_request_id: requestId,
+                    requested_character_id: id,
+                    response_ok: response.ok,
+                    response_character_id: parseInt(data?.character_id || 0, 10) || null,
+                });
 
-            return fetch(currentCharacterUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({ character_id: id }),
-            })
-            .then((response) => response.ok)
-            .catch(() => false);
+                return {
+                    ok,
+                    message: data?.message || (response.ok ? 'Could not confirm that character switch.' : 'Could not switch characters.'),
+                };
+            } catch (error) {
+                logCharacterDiagnostic('switch_network_failure', {
+                    switch_request_id: requestId,
+                    requested_character_id: id,
+                });
+                return { ok: false, message: 'Could not switch characters. Please try again.' };
+            }
         }
 
         window.Storybox = window.Storybox || {};
@@ -2171,12 +2212,14 @@
         (function initActiveCharacterPerTab() {
             if (!switcher) return;
 
-            const preferred = serverActiveCharacterId || parseInt(switcher.value, 10) || getTabCharacterId();
+            const storedCharacterId = readStoredTabCharacterId();
+            const preferred = (ownedCharacterIds.includes(storedCharacterId) && storedCharacterId)
+                || serverActiveCharacterId
+                || parseInt(switcher.value, 10);
 
             if (preferred) {
                 switcher.value = String(preferred);
                 setTabCharacterId(preferred);
-                syncCurrentCharacter(preferred);
             }
 
             const cid = getTabCharacterId();
@@ -2186,16 +2229,51 @@
 
         switcher?.addEventListener('change', function() {
             const newId = parseInt(this.value, 10);
-            if (!newId) return;
-
             const oldId = getTabCharacterId();
-            if (oldId) setLastRoomForCharacter(oldId, roomSlug);
+            if (!newId || !oldId || pendingCharacterId !== null || newId === oldId) {
+                this.value = String(oldId || '');
+                return;
+            }
 
-            setTabCharacterId(newId);
+            const switchRequestId = ++characterSwitchRequestSequence;
+            pendingCharacterId = newId;
+            this.value = String(oldId);
+            logCharacterDiagnostic('switch_started', {
+                switch_request_id: switchRequestId,
+                requested_character_id: newId,
+            });
             updateComposerAvailability();
 
-            syncCurrentCharacter(newId).then((ok) => {
-                if (!ok) return;
+            syncCurrentCharacter(newId, switchRequestId).then((result) => {
+                if (switchRequestId !== characterSwitchRequestSequence) {
+                    logCharacterDiagnostic('switch_response_ignored_as_stale', {
+                        switch_request_id: switchRequestId,
+                        requested_character_id: newId,
+                    });
+                    return;
+                }
+
+                pendingCharacterId = null;
+
+                if (!result.ok) {
+                    switcher.value = String(getTabCharacterId());
+                    showComposerError(result.message);
+                    logCharacterDiagnostic('switch_failed', {
+                        switch_request_id: switchRequestId,
+                        requested_character_id: newId,
+                    });
+                    updateComposerAvailability();
+                    return;
+                }
+
+                setLastRoomForCharacter(oldId, roomSlug);
+                setTabCharacterId(newId);
+                switcher.value = String(newId);
+                updateComposerAvailability();
+                logCharacterDiagnostic('switch_confirmed', {
+                    switch_request_id: switchRequestId,
+                    confirmed_character_id: newId,
+                });
 
                 const target = getLastRoomForCharacter(newId);
                 if (target && target !== roomSlug) {
@@ -2336,10 +2414,16 @@
         }
 
         function updateComposerAvailability() {
-            const canPost = getTabCharacterId() > 0;
+            const isSwitchingCharacter = pendingCharacterId !== null;
+            const canPost = getTabCharacterId() > 0 && !isSwitchingCharacter;
 
             if (textarea) {
                 textarea.disabled = !canPost;
+            }
+
+            if (switcher) {
+                switcher.disabled = isSwitchingCharacter;
+                switcher.setAttribute('aria-busy', isSwitchingCharacter ? 'true' : 'false');
             }
 
             if (submitButton) {
@@ -2348,9 +2432,11 @@
             }
 
             if (composerStatus) {
-                composerStatus.textContent = canPost ? 'Transmission ready' : 'Character required';
+                composerStatus.textContent = isSwitchingCharacter
+                    ? 'Switching character…'
+                    : (canPost ? 'Transmission ready' : 'Character required');
                 composerStatus.classList.toggle('text-amber-500/70', canPost);
-                composerStatus.classList.toggle('text-amber-300', !canPost);
+                composerStatus.classList.toggle('text-amber-300', !canPost || isSwitchingCharacter);
             }
 
             if (missingCharacterNotice) {
@@ -2424,6 +2510,13 @@
             const messageCharacterId = parseInt(message.character?.id ?? message.character_id ?? 0, 10) || 0;
             const previousCharacterId = options.previousCharacterId ?? (parseInt(getLastMessageRow()?.dataset.characterId || '0', 10) || 0);
             const isGrouped = !isFailed && messageCharacterId > 0 && previousCharacterId === messageCharacterId;
+            logCharacterDiagnostic("message_render", {
+                rendered_message_id: messageId || null,
+                rendered_character_id: messageCharacterId || null,
+                previous_row_character_id: previousCharacterId || null,
+                grouped: isGrouped,
+                render_state: state,
+            });
             const blockLabel = isBlockedByViewer ? 'Blocked' : 'Block';
             const blockClass = isBlockedByViewer ? 'text-[#8f8675] hover:text-[#d6c8ad]' : 'text-red-400 hover:text-red-300';
             const blockButtonHtml = (!isPending && !isFailed && !isAdmin && viewerCharacterId && messageCharacterId && messageCharacterId !== viewerCharacterId)
@@ -2679,23 +2772,31 @@
             textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         }
 
-        async function sendRoomMessage(body, characterId, pendingId = null) {
+        async function sendRoomMessage(body, characterId, pendingId = null, clientRequestId = null) {
             const data = await fetchJson(form.action, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': csrf,
                     'Accept': 'application/json',
+                    ...(clientRequestId ? {'X-Storybox-Message-Request-Id': clientRequestId} : {}),
                     'Content-Type': 'application/json',
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     character_id: characterId,
                     body,
-                    room_participation_token: currentRoomParticipationToken(),
+                    room_participation_token: currentRoomParticipationToken(characterId),
                 }),
             }, 'Send message');
 
-            if (data?.command === 'cls') {
+            logCharacterDiagnostic("message_response", {
+                client_message_request_id: clientRequestId,
+                submitted_character_id: characterId,
+                returned_message_id: parseInt(data?.id || 0, 10) || null,
+                returned_message_character_id: parseInt(data?.character_id || data?.character?.id || 0, 10) || null,
+            });
+
+            if (data?.command === "cls") {
                 clearActiveRoomMessagePane();
                 if (pendingId) pendingRoomMessages.delete(pendingId);
                 return data;
@@ -2723,11 +2824,18 @@
         form?.addEventListener('submit', async function(e) {
             clearComposerError();
             syncContentMirror();
-            const id = getTabCharacterId();
+            const id = confirmedCharacterId;
             if (hiddenChar) hiddenChar.value = String(id);
 
             if (isSubmittingMessage) {
                 e.preventDefault();
+                return;
+            }
+
+            if (pendingCharacterId !== null) {
+                e.preventDefault();
+                showComposerError("Please wait for the character switch to finish.");
+                updateComposerAvailability();
                 return;
             }
 
@@ -2757,7 +2865,8 @@
             }
 
             try {
-                await sendRoomMessage(body, id, pendingId);
+                const clientRequestId = `message-${Date.now()}-${messageRequestSequence + 1}`; messageRequestSequence += 1;
+                await sendRoomMessage(body, id, pendingId, clientRequestId);
                 if (!isOptimisticEligible) {
                     if (textarea) textarea.value = '';
                     syncContentMirror();
