@@ -251,6 +251,7 @@
     const defaultDmFromCharacterId = parseInt(@json((int) ($dmDefaultFromCharacter?->id ?? 0)), 10) || 0;
     const dmNotificationSoundConfig = @json($dmNotificationSoundPreferences);
     const dmNotificationUserId = parseInt(@json($dmNotificationUserId), 10) || 0;
+    const dmInitialUnreadTotal = parseInt(@json($dmInitialUnreadTotal), 10) || 0;
     const disableChatPolling = @json(config('app.disable_chat_polling'));
 
     const listEl = document.getElementById('dm-convo-list');
@@ -2166,7 +2167,9 @@
             const otherCharacterId = parseInt(e?.detail?.other_character_id || 0, 10) || 0;
             const isBlockedByViewer = parseBool(e?.detail?.is_blocked_by_viewer);
 
-            fetchDmRooms({ showLoading: true }).then((rooms) => {
+            // This is the explicit open transition: allow its first list request even if
+            // another launcher checks visibility before the class change is observable.
+            fetchDmRooms({ showLoading: true, allowWhenClosed: true }).then((rooms) => {
                 try {
                     const existingRoom = slug ? dmRoomsBySlug.get(slug) : null;
 
