@@ -440,17 +440,6 @@
                                 Toggle Right
                             </button>
 
-                            <span class="text-xs text-[#8f8675]">Posting as</span>
-
-                            <select id="character-switcher"
-                                class="rounded border-[#332817] bg-[#0b0b0c] text-xs text-[#f2dfb5] px-2 py-1 focus:border-amber-500 focus:ring-amber-500">
-                                @foreach ($characters as $char)
-                                    <option value="{{ $char->id }}" {{ $char->id == $activeCharacterId ? 'selected' : '' }}>
-                                        {{ $char->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-
                             <button id="leave-room-btn" type="button"
                                 class="rounded border border-red-500/40 bg-red-500/10 text-xs font-semibold text-red-200 px-2 py-1 hover:bg-red-500/20 focus:outline-none focus:ring-2 focus:ring-red-500/50">
                                 Leave room
@@ -692,19 +681,37 @@
                             name="body"
                             rows="3"
                             required
-                            placeholder="Enter to send. Shift+Enter for newline."
+                            placeholder="You are posting as {{ optional($characters->firstWhere('id', $activeCharacterId))->name ?? 'a character' }}&#10;Enter to send. Shift + Enter for a new line."
                             @disabled(! $canPostInRoom)
                             aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
                             class="mt-1 block w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >{{ old('body') }}</textarea>
 
                         <div class="mt-2 flex items-center justify-between gap-3">
-                            <div id="message-composer-status" class="text-[10px] uppercase tracking-[0.18em] {{ $canPostInRoom ? 'text-amber-500/70' : 'text-amber-300' }}">{{ $canPostInRoom ? 'Transmission ready' : 'Character required' }}</div>
+                            <div id="message-composer-status" class="min-w-0 flex-1 text-xs text-[#8f8675]">
+                                @if ($characters->isNotEmpty())
+                                    <div id="posting-character-control" class="relative inline-flex max-w-full items-center">
+                                        <select id="character-switcher" class="sr-only" aria-label="Posting character">
+                                            @foreach ($characters as $char)
+                                                <option value="{{ $char->id }}" {{ $char->id == $activeCharacterId ? 'selected' : '' }}>{{ $char->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button id="posting-character-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="posting-character-menu" class="inline-flex min-w-0 max-w-full items-center gap-1 rounded border border-[#332817] bg-[#0b0b0c] px-2 py-1 text-left text-xs hover:border-amber-500/50 hover:bg-[#141416] focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-60">
+                                            <span class="shrink-0 text-[#8f8675]">Posting as</span>
+                                            <span id="posting-character-name" class="min-w-0 truncate font-medium"></span>
+                                            <span aria-hidden="true" class="shrink-0 text-[#8f8675]">▾</span>
+                                        </button>
+                                        <div id="posting-character-menu" role="listbox" aria-label="Choose posting character" class="absolute bottom-full left-0 z-30 mb-2 hidden max-h-52 min-w-full overflow-y-auto rounded border border-[#332817] bg-[#101012] p-1 shadow-xl"></div>
+                                    </div>
+                                @else
+                                    Character required
+                                @endif
+                            </div>
                             <button
                                 type="submit"
                                 @disabled(! $canPostInRoom)
                                 aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
-                                class="inline-flex items-center rounded-md border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012] disabled:cursor-not-allowed disabled:opacity-60"
+                                class="shrink-0 inline-flex items-center rounded-md border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Send
                             </button>
@@ -2121,6 +2128,68 @@
         applyStylesIn(document);
 
         /* active character */
+
+        const postingCharacterTrigger = document.getElementById("posting-character-trigger");
+        const postingCharacterMenu = document.getElementById("posting-character-menu");
+        const postingCharacterName = document.getElementById("posting-character-name");
+
+        function characterStyle(character) {
+            const settings = character?.settings || {};
+            return { c1: settings.text_color_1 || "#D8F3FF", c2: settings.text_color_2 || null, c3: settings.text_color_3 || null, c4: settings.text_color_4 || null, fade: !!settings.fade_name };
+        }
+
+        // Future approved character fonts belong here; today the inherited site font is deliberate.
+        function applyPostingCharacterFont(element, character) { element.style.fontFamily = ""; }
+        function activePostingCharacter() { return ownedRoomCharacters[String(getTabCharacterId())] || null; }
+        function closePostingCharacterMenu(restoreFocus = false) {
+            if (!postingCharacterMenu || !postingCharacterTrigger) return;
+            postingCharacterMenu.classList.add("hidden");
+            postingCharacterTrigger.setAttribute("aria-expanded", "false");
+            if (restoreFocus) postingCharacterTrigger.focus();
+        }
+        function renderPostingCharacterControl() {
+            const character = activePostingCharacter();
+            const switching = pendingCharacterId !== null;
+            if (postingCharacterName) {
+                postingCharacterName.textContent = character?.name || "Character required";
+                postingCharacterName.dataset.style = JSON.stringify(characterStyle(character));
+                applyStyleFromDataset(postingCharacterName);
+                applyPostingCharacterFont(postingCharacterName, character);
+            }
+            if (postingCharacterTrigger) {
+                postingCharacterTrigger.disabled = switching || !character;
+                postingCharacterTrigger.setAttribute("aria-busy", switching ? "true" : "false");
+            }
+            if (textarea) textarea.placeholder = character ? `You are posting as ${character.name}\nEnter to send. Shift + Enter for a new line.` : "You need to create and select a character before posting in chat.";
+        }
+        function openPostingCharacterMenu() {
+            if (!postingCharacterMenu || !postingCharacterTrigger || postingCharacterTrigger.disabled) return;
+            postingCharacterMenu.innerHTML = "";
+            Object.values(ownedRoomCharacters).forEach((character) => {
+                const option = document.createElement("button");
+                option.type = "button"; option.role = "option";
+                option.className = "flex w-full min-w-40 items-center rounded px-2 py-1.5 text-left text-xs hover:bg-[#141416] focus:bg-[#141416] focus:outline-none";
+                option.setAttribute("aria-selected", String(character.id === getTabCharacterId()));
+                option.textContent = character.name; option.dataset.characterId = String(character.id);
+                option.addEventListener("click", () => { if (!switcher) return; switcher.value = String(character.id); switcher.dispatchEvent(new Event("change", { bubbles: true })); closePostingCharacterMenu(true); });
+                option.addEventListener("keydown", (event) => {
+                    const options = Array.from(postingCharacterMenu.querySelectorAll("[role=option]")); const index = options.indexOf(option);
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); options[(index + (event.key === "ArrowDown" ? 1 : options.length - 1)) % options.length]?.focus(); }
+                    else if (event.key === "Escape") { event.preventDefault(); closePostingCharacterMenu(true); }
+                });
+                postingCharacterMenu.append(option);
+            });
+            postingCharacterMenu.classList.remove("hidden"); postingCharacterTrigger.setAttribute("aria-expanded", "true");
+            postingCharacterMenu.querySelector(`[data-character-id="${getTabCharacterId()}"]`)?.focus();
+        }
+        postingCharacterTrigger?.addEventListener("click", () => postingCharacterMenu?.classList.contains("hidden") ? openPostingCharacterMenu() : closePostingCharacterMenu());
+        postingCharacterTrigger?.addEventListener("keydown", (event) => {
+            if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) { event.preventDefault(); openPostingCharacterMenu(); }
+            else if (event.key === "Escape") closePostingCharacterMenu();
+        });
+        document.addEventListener("pointerdown", (event) => {
+            if (!postingCharacterMenu?.classList.contains("hidden") && !document.getElementById("posting-character-control")?.contains(event.target)) closePostingCharacterMenu();
+        });
         const serverActiveCharacterId = {{ (int) ($activeCharacterId ?? 0) }};
         const characterDiagnosticsEnabled = localStorage.getItem('storybox.characterSwitchDiagnostics') === '1';
         let confirmedCharacterId = 0;
@@ -2442,13 +2511,13 @@
                 submitButton.setAttribute('aria-disabled', submitButton.disabled ? 'true' : 'false');
             }
 
-            if (composerStatus) {
-                composerStatus.textContent = isSwitchingCharacter
-                    ? 'Switching character…'
-                    : (canPost ? 'Transmission ready' : 'Character required');
+            if (composerStatus && !postingCharacterTrigger) {
+                composerStatus.textContent = isSwitchingCharacter ? 'Switching character…' : (canPost ? 'Transmission ready' : 'Character required');
                 composerStatus.classList.toggle('text-amber-500/70', canPost);
                 composerStatus.classList.toggle('text-amber-300', !canPost || isSwitchingCharacter);
             }
+
+            renderPostingCharacterControl();
 
             if (missingCharacterNotice) {
                 missingCharacterNotice.classList.toggle('hidden', canPost);

@@ -125,6 +125,11 @@ class CurrentCharacterSelectionTest extends TestCase
         $this->assertStringContainsString('let pendingCharacterId = null;', $html);
         $this->assertStringContainsString('pendingCharacterId !== null', $html);
         $this->assertStringNotContainsString('syncCurrentCharacter(preferred)', $html);
+        $this->assertStringContainsString('id="posting-character-trigger"', $html);
+        $this->assertStringContainsString('aria-haspopup="listbox"', $html);
+        $this->assertStringContainsString('You are posting as '.$character->name, $html);
+        $this->assertStringContainsString('Enter to send. Shift + Enter for a new line.', $html);
+        $this->assertStringNotContainsString('<span class="text-xs text-[#8f8675]">Posting as</span>', $html);
     }
 
 
