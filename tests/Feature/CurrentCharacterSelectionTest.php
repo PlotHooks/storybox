@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Character;
+use App\Models\CharacterPresence;
 use App\Models\Room;
 use App\Models\RoomAccessEntry;
 use App\Models\User;
@@ -132,6 +133,62 @@ class CurrentCharacterSelectionTest extends TestCase
         $this->assertStringNotContainsString('<span class="text-xs text-[#8f8675]">Posting as</span>', $html);
     }
 
+
+    public function test_room_page_uses_its_server_character_for_heartbeats_and_switches_by_navigation(): void
+    {
+        [$user, $character] = $this->createUserWithCharacter("Switcher");
+        $room = $this->createRoom($user, $character, "Tavern");
+
+        $html = $this->actingAs($user)
+            ->withSession(["active_character_id" => $character->id])
+            ->get(route("rooms.show", $room->slug))
+            ->getContent();
+
+        $this->assertStringContainsString("const pagePresenceCharacterId = serverActiveCharacterId;", $html);
+        $this->assertStringContainsString("const preferred = serverActiveCharacterId", $html);
+        $this->assertStringContainsString("const characterId = pagePresenceCharacterId;", $html);
+        $this->assertStringContainsString("currentRoomParticipationToken(characterId)", $html);
+        $this->assertStringContainsString("window.location.assign(result.roomUrl || \"/chat\");", $html);
+        $this->assertStringContainsString("preserveComposerDraftForNavigation(oldId);", $html);
+        $this->assertStringContainsString("restoreComposerDraftForPage();", $html);
+        $this->assertStringContainsString("clearComposerDraft(id);", $html);
+        $this->assertStringContainsString("switchRequestId !== characterSwitchRequestSequence", $html);
+    }
+
+    public function test_character_switch_request_does_not_mutate_room_presence(): void
+    {
+        [$user, $firstCharacter] = $this->createUserWithCharacter("First");
+        $secondCharacter = $this->createCharacter($user, "Second Character");
+        $firstRoom = $this->createRoom($user, $firstCharacter, "Tavern");
+        $secondRoom = $this->createRoom($user, $firstCharacter, "Garden");
+
+        CharacterPresence::create([
+            "character_id" => $firstCharacter->id,
+            "room_id" => $firstRoom->id,
+            "last_seen_at" => now(),
+        ]);
+        CharacterPresence::create([
+            "character_id" => $secondCharacter->id,
+            "room_id" => $secondRoom->id,
+            "last_seen_at" => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(["active_character_id" => $firstCharacter->id])
+            ->postJson(route("rooms.current-character"), ["character_id" => $secondCharacter->id])
+            ->assertOk()
+            ->assertJsonPath("room_url", route("rooms.show", $secondRoom->slug));
+
+        $this->assertDatabaseCount("character_presences", 2);
+        $this->assertDatabaseHas("character_presences", [
+            "character_id" => $secondCharacter->id,
+            "room_id" => $secondRoom->id,
+        ]);
+        $this->assertDatabaseMissing("character_presences", [
+            "character_id" => $secondCharacter->id,
+            "room_id" => $firstRoom->id,
+        ]);
+    }
 
     private function createUserWithCharacter(string $name): array
     {

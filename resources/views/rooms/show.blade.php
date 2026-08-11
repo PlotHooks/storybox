@@ -1772,9 +1772,8 @@
             resetPopoverModeration();
         }
 
-        function currentRoomParticipationToken() {
-            const characterId = getTabCharacterId();
-            return roomParticipationTokens[String(characterId)] || roomParticipationTokens[characterId] || '';
+        function currentRoomParticipationToken(characterId = getTabCharacterId()) {
+            return roomParticipationTokens[String(characterId)] || roomParticipationTokens[characterId] || "";
         }
 
         function syncRoomParticipationToken() {
@@ -2191,6 +2190,7 @@
             if (!postingCharacterMenu?.classList.contains("hidden") && !document.getElementById("posting-character-control")?.contains(event.target)) closePostingCharacterMenu();
         });
         const serverActiveCharacterId = {{ (int) ($activeCharacterId ?? 0) }};
+        const pagePresenceCharacterId = serverActiveCharacterId;
         const characterDiagnosticsEnabled = localStorage.getItem('storybox.characterSwitchDiagnostics') === '1';
         let confirmedCharacterId = 0;
         let pendingCharacterId = null;
@@ -2276,15 +2276,46 @@
             localStorage.setItem('char_room_' + characterId, slug);
         }
         function getLastRoomForCharacter(characterId) {
-            return localStorage.getItem('char_room_' + characterId) || '';
+            return localStorage.getItem("char_room_" + characterId) || "";
+        }
+
+        function composerDraftStorageKey(characterId) {
+            return "storybox.room-composer-draft:" + roomSlug + ":" + characterId;
+        }
+
+        function preserveComposerDraftForNavigation(characterId) {
+            if (!textarea || !characterId) return;
+
+            const key = composerDraftStorageKey(characterId);
+            const body = textarea.value;
+            if (!body.trim()) {
+                sessionStorage.removeItem(key);
+                return;
+            }
+
+            sessionStorage.setItem(key, body);
+        }
+
+        function restoreComposerDraftForPage() {
+            if (!textarea || !pagePresenceCharacterId || textarea.value.trim()) return;
+
+            const body = sessionStorage.getItem(composerDraftStorageKey(pagePresenceCharacterId));
+            if (body === null) return;
+
+            textarea.value = body;
+            syncContentMirror();
+        }
+
+        function clearComposerDraft(characterId) {
+            if (characterId) sessionStorage.removeItem(composerDraftStorageKey(characterId));
         }
 
         (function initActiveCharacterPerTab() {
             if (!switcher) return;
 
             const storedCharacterId = readStoredTabCharacterId();
-            const preferred = (ownedCharacterIds.includes(storedCharacterId) && storedCharacterId)
-                || serverActiveCharacterId
+            const preferred = serverActiveCharacterId
+                || (ownedCharacterIds.includes(storedCharacterId) && storedCharacterId)
                 || parseInt(switcher.value, 10);
 
             if (preferred) {
@@ -2294,6 +2325,7 @@
 
             const cid = getTabCharacterId();
             if (cid) setLastRoomForCharacter(cid, roomSlug);
+            restoreComposerDraftForPage();
             updateComposerAvailability();
         })();
 
@@ -2345,26 +2377,15 @@
                     confirmed_character_id: newId,
                 });
 
-                const target = result.roomUrl;
-                if (!target) {
-                    delete window.StoryboxChannelCharacters[conversationChannelName];
-                    window.Echo?.leave(`conversation.${conversationId}`);
-                    window.location.href = '/chat';
-                    return;
-                }
-
-                if (new URL(target, window.location.origin).pathname !== window.location.pathname) {
-                    window.location.href = target;
-                    return;
-                }
-
-                sendPresencePing();
+                preserveComposerDraftForNavigation(oldId);
+                window.location.assign(result.roomUrl || "/chat");
+                return;
             });
         });
 
         /* presence */
         function sendPresencePing() {
-            const characterId = getTabCharacterId();
+            const characterId = pagePresenceCharacterId;
             if (!characterId) return Promise.resolve();
 
             return fetch(`/rooms/${roomSlug}/presence`, {
@@ -2377,7 +2398,7 @@
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     character_id: characterId,
-                    room_participation_token: currentRoomParticipationToken(),
+                    room_participation_token: currentRoomParticipationToken(characterId),
                 }),
             })
             .then((response) => {
@@ -2947,6 +2968,7 @@
             try {
                 const clientRequestId = `message-${Date.now()}-${messageRequestSequence + 1}`; messageRequestSequence += 1;
                 await sendRoomMessage(body, id, pendingId, clientRequestId);
+                clearComposerDraft(id);
                 if (!isOptimisticEligible) {
                     if (textarea) textarea.value = '';
                     syncContentMirror();
