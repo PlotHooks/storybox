@@ -17,20 +17,19 @@ class RoomLandingService
     {
         $activeCharacter = $this->resolveActiveOwnedCharacter($user);
 
-        $currentRoom = $this->resolveCurrentRoom($user, $activeCharacter);
+        if (! $activeCharacter) {
+            return route('rooms.recovery', absolute: false);
+        }
+
+        $currentRoom = $this->currentRoomFor($user, $activeCharacter);
         if ($currentRoom) {
             return route('rooms.show', $currentRoom->slug, false);
         }
 
-        $firstRoom = $this->resolveFirstAccessibleRoom($user, $activeCharacter);
-        if ($firstRoom) {
-            return route('rooms.show', $firstRoom->slug, false);
-        }
-
-        return route('rooms.recovery', absolute: false);
+        return route('rooms.landing', absolute: false);
     }
 
-    private function resolveCurrentRoom(User $user, ?Character $activeCharacter): ?Room
+    public function currentRoomFor(User $user, ?Character $activeCharacter): ?Room
     {
         if (! $activeCharacter) {
             return null;

@@ -548,11 +548,12 @@ class RoomAccountBanTest extends TestCase
             ]);
         }
 
+        $staleToken = $this->issueParticipationToken($firstRoom, $viewerCharacter);
         $this->actingAs($viewerUser)
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->postJson(route('rooms.leave', $firstRoom->slug), [
                 'character_id' => $viewerCharacter->id,
-                'room_participation_token' => $this->issueParticipationToken($firstRoom, $viewerCharacter),
+                'room_participation_token' => $staleToken,
             ])
             ->assertOk();
 
@@ -571,6 +572,13 @@ class RoomAccountBanTest extends TestCase
             ->getJson(route('rooms.roster', $secondRoom->slug))
             ->assertOk()
             ->assertJsonPath('roster.0.character_id', $viewerCharacter->id);
+        $this->actingAs($viewerUser)
+            ->postJson(route('rooms.messages.store', $firstRoom), [
+                'body' => 'stale post',
+                'character_id' => $viewerCharacter->id,
+                'room_participation_token' => $staleToken,
+            ])
+            ->assertForbidden();
     }
 
     public function test_room_roster_json_does_not_include_account_identity_for_non_admin_viewers(): void

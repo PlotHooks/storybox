@@ -33,6 +33,26 @@ class CurrentCharacterSelectionTest extends TestCase
         $this->assertSame($secondCharacter->id, session('active_character_id'));
     }
 
+    public function test_switching_to_a_character_uses_that_characters_validated_current_room_url(): void
+    {
+        [$user, $firstCharacter] = $this->createUserWithCharacter('First');
+        $secondCharacter = $this->createCharacter($user, 'Second Character');
+        $room = $this->createRoom($user, $firstCharacter, 'Garden');
+
+        \App\Models\CharacterPresence::create([
+            'character_id' => $secondCharacter->id,
+            'room_id' => $room->id,
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['active_character_id' => $firstCharacter->id])
+            ->postJson(route('rooms.current-character'), ['character_id' => $secondCharacter->id])
+            ->assertOk()
+            ->assertJsonPath('room_url', route('rooms.show', $room->slug));
+    }
+
+
     public function test_changing_rooms_preserves_current_posting_character_when_valid(): void
     {
         [$user, $firstCharacter] = $this->createUserWithCharacter('First');

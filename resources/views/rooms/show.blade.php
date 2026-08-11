@@ -2185,6 +2185,7 @@
 
                 return {
                     ok,
+                    roomUrl: typeof data?.room_url === 'string' && data.room_url !== '' ? data.room_url : null,
                     message: data?.message || (response.ok ? 'Could not confirm that character switch.' : 'Could not switch characters.'),
                 };
             } catch (error) {
@@ -2275,9 +2276,16 @@
                     confirmed_character_id: newId,
                 });
 
-                const target = getLastRoomForCharacter(newId);
-                if (target && target !== roomSlug) {
-                    window.location.href = `/rooms/${target}`;
+                const target = result.roomUrl;
+                if (!target) {
+                    delete window.StoryboxChannelCharacters[conversationChannelName];
+                    window.Echo?.leave(`conversation.${conversationId}`);
+                    window.location.href = '/chat';
+                    return;
+                }
+
+                if (new URL(target, window.location.origin).pathname !== window.location.pathname) {
+                    window.location.href = target;
                     return;
                 }
 
@@ -2356,7 +2364,10 @@
             leaveRoom().finally(() => window.location.href = '/chat');
         });
 
-        window.addEventListener('beforeunload', () => leaveRoom());
+        window.addEventListener('pagehide', () => {
+            delete window.StoryboxChannelCharacters[conversationChannelName];
+            window.Echo?.leave(`conversation.`);
+        });
 
         /* send */
         function syncContentMirror() {

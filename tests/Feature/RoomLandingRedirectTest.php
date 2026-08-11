@@ -58,7 +58,8 @@ class RoomLandingRedirectTest extends TestCase
         $this->actingAs($user)
             ->withSession(['active_character_id' => $character->id])
             ->get(route('rooms.landing'))
-            ->assertRedirect(route('rooms.show', $firstRoom->slug));
+            ->assertOk()
+            ->assertSee('You aren’t in a room yet.');
     }
 
     public function test_chat_landing_skips_inaccessible_current_room_and_falls_back_to_first_accessible_room(): void
@@ -77,7 +78,8 @@ class RoomLandingRedirectTest extends TestCase
         $this->actingAs($viewer)
             ->withSession(['active_character_id' => $viewerCharacter->id])
             ->get(route('rooms.landing'))
-            ->assertRedirect(route('rooms.show', $publicRoom->slug));
+            ->assertOk()
+            ->assertSee('You aren’t in a room yet.');
     }
 
     public function test_chat_landing_falls_back_to_recovery_page_when_no_accessible_rooms_exist(): void
@@ -88,7 +90,8 @@ class RoomLandingRedirectTest extends TestCase
         $this->actingAs($user)
             ->withSession(['active_character_id' => $character->id])
             ->get(route('rooms.landing'))
-            ->assertRedirect(route('rooms.recovery'));
+            ->assertOk()
+            ->assertSee('You aren’t in a room yet.');
     }
 
     public function test_login_redirects_directly_to_current_accessible_room(): void

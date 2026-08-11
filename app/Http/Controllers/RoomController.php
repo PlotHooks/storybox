@@ -45,7 +45,17 @@ class RoomController extends Controller
 
     public function landing()
     {
-        return redirect()->to(app(\App\Services\RoomLandingService::class)->destinationFor(Auth::user()));
+        $activeCharacter = $this->activeOwnedCharacter();
+
+        if ($activeCharacter && ! $this->hasExplicitlyClearedActiveRoom($activeCharacter->id)) {
+            $currentRoom = app(\App\Services\RoomLandingService::class)->currentRoomFor(Auth::user(), $activeCharacter);
+
+            if ($currentRoom) {
+                return redirect()->route('rooms.show', $currentRoom->slug);
+            }
+        }
+
+        return $this->emptyRoomView($activeCharacter);
     }
 
     public function index()
@@ -114,6 +124,10 @@ class RoomController extends Controller
         if ($room->isPublicRoom()) {
             abort_unless($this->roomAccess->canViewRoom(Auth::user(), $room, $activeCharacter), 403);
             $this->markPublicRoomRead($room->id);
+
+            if ($activeCharacterId) {
+                $this->clearExplicitlyClearedActiveRoom($activeCharacterId);
+            }
         }
 
         if ($activeCharacterId) {
@@ -741,10 +755,62 @@ CSS;
 
         session(['active_character_id' => $characterId]);
 
+        $character = $this->ownedCharacterById($characterId);
+        $room = $this->hasExplicitlyClearedActiveRoom($characterId)
+            ? null
+            : app(\App\Services\RoomLandingService::class)->currentRoomFor(Auth::user(), $character);
+
         return response()->json([
             'ok' => true,
             'character_id' => $characterId,
+            'room_url' => $room ? route('rooms.show', $room->slug) : null,
         ]);
+    }
+
+    private function emptyRoomView(?Character $activeCharacter): View
+    {
+        $sidebarRooms = $this->sidebarRoomsForPublicRooms($activeCharacter)->get();
+        $roomRecovery = app(\App\Services\RoomRecoveryService::class);
+        $recoverableRoomCount = $roomRecovery->recoverableRoomCountForUser(Auth::user());
+
+        return view('rooms.empty', [
+            'activeCharacter' => $activeCharacter,
+            'characters' => Auth::user()->characters()->where('is_active', true)->orderBy('name')->get(),
+            'sidebarRooms' => $sidebarRooms,
+            'showRecoveryLink' => $this->roomAccess->isAdmin(Auth::user()) || $recoverableRoomCount > 0,
+            'recoverableRoomCount' => $recoverableRoomCount,
+        ]);
+    }
+
+    private function explicitlyClearedRoomlessCharacterIds(): array
+    {
+        return collect(session('explicitly_roomless_character_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function hasExplicitlyClearedActiveRoom(int $characterId): bool
+    {
+        return in_array($characterId, $this->explicitlyClearedRoomlessCharacterIds(), true);
+    }
+
+    private function markActiveRoomExplicitlyCleared(int $characterId): void
+    {
+        session(['explicitly_roomless_character_ids' => array_values(array_unique([
+            ...$this->explicitlyClearedRoomlessCharacterIds(),
+            $characterId,
+        ]))]);
+    }
+
+    private function clearExplicitlyClearedActiveRoom(int $characterId): void
+    {
+        session(['explicitly_roomless_character_ids' => array_values(array_filter(
+            $this->explicitlyClearedRoomlessCharacterIds(),
+            fn (int $id) => $id !== $characterId,
+        ))]);
     }
 
     private function abortIfDmBlocked(int $firstCharacterId, int $secondCharacterId): void
@@ -1612,6 +1678,12 @@ CSS;
             ->where('room_id', $room->id)
             ->where('character_id', $characterId)
             ->delete();
+
+        app(\App\Services\RoomParticipationStateService::class)->clear($room, $character);
+
+        if ((int) $this->activeOwnedCharacterId() === $characterId) {
+            $this->markActiveRoomExplicitlyCleared($characterId);
+        }
 
         return response()->json(['ok' => true]);
     }
