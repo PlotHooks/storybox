@@ -335,7 +335,7 @@ class RoomAccountBanTest extends TestCase
     }
 
 
-    public function test_presence_ping_refreshes_all_of_the_users_existing_presence_rows_in_the_room_and_adds_the_selected_character(): void
+    public function test_presence_ping_refreshes_only_the_submitted_character(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
         [$viewerUser, $firstCharacter] = $this->createUserWithCharacter();
@@ -385,15 +385,21 @@ class RoomAccountBanTest extends TestCase
             Carbon::setTestNow();
         }
 
-        $response->assertJsonPath('refreshed_character_ids', [$firstCharacter->id, $secondCharacter->id]);
+        $response->assertJsonPath('refreshed_character_ids', [$firstCharacter->id]);
 
-        foreach ([$firstCharacter->id, $secondCharacter->id] as $characterId) {
+        foreach ([$firstCharacter->id] as $characterId) {
             $this->assertDatabaseHas('character_presences', [
                 'room_id' => $room->id,
                 'character_id' => $characterId,
                 'last_seen_at' => $heartbeatTime->toDateTimeString(),
             ]);
         }
+
+        $this->assertDatabaseHas('character_presences', [
+            'room_id' => $room->id,
+            'character_id' => $secondCharacter->id,
+            'last_seen_at' => $staleTime->toDateTimeString(),
+        ]);
 
         $this->assertDatabaseMissing('character_presences', [
             'room_id' => $room->id,
@@ -410,10 +416,10 @@ class RoomAccountBanTest extends TestCase
             ->withSession(['active_character_id' => $firstCharacter->id])
             ->getJson(route('rooms.roster', $room->slug))
             ->assertOk()
-            ->assertJsonCount(2, 'roster');
+            ->assertJsonCount(1, 'roster');
     }
 
-    public function test_presence_ping_still_creates_a_single_presence_row_for_the_selected_character_when_none_exist_yet(): void
+    public function test_intentional_room_entry_presence_ping_creates_a_single_row_for_the_entering_character_when_none_exists(): void
     {
         [$ownerUser, $ownerCharacter] = $this->createUserWithCharacter();
         [$viewerUser, $viewerCharacter] = $this->createUserWithCharacter();

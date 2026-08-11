@@ -190,6 +190,54 @@ class CurrentCharacterSelectionTest extends TestCase
         ]);
     }
 
+    public function test_source_heartbeat_does_not_change_target_character_current_room(): void
+    {
+        [$user, $sourceCharacter] = $this->createUserWithCharacter("Source");
+        $targetCharacter = $this->createCharacter($user, "Target Character");
+        $displayedRoom = $this->createRoom($user, $sourceCharacter, "Displayed Room");
+        $targetRoom = $this->createRoom($user, $sourceCharacter, "Target Room");
+        $staleTime = now()->subMinutes(20);
+        $targetRoomTime = now()->subMinute();
+
+        CharacterPresence::create([
+            "character_id" => $sourceCharacter->id,
+            "room_id" => $displayedRoom->id,
+            "last_seen_at" => $staleTime,
+        ]);
+        CharacterPresence::create([
+            "character_id" => $targetCharacter->id,
+            "room_id" => $displayedRoom->id,
+            "last_seen_at" => $staleTime,
+        ]);
+        CharacterPresence::create([
+            "character_id" => $targetCharacter->id,
+            "room_id" => $targetRoom->id,
+            "last_seen_at" => $targetRoomTime,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(["active_character_id" => $sourceCharacter->id])
+            ->postJson(route("rooms.presence", $displayedRoom->slug), [
+                "character_id" => $sourceCharacter->id,
+                "room_participation_token" => app(\App\Services\RoomParticipationStateService::class)->issueToken($displayedRoom, $sourceCharacter),
+            ])
+            ->assertOk()
+            ->assertJsonPath("refreshed_character_ids", [$sourceCharacter->id]);
+
+        $this->assertDatabaseHas("character_presences", [
+            "room_id" => $displayedRoom->id,
+            "character_id" => $targetCharacter->id,
+            "last_seen_at" => $staleTime->toDateTimeString(),
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(["active_character_id" => $sourceCharacter->id])
+            ->postJson(route("rooms.current-character"), ["character_id" => $targetCharacter->id])
+            ->assertOk()
+            ->assertJsonPath("room_url", route("rooms.show", $targetRoom->slug));
+    }
+
+
     private function createUserWithCharacter(string $name): array
     {
         $user = User::factory()->create([
