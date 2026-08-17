@@ -24,6 +24,7 @@
         .msg-body strong {
             font-weight: 800;
         }
+        @media (max-width: 639px) { #rules-window, #world-book-window, #notice-board-window, #pinned-notes-window { inset: 0 !important; width: 100vw !important; height: 100dvh !important; max-width: none !important; max-height: none !important; border-radius: 0 !important; } #rules-drag-handle, #world-book-drag-handle, #notice-board-drag-handle, #pinned-notes-drag-handle { cursor: default !important; } #rules-resize-handle, #world-book-resize-handle, #notice-board-resize-handle, #pinned-notes-resize-handle { display: none !important; } }
     </style>
 
 
@@ -38,6 +39,7 @@
                             <div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-400">Context Dock</div>
                             <div class="mt-1 text-sm font-semibold text-[#f2dfb5]">Room tools</div>
                         </div>
+                        <button type="button" data-close-mobile-settings class="mt-2 rounded border border-[#332817] px-2 py-1 text-xs sm:hidden">Close</button>
                     </div>
                 </div>
                 <div class="border-b border-[#2a241a] bg-[#0b0b0c] p-2 space-y-2">
@@ -388,26 +390,16 @@
             {{-- CENTER --}}
             <div class="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-y border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10 sm:w-auto sm:rounded-md sm:border">
 
-                <header data-mobile-room-header class="flex shrink-0 items-center gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 sm:hidden">
-                    <button type="button" data-open-characters-panel class="flex min-w-0 items-center gap-2 rounded focus:outline-none focus:ring-2 focus:ring-amber-500/50">
-                        @if ($mobileActiveCharacter?->externalAvatarUrl())
-                            <img src="{{ $mobileActiveCharacter->externalAvatarUrl() }}" alt="" class="h-9 w-9 shrink-0 rounded-full object-cover">
-                        @else
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#332817] bg-[#0b0b0c] text-sm font-semibold text-[#d6c8ad]">{{ strtoupper(substr($mobileActiveCharacter?->name ?? '?', 0, 1)) }}</span>
-                        @endif
-                        <span class="min-w-0 truncate text-sm font-semibold text-[#f2dfb5]">{{ $mobileActiveCharacter?->name ?? 'Choose character' }}</span>
-                    </button>
-                    <div class="min-w-0 flex-1 border-l border-[#2a241a] pl-3">
-                        <span class="block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Room</span>
-                        <span class="block truncate text-sm font-semibold text-[#f2dfb5]">{{ $room->name }}</span>
-                    </div>
-                    <button type="button" data-global-dm-button onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))" class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:outline-none focus:ring-2 focus:ring-amber-500/50" aria-label="Direct messages">
-                        DMs
-                        <span data-global-dm-unread-badge class="hidden absolute -right-2 -top-2 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">0</span>
-                    </button>
+                <header data-mobile-room-header class="flex shrink-0 items-center gap-2 border-b border-[#2a241a] bg-[#101012] px-3 py-3 sm:hidden">
+                    <a href="{{ route('rooms.mobile-characters') }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[#332817] bg-[#0b0b0c] text-lg text-[#d6c8ad]" aria-label="Storybox home">⌂</a>
+                    <button type="button" data-open-mobile-tools class="inline-flex h-10 shrink-0 items-center rounded border border-[#332817] bg-[#0b0b0c] px-3 text-xs font-semibold text-[#d6c8ad]">Tools</button>
+                    <div class="min-w-0 flex-1 border-l border-[#2a241a] pl-2"><span class="block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Room</span><span class="block truncate text-sm font-semibold text-[#f2dfb5]">{{ $room->name }}</span></div>
+                    <button type="button" data-open-mobile-nexus class="inline-flex h-10 shrink-0 items-center rounded border border-[#332817] bg-[#0b0b0c] px-3 text-xs text-[#d6c8ad]">Nexus</button>
+                    <button type="button" data-global-dm-button onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))" class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad]" aria-label="Direct messages">DMs<span data-global-dm-unread-badge class="hidden absolute -right-2 -top-2 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">0</span></button>
                 </header>
 
                 {{-- Top bar --}}
+                <section id="mobile-tools-panel" class="hidden fixed inset-0 z-[70] overflow-y-auto bg-[#070707] p-4 text-[#d6c8ad] sm:hidden"><div class="flex items-center justify-between"><h2 class="text-sm font-semibold text-[#f2dfb5]">Room tools</h2><button type="button" data-close-mobile-panel="mobile-tools-panel">Close</button></div><div class="mt-4 grid grid-cols-2 gap-2"><a href="{{ route('rooms.profile.show', $room->slug) }}" class="rounded border border-[#332817] p-3">Room Profile</a>@if ($room->isPublicRoom())<a href="{{ route('rooms.history.show', $room->slug) }}" class="rounded border border-[#332817] p-3">Room History</a><button type="button" data-room-window-tool="rules" class="rounded border border-[#332817] p-3 text-left">Rules</button><button type="button" data-room-window-tool="world_book" class="rounded border border-[#332817] p-3 text-left">World Book</button><button type="button" data-room-window-tool="notice_board" class="rounded border border-[#332817] p-3 text-left">Notice Board</button><button type="button" data-room-window-tool="pinned_notes" class="rounded border border-[#332817] p-3 text-left">Pinned Notes</button>@endif</div>@if ($room->isPublicRoom() && $canManageRoom && $activeCharacterId)<button type="button" data-open-mobile-settings class="mt-4 rounded border border-[#332817] p-3">Room Settings</button>@endif</section><section id="mobile-nexus-panel" class="hidden fixed inset-0 z-[70] overflow-y-auto bg-[#070707] p-4 text-[#d6c8ad] sm:hidden"><div class="flex items-center justify-between"><h2 class="text-sm font-semibold text-[#f2dfb5]">Nexus</h2><button type="button" data-close-mobile-panel="mobile-nexus-panel">Close</button></div><a href="{{ route('rooms.create') }}" class="mt-4 block rounded border border-amber-500/40 p-3">+ Create Room</a><div class="mt-2 space-y-2">@foreach ($sidebarRooms as $sidebarRoom)<a href="{{ route('rooms.show', $sidebarRoom->slug) }}" class="block rounded border border-[#332817] p-3"><span class="block truncate text-sm font-semibold">{{ $sidebarRoom->name }}</span>@if ($sidebarRoom->description)<span class="block truncate text-xs text-[#8f8675]">{{ $sidebarRoom->description }}</span>@endif</a>@endforeach</div></section>
                 <div class="hidden shrink-0 flex-col gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 sm:flex md:flex-row md:items-center md:justify-between">
                     <div class="min-w-0">
                         @if (! empty($characterSelectionNotice))
@@ -3514,6 +3506,8 @@ setInterval(() => {
         if (container) container.scrollTop = container.scrollHeight;
     </script>
 
+    <script>(() => { const open = (id) => document.getElementById(id)?.classList.remove('hidden'); const close = (id) => document.getElementById(id)?.classList.add('hidden'); document.querySelector('[data-open-mobile-tools]')?.addEventListener('click', () => open('mobile-tools-panel')); document.querySelector('[data-open-mobile-nexus]')?.addEventListener('click', () => open('mobile-nexus-panel')); document.querySelectorAll('[data-close-mobile-panel]').forEach((button) => button.addEventListener('click', () => close(button.dataset.closeMobilePanel))); const toolEvents = { rules: 'open-rules-window', world_book: 'open-world-book-window', notice_board: 'open-notice-board-window', pinned_notes: 'open-pinned-notes-window' }; document.querySelectorAll('[data-room-window-tool]').forEach((button) => button.addEventListener('click', () => { close('mobile-tools-panel'); window.dispatchEvent(new CustomEvent(toolEvents[button.dataset.roomWindowTool])); })); document.querySelector('[data-open-mobile-settings]')?.addEventListener('click', () => { close('mobile-tools-panel'); document.querySelector('[data-context-tool="settings"]')?.click(); const panel = document.getElementById('left-panel'); panel?.classList.remove('hidden'); panel?.classList.add('fixed', 'inset-0', 'z-[70]', '!flex', '!w-full', '!rounded-none'); }); })();</script>
+    <script>document.querySelector('[data-close-mobile-settings]')?.addEventListener('click', () => { const panel = document.getElementById('left-panel'); panel?.classList.add('hidden'); panel?.classList.remove('fixed', 'inset-0', 'z-[70]', '!flex', '!w-full', '!rounded-none'); });</script>
     @if ($room->isPublicRoom())
         <x-rules-window :room="$room" />
         <x-world-book-window :room="$room" />
