@@ -92,6 +92,7 @@ Route::middleware(['auth', 'not_banned'])->group(function () {
         ->name('characters.profile.revert-default');
 
     Route::get('/chat', [RoomController::class, 'landing'])->name('rooms.landing');
+    Route::get('/chat/characters', [RoomController::class, 'mobileCharacters'])->name('rooms.mobile-characters');
     Route::post('/chat/current-character', [RoomController::class, 'setCurrentCharacter'])->name('rooms.current-character');
     Route::get('/site-content/{collection}', [SiteContentController::class, 'index'])->name('site-content.index');
     Route::get('/rp-ads', [RpAdController::class, 'index'])->name('rp-ads.index');

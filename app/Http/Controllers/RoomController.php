@@ -58,6 +58,31 @@ class RoomController extends Controller
         return $this->emptyRoomView($activeCharacter);
     }
 
+    public function mobileCharacters(): View
+    {
+        $user = Auth::user();
+        $characters = $user->characters()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        $roomLanding = app(\App\Services\RoomLandingService::class);
+        $dmUnreadTotals = $this->dmRoomsForUser((int) $user->id)
+            ->groupBy('my_character_id')
+            ->map(fn ($rooms) => $rooms->sum(fn ($room) => (int) $room->unread_count));
+
+        $characterCards = $characters->map(function (Character $character) use ($user, $roomLanding, $dmUnreadTotals): array {
+            $room = $roomLanding->currentRoomFor($user, $character);
+
+            return [
+                'character' => $character,
+                'room' => $room,
+                'dm_unread_count' => (int) ($dmUnreadTotals->get($character->id) ?? 0),
+            ];
+        });
+
+        return view('rooms.mobile-characters', compact('characterCards'));
+    }
+
     public function index()
     {
         $activeCharacter = $this->activeOwnedCharacter();
@@ -1730,7 +1755,11 @@ CSS;
 
     public function dmIndex()
     {
-        $me = Auth::id();
+        return response()->json(['rooms' => $this->dmRoomsForUser((int) Auth::id())]);
+    }
+
+    private function dmRoomsForUser(int $me)
+    {
 
         $rooms = DB::table('dm_participants as mine')
             ->join('rooms', 'rooms.id', '=', 'mine.room_id')
@@ -1797,7 +1826,7 @@ CSS;
             return $room;
         });
 
-        return response()->json(['rooms' => $rooms]);
+        return $rooms;
     }
 
     public function dmTargets(Request $request)
