@@ -13,7 +13,10 @@
             <div class="w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
                 <div class="mx-auto mb-5 flex w-full max-w-none flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                     <div class="flex flex-wrap items-center gap-3">
-                        <a href="{{ route('rooms.landing') }}" onclick="window.close(); setTimeout(() => { if (!window.closed) { window.location.href = this.href; } }, 100); return false;" class="inline-flex items-center rounded-full border border-[#5a431f] bg-[#141416]/95 px-4 py-2 text-sm font-medium text-[#f2dfb5] hover:bg-[#191511]">
+                        <a href="{{ route('rooms.mobile-characters') }}" onclick="window.close(); setTimeout(() => { if (!window.closed) { window.location.href = this.href; } }, 100); return false;" class="inline-flex items-center rounded-full border border-[#5a431f] bg-[#141416]/95 px-4 py-2 text-sm font-medium text-[#f2dfb5] hover:bg-[#191511] sm:hidden">
+                            Back to Storybox
+                        </a>
+                        <a href="{{ route('rooms.landing') }}" onclick="window.close(); setTimeout(() => { if (!window.closed) { window.location.href = this.href; } }, 100); return false;" class="hidden items-center rounded-full border border-[#5a431f] bg-[#141416]/95 px-4 py-2 text-sm font-medium text-[#f2dfb5] hover:bg-[#191511] sm:inline-flex">
                             Back to Storybox
                         </a>
                         

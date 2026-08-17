@@ -18,17 +18,26 @@
             <div class="flex">
                 <div class="flex shrink-0 items-center">
                     <a
-                        href="{{ route('rooms.landing') }}"
+                        href="{{ route('rooms.mobile-characters') }}"
                         aria-label="Storybox chat home"
                         title="Storybox"
-                        class="group inline-flex items-center gap-3 rounded-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        class="group inline-flex items-center gap-3 rounded-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50 sm:hidden"
                     >
                         <img
                             src="{{ asset('images/storybox-icon.png') }}"
                             alt="Storybox"
                             class="block h-10 w-auto object-contain"
                         >
-                        <span class="hidden text-lg font-semibold tracking-[0.18em] text-[#f2dfb5] sm:inline">StoryBox</span>
+                        <span class="text-lg font-semibold tracking-[0.18em] text-[#f2dfb5]">StoryBox</span>
+                    </a>
+                    <a
+                        href="{{ route('rooms.landing') }}"
+                        aria-label="Storybox chat home"
+                        title="Storybox"
+                        class="group hidden items-center gap-3 rounded-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50 sm:inline-flex"
+                    >
+                        <img src="{{ asset('images/storybox-icon.png') }}" alt="Storybox" class="block h-10 w-auto object-contain">
+                        <span class="text-lg font-semibold tracking-[0.18em] text-[#f2dfb5]">StoryBox</span>
                     </a>
                 </div>
 

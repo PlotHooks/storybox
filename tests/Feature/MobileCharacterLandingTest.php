@@ -22,6 +22,19 @@ class MobileCharacterLandingTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
+    public function test_shared_navigation_has_responsive_mobile_and_desktop_chat_entry_links(): void
+    {
+        [$user] = $this->createUserWithCharacter('Navigator');
+
+        $this->actingAs($user)
+            ->get(route('rooms.landing'))
+            ->assertOk()
+            ->assertSee('href="'.route('rooms.mobile-characters').'"', false)
+            ->assertSee('sm:hidden', false)
+            ->assertSee('href="'.route('rooms.landing').'"', false)
+            ->assertSee('sm:inline-flex', false);
+    }
+
     public function test_it_shows_each_active_character_independently_and_excludes_inactive_characters(): void
     {
         [$user, $firstCharacter] = $this->createUserWithCharacter('First');
@@ -84,6 +97,7 @@ class MobileCharacterLandingTest extends TestCase
         $this->actingAs($user)
             ->get(route('rooms.mobile-characters'))
             ->assertOk()
+            ->assertSee('href="'.route('rooms.mobile-characters').'"', false)
             ->assertSee('Create Character')
             ->assertSee('Browse Rooms')
             ->assertSee('Site Rules')

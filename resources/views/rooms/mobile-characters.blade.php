@@ -10,7 +10,7 @@
 <body class="min-h-[100dvh] bg-[#050505] font-sans text-[#d6c8ad] antialiased">
     <main class="mx-auto min-h-[100dvh] max-w-lg px-5 pb-10 pt-8">
         <header class="mb-8">
-            <a href="{{ route('rooms.landing') }}" class="inline-flex items-center gap-3 rounded-sm focus:outline-none focus:ring-2 focus:ring-purple-400/60">
+            <a href="{{ route('rooms.mobile-characters') }}" class="inline-flex items-center gap-3 rounded-sm focus:outline-none focus:ring-2 focus:ring-purple-400/60">
                 <img src="{{ asset('images/storybox-icon.png') }}" alt="Storybox" class="h-11 w-auto object-contain">
                 <span class="text-lg font-semibold tracking-[0.18em] text-[#f2dfb5]">StoryBox</span>
             </a>
