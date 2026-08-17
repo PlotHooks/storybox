@@ -9,10 +9,11 @@
     $dmButtonClasses = $dmActive
         ? $globalHeaderNavButtonBaseClasses . ' font-semibold text-[#efe0b6]'
         : $globalHeaderNavButtonBaseClasses . ' font-medium text-[#8f8675]';
+    $hideOnMobileRoomPage = request()->routeIs('rooms.show');
     $siteContentButtonClasses = $globalHeaderNavButtonBaseClasses . ' font-medium text-[#8f8675]';
 @endphp
 
-<nav x-data="{ open: false }" class="border-b border-[#2a241a] bg-[#0b0b0c]">
+<nav x-data="{ open: false }" class="border-b border-[#2a241a] bg-[#0b0b0c] {{ $hideOnMobileRoomPage ? 'hidden sm:block' : '' }}">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 justify-between">
             <div class="flex">

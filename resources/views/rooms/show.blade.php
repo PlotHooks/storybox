@@ -1,5 +1,8 @@
 {{-- resources/views/rooms/show.blade.php --}}
 <x-app-layout>
+    @php
+        $mobileActiveCharacter = Auth::user()->characters->firstWhere('id', (int) $activeCharacterId);
+    @endphp
 
     <style>
         .msg-rich-underline {
@@ -24,11 +27,11 @@
     </style>
 
 
-    <div class="box-border h-[calc(100dvh-6.5rem)] sm:h-[calc(100dvh-4rem)] min-h-0 overflow-hidden py-4 bg-[#070707]">
-        <div class="max-w-none w-full mx-auto h-full min-h-0 overflow-hidden flex flex-col lg:flex-row gap-3 px-2 md:px-4">
+    <div class="box-border h-[100dvh] min-h-0 overflow-hidden bg-[#070707] py-0 sm:h-[calc(100dvh-4rem)] sm:py-4">
+        <div class="mx-auto flex h-full min-h-0 w-full flex-col gap-0 overflow-hidden px-0 sm:gap-3 sm:px-2 md:px-4 lg:flex-row">
 
             {{-- LEFT COLUMN --}}
-            <div id="left-panel" class="w-full lg:w-72 min-h-0 bg-[#0b0b0c] text-[#d6c8ad] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden">
+            <div id="left-panel" class="hidden w-full min-h-0 flex-col overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] text-[#d6c8ad] shadow-2xl sm:flex lg:w-72">
                 <div class="px-4 py-3 border-b border-[#2a241a] bg-[#101012]">
                     <div class="flex items-center justify-between gap-3">
                         <div>
@@ -383,10 +386,29 @@
             </div>
 
             {{-- CENTER --}}
-            <div class="flex-1 min-h-0 bg-[#0b0b0c] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden ring-1 ring-amber-500/10">
+            <div class="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-y border-[#2a241a] bg-[#0b0b0c] shadow-2xl ring-1 ring-amber-500/10 sm:w-auto sm:rounded-md sm:border">
+
+                <header data-mobile-room-header class="flex shrink-0 items-center gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 sm:hidden">
+                    <button type="button" data-open-characters-panel class="flex min-w-0 items-center gap-2 rounded focus:outline-none focus:ring-2 focus:ring-amber-500/50">
+                        @if ($mobileActiveCharacter?->externalAvatarUrl())
+                            <img src="{{ $mobileActiveCharacter->externalAvatarUrl() }}" alt="" class="h-9 w-9 shrink-0 rounded-full object-cover">
+                        @else
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#332817] bg-[#0b0b0c] text-sm font-semibold text-[#d6c8ad]">{{ strtoupper(substr($mobileActiveCharacter?->name ?? '?', 0, 1)) }}</span>
+                        @endif
+                        <span class="min-w-0 truncate text-sm font-semibold text-[#f2dfb5]">{{ $mobileActiveCharacter?->name ?? 'Choose character' }}</span>
+                    </button>
+                    <div class="min-w-0 flex-1 border-l border-[#2a241a] pl-3">
+                        <span class="block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-400">Room</span>
+                        <span class="block truncate text-sm font-semibold text-[#f2dfb5]">{{ $room->name }}</span>
+                    </div>
+                    <button type="button" data-global-dm-button onclick="window.dispatchEvent(new CustomEvent('open-dm-window'))" class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[#332817] bg-[#0b0b0c] text-xs text-[#d6c8ad] focus:outline-none focus:ring-2 focus:ring-amber-500/50" aria-label="Direct messages">
+                        DMs
+                        <span data-global-dm-unread-badge class="hidden absolute -right-2 -top-2 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">0</span>
+                    </button>
+                </header>
 
                 {{-- Top bar --}}
-                <div class="shrink-0 flex flex-col gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div class="hidden shrink-0 flex-col gap-3 border-b border-[#2a241a] bg-[#101012] px-4 py-3 sm:flex md:flex-row md:items-center md:justify-between">
                     <div class="min-w-0">
                         @if (! empty($characterSelectionNotice))
                             <div class="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
@@ -633,7 +655,7 @@
                 </div>
 
                 {{-- Send --}}
-                <div class="shrink-0 border-t border-[#2a241a] bg-[#101012] p-3">
+                <div data-mobile-composer class="shrink-0 border-t border-[#2a241a] bg-[#101012] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-3">
                     @php
                         $canPostInRoom = (int) ($activeCharacterId ?? 0) > 0;
                     @endphp
@@ -684,7 +706,7 @@
                             placeholder="You are posting as {{ optional($characters->firstWhere('id', $activeCharacterId))->name ?? 'a character' }}&#10;Enter to send. Shift + Enter for a new line."
                             @disabled(! $canPostInRoom)
                             aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
-                            class="mt-1 block w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            class="mt-1 block min-h-24 w-full resize-none rounded-md border-[#332817] bg-[#0b0b0c] text-base text-[#d6c8ad] placeholder:text-[#6f675a] shadow-inner focus:border-amber-500 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >{{ old('body') }}</textarea>
 
                         <div class="mt-2 flex items-center justify-between gap-3">
@@ -711,7 +733,7 @@
                                 type="submit"
                                 @disabled(! $canPostInRoom)
                                 aria-disabled="{{ $canPostInRoom ? 'false' : 'true' }}"
-                                class="shrink-0 inline-flex items-center rounded-md border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012] disabled:cursor-not-allowed disabled:opacity-60"
+                                class="inline-flex min-h-11 shrink-0 items-center rounded-md border border-amber-400 bg-amber-500 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#120b02] hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#101012] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 Send
                             </button>
@@ -722,7 +744,7 @@
             </div>
 
             {{-- RIGHT --}}
-            <div id="right-panel" class="w-full lg:w-80 min-h-0 bg-[#0b0b0c] text-[#d6c8ad] rounded-md shadow-2xl flex flex-col border border-[#2a241a] overflow-hidden">
+            <div id="right-panel" class="hidden w-full min-h-0 flex-col overflow-hidden rounded-md border border-[#2a241a] bg-[#0b0b0c] text-[#d6c8ad] shadow-2xl sm:flex lg:w-80">
 
                 <div class="border-b border-[#2a241a] bg-[#101012] px-3 py-3">
                     <div class="mb-2">
